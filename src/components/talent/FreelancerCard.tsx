@@ -31,11 +31,12 @@ export function FreelancerCard({
   return (
     <div
       className={cn(
-        "glass-card-hover flex flex-col p-6",
+        "glass-card-hover flex flex-col p-6 cursor-pointer",
         className
       )}
+      onClick={onClick}
     >
-      <div className="flex items-start gap-4" onClick={onClick}>
+      <div className="flex items-start gap-4">
         <Avatar className="h-14 w-14 border-2 border-primary/30">
           <AvatarImage src={avatar} alt={name} />
           <AvatarFallback className="bg-primary/20 text-primary text-lg">

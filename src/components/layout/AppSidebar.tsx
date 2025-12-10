@@ -1,4 +1,4 @@
-import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut } from "lucide-react";
+import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -137,6 +137,12 @@ export function TopBar() {
               <p className="text-xs text-primary capitalize mt-1">{user?.userType}</p>
             </div>
             <DropdownMenuSeparator />
+            {user?.userType === 'talent' && (
+              <DropdownMenuItem onClick={() => navigate('/profile/edit')}>
+                <User className="mr-2 h-4 w-4" />
+                My Profile
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => navigate('/settings')}>
               <Settings className="mr-2 h-4 w-4" />
               Settings

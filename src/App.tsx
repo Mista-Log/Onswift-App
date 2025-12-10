@@ -23,6 +23,8 @@ import ProjectBoard from "./pages/ProjectBoard";
 import TaskDetails from "./pages/TaskDetails";
 import Settings from "./pages/Settings";
 import Calendar from "./pages/Calendar";
+import TalentProfileEdit from "./pages/TalentProfileEdit";
+import TalentPublicProfile from "./pages/TalentPublicProfile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -52,6 +54,8 @@ const App = () => (
             <Route path="/projects/:projectId/tasks/:taskId" element={<ProtectedRoute><TaskDetails /></ProtectedRoute>} />
             <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/profile/edit" element={<ProtectedRoute><TalentProfileEdit /></ProtectedRoute>} />
+            <Route path="/talent/:userId" element={<ProtectedRoute><TalentPublicProfile /></ProtectedRoute>} />
             
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
