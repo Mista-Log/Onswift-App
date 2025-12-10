@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { FreelancerCard } from "@/components/talent/FreelancerCard";
 import { Input } from "@/components/ui/input";
@@ -69,6 +70,7 @@ const freelancers = [
 ];
 
 export default function Talent() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [experienceFilter, setExperienceFilter] = useState("");
 
@@ -132,6 +134,7 @@ export default function Talent() {
               key={freelancer.id}
               {...freelancer}
               onHire={() => handleHire(freelancer.name)}
+              onClick={() => navigate(`/talent/${freelancer.id}`)}
             />
           ))}
         </div>
