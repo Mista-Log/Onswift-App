@@ -4,6 +4,7 @@ import { TeamMemberCard } from "@/components/dashboard/TeamMemberCard";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Mock data
 const projects = [
@@ -53,13 +54,15 @@ const stats = [
 ];
 
 export default function Dashboard() {
+  const { user } = useAuth();
+  
   return (
     <MainLayout>
       <div className="animate-fade-in space-y-8">
         {/* Welcome Header */}
         <div>
           <h1 className="text-3xl font-bold text-foreground">
-            Welcome back, Alex!
+            Welcome back, {user?.name?.split(' ')[0] || 'there'}!
           </h1>
         </div>
 
