@@ -7,7 +7,7 @@ import { ProfileCompletionBanner } from "@/components/talent/ProfileCompletionBa
 import { ProfileStrengthCard } from "@/components/talent/ProfileStrengthCard";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Folder, CheckSquare, DollarSign, Star, Trophy, Target, Calendar } from "lucide-react";
+import { Folder, CheckSquare, Clock, Star, Trophy, Target, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { useProjects } from "@/contexts/ProjectContext";
@@ -91,11 +91,11 @@ export default function DashboardTalent() {
             colorClass="text-warning"
           />
           <TalentStatCard
-            title="Earnings This Month"
-            value="$2,450"
-            icon={DollarSign}
-            trend={{ value: "$250 from last month", positive: true }}
-            colorClass="text-success"
+            title="Hours This Week"
+            value="24"
+            icon={Clock}
+            trend={{ value: "4 hours from last week", positive: true }}
+            colorClass="text-info"
           />
           <TalentStatCard
             title="Client Rating"

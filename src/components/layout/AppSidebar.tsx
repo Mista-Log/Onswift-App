@@ -1,4 +1,4 @@
-import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, Upload } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -24,6 +24,8 @@ const talentNavItems = [
   { label: "Dashboard", icon: LayoutGrid, route: "/dashboard" },
   { label: "My Profile", icon: User, route: "/profile/edit" },
   { label: "My Projects", icon: FolderKanban, route: "/projects" },
+  { label: "Deliverables", icon: Upload, route: "/deliverables" },
+  { label: "Messages", icon: MessageCircle, route: "/messages" },
   { label: "Calendar", icon: Calendar, route: "/calendar" },
 ];
 

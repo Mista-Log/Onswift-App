@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 const taskData = {
   id: "1",
@@ -63,6 +64,8 @@ const initialDeliverables: Deliverable[] = [
 export default function TaskDetails() {
   const { projectId, taskId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isTalent = user?.userType === 'talent';
   const [deliverables, setDeliverables] = useState<Deliverable[]>(initialDeliverables);
   const [isRevisionDialogOpen, setIsRevisionDialogOpen] = useState(false);
   const [selectedDeliverableId, setSelectedDeliverableId] = useState<string | null>(null);
@@ -139,45 +142,49 @@ export default function TaskDetails() {
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Upload Section */}
-          <section className="glass-card p-6">
-            <h2 className="mb-4 text-lg font-semibold text-foreground">Submit Deliverable</h2>
+        <div className={cn("grid gap-6", isTalent ? "lg:grid-cols-1" : "lg:grid-cols-2")}>
+          {/* Upload Section - Talent Only */}
+          {isTalent && (
+            <section className="glass-card p-6">
+              <h2 className="mb-4 text-lg font-semibold text-foreground">Submit Deliverable</h2>
 
-            <div className="mb-4 rounded-xl border-2 border-dashed border-border/50 p-8 text-center transition-colors hover:border-primary/50">
-              <Upload className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-              <p className="text-foreground">Drag and drop files here</p>
-              <p className="mt-1 text-sm text-muted-foreground">or click to browse</p>
-              <Button variant="outline" className="mt-4">
-                Choose File
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="h-px flex-1 bg-border/50" />
-              <span className="text-sm text-muted-foreground">or</span>
-              <div className="h-px flex-1 bg-border/50" />
-            </div>
-
-            <div className="mt-4 space-y-3">
-              <Label htmlFor="linkInput">Submit a link</Label>
-              <div className="flex gap-3">
-                <div className="relative flex-1">
-                  <LinkIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="linkInput"
-                    placeholder="https://..."
-                    className="pl-10"
-                  />
-                </div>
-                <Button>Submit</Button>
+              <div className="mb-4 rounded-xl border-2 border-dashed border-border/50 p-8 text-center transition-colors hover:border-primary/50">
+                <Upload className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+                <p className="text-foreground">Drag and drop files here</p>
+                <p className="mt-1 text-sm text-muted-foreground">or click to browse</p>
+                <Button variant="outline" className="mt-4">
+                  Choose File
+                </Button>
               </div>
-            </div>
-          </section>
+
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-border/50" />
+                <span className="text-sm text-muted-foreground">or</span>
+                <div className="h-px flex-1 bg-border/50" />
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <Label htmlFor="linkInput">Submit a link</Label>
+                <div className="flex gap-3">
+                  <div className="relative flex-1">
+                    <LinkIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="linkInput"
+                      placeholder="https://..."
+                      className="pl-10"
+                    />
+                  </div>
+                  <Button>Submit</Button>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Deliverables List */}
-          <section className="glass-card p-6">
-            <h2 className="mb-4 text-lg font-semibold text-foreground">Submitted Deliverables</h2>
+          <section className={cn("glass-card p-6", !isTalent && "lg:col-span-2")}>
+            <h2 className="mb-4 text-lg font-semibold text-foreground">
+              {isTalent ? "My Submissions" : "Submitted Deliverables"}
+            </h2>
 
             <div className="space-y-4">
               {deliverables.map((deliverable) => (
@@ -219,8 +226,8 @@ export default function TaskDetails() {
                     <StatusBadge status={deliverable.status} />
                   </div>
 
-                  {/* Review Controls */}
-                  {deliverable.status !== "approved" && (
+                  {/* Review Controls - Creator Only */}
+                  {!isTalent && deliverable.status !== "approved" && (
                     <div className="mt-4 flex gap-3">
                       <Button
                         variant="success"

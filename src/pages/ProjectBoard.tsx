@@ -4,7 +4,8 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Plus, Calendar } from "lucide-react";
+import { ArrowLeft, Plus, Calendar, Upload, Link as LinkIcon, FileText, X } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -85,11 +86,34 @@ const initialTasks = [
 
 type TaskStatus = "planning" | "in-progress" | "completed";
 
+interface ProjectSample {
+  id: string;
+  name: string;
+  type: "file" | "link";
+  url?: string;
+  description?: string;
+}
+
+const initialSamples: ProjectSample[] = [
+  { id: "1", name: "Reference Design 1", type: "link", url: "https://example.com/ref1", description: "Similar style to what we want" },
+  { id: "2", name: "Brand Guidelines.pdf", type: "file", description: "Our brand colors and fonts" },
+];
+
 export default function ProjectBoard() {
   const { projectId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isTalent = user?.userType === 'talent';
   const [tasks, setTasks] = useState(initialTasks);
+  const [samples, setSamples] = useState<ProjectSample[]>(initialSamples);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSampleDialogOpen, setIsSampleDialogOpen] = useState(false);
+  const [sampleFormData, setSampleFormData] = useState({
+    name: "",
+    type: "file" as "file" | "link",
+    url: "",
+    description: "",
+  });
 
   const updateTaskStatus = (taskId: string, newStatus: TaskStatus) => {
     setTasks(tasks.map(task => 
@@ -101,6 +125,35 @@ export default function ProjectBoard() {
   const handleCreateTask = () => {
     toast.success("Task created successfully!");
     setIsDialogOpen(false);
+  };
+
+  const handleAddSample = () => {
+    if (!sampleFormData.name.trim()) {
+      toast.error("Please provide a name for the sample");
+      return;
+    }
+    if (sampleFormData.type === "link" && !sampleFormData.url.trim()) {
+      toast.error("Please provide a URL for the link");
+      return;
+    }
+
+    const newSample: ProjectSample = {
+      id: Date.now().toString(),
+      name: sampleFormData.name,
+      type: sampleFormData.type,
+      url: sampleFormData.url || undefined,
+      description: sampleFormData.description || undefined,
+    };
+
+    setSamples([...samples, newSample]);
+    toast.success("Sample added successfully!");
+    setSampleFormData({ name: "", type: "file", url: "", description: "" });
+    setIsSampleDialogOpen(false);
+  };
+
+  const handleDeleteSample = (sampleId: string) => {
+    setSamples(samples.filter(s => s.id !== sampleId));
+    toast.success("Sample removed");
   };
 
   return (
@@ -189,6 +242,131 @@ export default function ProjectBoard() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Project Samples - Creator Only */}
+        {!isTalent && (
+          <div className="glass-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Project Samples & References</h2>
+                <p className="text-sm text-muted-foreground">Add reference materials for your team to follow</p>
+              </div>
+              <Dialog open={isSampleDialogOpen} onOpenChange={setIsSampleDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add Sample
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="glass-card border-border/50 sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Add Project Sample</DialogTitle>
+                    <DialogDescription>
+                      Add a reference file or link for your team to follow
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="sampleName">Sample Name</Label>
+                      <Input
+                        id="sampleName"
+                        placeholder="e.g., Reference Design"
+                        value={sampleFormData.name}
+                        onChange={(e) => setSampleFormData({ ...sampleFormData, name: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Type</Label>
+                      <Select
+                        value={sampleFormData.type}
+                        onValueChange={(value: "file" | "link") => setSampleFormData({ ...sampleFormData, type: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="file">File Upload</SelectItem>
+                          <SelectItem value="link">Link/URL</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {sampleFormData.type === "link" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="sampleUrl">URL</Label>
+                        <Input
+                          id="sampleUrl"
+                          placeholder="https://..."
+                          value={sampleFormData.url}
+                          onChange={(e) => setSampleFormData({ ...sampleFormData, url: e.target.value })}
+                        />
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <Label htmlFor="sampleDescription">Description (Optional)</Label>
+                      <Textarea
+                        id="sampleDescription"
+                        placeholder="Why is this sample important?"
+                        value={sampleFormData.description}
+                        onChange={(e) => setSampleFormData({ ...sampleFormData, description: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3">
+                    <Button variant="outline" onClick={() => setIsSampleDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddSample}>Add Sample</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {samples.map((sample) => (
+                <div key={sample.id} className="rounded-lg border border-border/50 bg-secondary/30 p-4 hover:bg-secondary/50 transition-colors">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      {sample.type === "link" ? (
+                        <LinkIcon className="h-4 w-4 text-primary" />
+                      ) : (
+                        <FileText className="h-4 w-4 text-primary" />
+                      )}
+                      <p className="font-medium text-foreground">{sample.name}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => handleDeleteSample(sample.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {sample.description && (
+                    <p className="text-sm text-muted-foreground mb-2">{sample.description}</p>
+                  )}
+                  {sample.url && (
+                    <a
+                      href={sample.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary hover:underline truncate block"
+                    >
+                      {sample.url}
+                    </a>
+                  )}
+                </div>
+              ))}
+              {samples.length === 0 && (
+                <div className="col-span-full text-center py-8 text-muted-foreground">
+                  <Upload className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No samples added yet</p>
+                  <p className="text-sm">Add reference materials to help guide your team</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Task Table */}
         <div className="glass-card overflow-hidden">

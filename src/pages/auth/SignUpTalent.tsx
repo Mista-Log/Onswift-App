@@ -26,12 +26,14 @@ export default function SignUpTalent() {
     email: '',
     professionalTitle: '',
     skills: [] as string[],
+    primarySkill: '',
     password: '',
     confirmPassword: '',
     termsAgreed: false,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showSkillDropdown, setShowSkillDropdown] = useState(false);
+  const [customSkillInput, setCustomSkillInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -41,17 +43,18 @@ export default function SignUpTalent() {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    
+
     if (!formData.name.trim()) newErrors.name = 'Name is required';
     if (!formData.email.trim()) newErrors.email = 'Email is required';
     else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Invalid email format';
     if (!formData.professionalTitle.trim()) newErrors.professionalTitle = 'Professional title is required';
+    if (!formData.primarySkill.trim()) newErrors.primarySkill = 'Primary skill is required';
     if (formData.skills.length === 0) newErrors.skills = 'Select at least one skill';
     if (!formData.password) newErrors.password = 'Password is required';
     else if (formData.password.length < 8) newErrors.password = 'Password must be at least 8 characters';
     if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
     if (!formData.termsAgreed) newErrors.terms = 'You must agree to the terms';
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -82,18 +85,19 @@ export default function SignUpTalent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
-    
+
     setIsLoading(true);
     const result = await signup({
       name: formData.name,
       email: formData.email,
       professionalTitle: formData.professionalTitle,
+      primarySkill: formData.primarySkill,
       skills: formData.skills,
       userType: 'talent',
       password: formData.password,
     });
     setIsLoading(false);
-    
+
     if (result.success) {
       toast({ title: 'Account created!', description: 'Welcome to OnSwift.' });
       navigate('/dashboard');
@@ -178,9 +182,92 @@ export default function SignUpTalent() {
 
             <div>
               <label className="text-sm font-medium text-foreground mb-2 block">
-                Primary Skills <span className="text-muted-foreground">(Select up to 5)</span>
+                Primary Skill
               </label>
-              
+
+              {/* Display Selected Skill */}
+              {formData.primarySkill && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30">
+                    {formData.primarySkill}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({ ...formData, primarySkill: '' });
+                        setCustomSkillInput('');
+                      }}
+                      className="ml-1"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                </div>
+              )}
+
+              {/* Skill Selector */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowSkillDropdown(!showSkillDropdown)}
+                  className="w-full px-3 py-2 text-left bg-secondary/50 border border-border rounded-lg text-muted-foreground hover:border-primary/50 transition-colors"
+                  disabled={!!formData.primarySkill}
+                >
+                  {formData.primarySkill || 'Select your primary skill'}
+                </button>
+
+                {showSkillDropdown && !formData.primarySkill && (
+                  <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {SKILL_OPTIONS.map(skill => (
+                      <button
+                        key={skill}
+                        type="button"
+                        onClick={() => {
+                          setFormData({ ...formData, primarySkill: skill });
+                          setShowSkillDropdown(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-secondary/50 transition-colors text-foreground"
+                      >
+                        {skill}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Custom Skill Input */}
+              {!formData.primarySkill && (
+                <div className="mt-2">
+                  <p className="text-xs text-muted-foreground mb-2">Or type your own:</p>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Enter custom skill"
+                      value={customSkillInput}
+                      onChange={(e) => setCustomSkillInput(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        if (customSkillInput.trim()) {
+                          setFormData({ ...formData, primarySkill: customSkillInput.trim() });
+                          setCustomSkillInput('');
+                        }
+                      }}
+                      disabled={!customSkillInput.trim()}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {errors.primarySkill && <p className="text-destructive text-sm mt-1">{errors.primarySkill}</p>}
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-foreground mb-2 block">
+                Additional Skills <span className="text-muted-foreground">(Select up to 5)</span>
+              </label>
+
               {/* Selected Skills */}
               {formData.skills.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
@@ -194,34 +281,28 @@ export default function SignUpTalent() {
                   ))}
                 </div>
               )}
-              
-              {/* Skill Selector */}
+
+              {/* Skill Selector Dropdown */}
               <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowSkillDropdown(!showSkillDropdown)}
-                  className="w-full px-3 py-2 text-left bg-secondary/50 border border-border rounded-lg text-muted-foreground hover:border-primary/50 transition-colors"
+                <select
+                  className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-foreground hover:border-primary/50 transition-colors"
+                  onChange={(e) => {
+                    if (e.target.value && formData.skills.length < 5) {
+                      toggleSkill(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                  disabled={formData.skills.length >= 5}
                 >
-                  {formData.skills.length === 0 ? 'Select your skills' : `${formData.skills.length}/5 skills selected`}
-                </button>
-                
-                {showSkillDropdown && (
-                  <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                    {SKILL_OPTIONS.map(skill => (
-                      <button
-                        key={skill}
-                        type="button"
-                        onClick={() => toggleSkill(skill)}
-                        disabled={!formData.skills.includes(skill) && formData.skills.length >= 5}
-                        className={`w-full px-3 py-2 text-left text-sm hover:bg-secondary/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                          formData.skills.includes(skill) ? 'bg-primary/20 text-primary' : 'text-foreground'
-                        }`}
-                      >
-                        {skill}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                  <option value="">
+                    {formData.skills.length >= 5 ? '5/5 skills selected' : 'Select additional skills'}
+                  </option>
+                  {SKILL_OPTIONS.filter(skill => !formData.skills.includes(skill) && skill !== formData.primarySkill).map(skill => (
+                    <option key={skill} value={skill}>
+                      {skill}
+                    </option>
+                  ))}
+                </select>
               </div>
               {errors.skills && <p className="text-destructive text-sm mt-1">{errors.skills}</p>}
             </div>

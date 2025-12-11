@@ -27,6 +27,8 @@ import Calendar from "./pages/Calendar";
 import TalentProfileEdit from "./pages/TalentProfileEdit";
 import CreatorProfileEdit from "./pages/CreatorProfileEdit";
 import TalentPublicProfile from "./pages/TalentPublicProfile";
+import Messages from "./pages/Messages";
+import Deliverables from "./pages/Deliverables";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +61,8 @@ const App = () => (
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/profile/edit" element={<ProtectedRoute><TalentProfileEdit /></ProtectedRoute>} />
               <Route path="/profile/creator/edit" element={<ProtectedRoute><CreatorProfileEdit /></ProtectedRoute>} />
+              <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+              <Route path="/deliverables" element={<ProtectedRoute><Deliverables /></ProtectedRoute>} />
               <Route path="/talent/:userId" element={<ProtectedRoute><TalentPublicProfile /></ProtectedRoute>} />
 
               {/* Catch-all */}
