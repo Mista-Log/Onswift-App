@@ -1,4 +1,4 @@
-import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User } from "lucide-react";
+import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,11 +12,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const navItems = [
+const creatorNavItems = [
   { label: "Dashboard", icon: LayoutGrid, route: "/dashboard" },
-  { label: "Talent", icon: Users, route: "/talent" },
+  { label: "Browse Talent", icon: Users, route: "/talent" },
   { label: "My Team", icon: UsersRound, route: "/team" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
+  { label: "Calendar", icon: Calendar, route: "/calendar" },
+];
+
+const talentNavItems = [
+  { label: "Dashboard", icon: LayoutGrid, route: "/dashboard" },
+  { label: "My Profile", icon: User, route: "/profile/edit" },
+  { label: "My Projects", icon: FolderKanban, route: "/projects" },
   { label: "Calendar", icon: Calendar, route: "/calendar" },
 ];
 
@@ -24,67 +31,113 @@ const bottomNavItems = [
   { label: "Settings", icon: Settings, route: "/settings" },
 ];
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  isCollapsed?: boolean;
+  onClose?: () => void;
+}
+
+export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
   const location = useLocation();
+  const { user } = useAuth();
+
+  const navItems = user?.userType === 'talent' ? talentNavItems : creatorNavItems;
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-20 flex-col items-center border-r border-sidebar-border bg-sidebar py-6">
+    <aside
+      className={cn(
+        "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-sidebar-border bg-sidebar py-6 transition-all duration-300",
+        isCollapsed ? "w-20 items-center" : "w-64 px-4"
+      )}
+    >
+      {/* Close button for mobile */}
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 md:hidden p-2 rounded-lg hover:bg-sidebar-accent text-muted-foreground hover:text-foreground"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      )}
+
       {/* Logo */}
-      <div className="mb-8">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg shadow-glow">
-          O
-        </div>
+      <div className={cn("mb-8", isCollapsed ? "px-0" : "px-2")}>
+        {isCollapsed ? (
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg shadow-glow">
+            O
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold shadow-glow">
+              O
+            </div>
+            <span className="text-xl font-bold text-foreground">
+              On<span className="text-primary">Swift</span>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex flex-1 flex-col items-center gap-2">
+      <nav className={cn("flex flex-1 flex-col gap-2", isCollapsed ? "items-center" : "")}>
         {navItems.map((item) => {
-          const isActive = location.pathname === item.route || 
+          const isActive = location.pathname === item.route ||
             (item.route !== "/dashboard" && location.pathname.startsWith(item.route));
-          
+
           return (
             <NavLink
               key={item.route}
               to={item.route}
               className={cn(
-                "group relative flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-300",
+                "group relative flex items-center gap-3 rounded-xl transition-all duration-300",
+                isCollapsed ? "h-12 w-12 justify-center" : "h-12 px-4",
                 isActive
                   ? "bg-primary text-primary-foreground shadow-glow"
                   : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
               )}
             >
-              <item.icon className="h-5 w-5" />
-              
-              {/* Tooltip */}
-              <span className="absolute left-full ml-3 hidden rounded-lg bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground shadow-lg group-hover:block">
-                {item.label}
-              </span>
+              <item.icon className="h-5 w-5 flex-shrink-0" />
+              {!isCollapsed && (
+                <span className="font-medium">{item.label}</span>
+              )}
+
+              {/* Tooltip for collapsed state */}
+              {isCollapsed && (
+                <span className="absolute left-full ml-3 hidden rounded-lg bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground shadow-lg group-hover:block whitespace-nowrap">
+                  {item.label}
+                </span>
+              )}
             </NavLink>
           );
         })}
       </nav>
 
       {/* Bottom Navigation */}
-      <nav className="flex flex-col items-center gap-2">
+      <nav className={cn("flex flex-col gap-2", isCollapsed ? "items-center" : "")}>
         {bottomNavItems.map((item) => {
           const isActive = location.pathname === item.route;
-          
+
           return (
             <NavLink
               key={item.route}
               to={item.route}
               className={cn(
-                "group relative flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-300",
+                "group relative flex items-center gap-3 rounded-xl transition-all duration-300",
+                isCollapsed ? "h-12 w-12 justify-center" : "h-12 px-4",
                 isActive
                   ? "bg-primary text-primary-foreground shadow-glow"
                   : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
               )}
             >
-              <item.icon className="h-5 w-5" />
-              
-              <span className="absolute left-full ml-3 hidden rounded-lg bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground shadow-lg group-hover:block">
-                {item.label}
-              </span>
+              <item.icon className="h-5 w-5 flex-shrink-0" />
+              {!isCollapsed && (
+                <span className="font-medium">{item.label}</span>
+              )}
+
+              {isCollapsed && (
+                <span className="absolute left-full ml-3 hidden rounded-lg bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground shadow-lg group-hover:block whitespace-nowrap">
+                  {item.label}
+                </span>
+              )}
             </NavLink>
           );
         })}
@@ -93,7 +146,13 @@ export function AppSidebar() {
   );
 }
 
-export function TopBar() {
+interface TopBarProps {
+  onToggleSidebar?: () => void;
+  onToggleMobileSidebar?: () => void;
+  isCollapsed?: boolean;
+}
+
+export function TopBar({ onToggleSidebar, onToggleMobileSidebar, isCollapsed }: TopBarProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -103,31 +162,56 @@ export function TopBar() {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/50 bg-background/80 px-6 backdrop-blur-xl">
-      {/* Search */}
-      <div className="relative w-full max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search projects, team..."
-          className="h-10 w-full rounded-full border-border/50 bg-secondary/50 pl-10 text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-primary"
-        />
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/50 bg-background/80 px-4 md:px-6 backdrop-blur-xl">
+      <div className="flex items-center gap-4 flex-1">
+        {/* Mobile Menu Button */}
+        <button
+          onClick={onToggleMobileSidebar}
+          className="md:hidden p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+
+        {/* Desktop Toggle Button */}
+        <button
+          onClick={onToggleSidebar}
+          className="hidden md:flex p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {isCollapsed ? (
+            <ChevronRight className="h-5 w-5" />
+          ) : (
+            <ChevronLeft className="h-5 w-5" />
+          )}
+        </button>
+
+        {/* Search */}
+        <div className="relative w-full max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search projects, team..."
+            className="h-10 w-full rounded-full border-border/50 bg-secondary/50 pl-10 text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-primary"
+          />
+        </div>
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4">
         <button className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
           <Bell className="h-5 w-5" />
         </button>
-        
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-3 rounded-full pr-2 hover:bg-secondary/50 transition-colors">
+            <button className="flex items-center gap-2 md:gap-3 rounded-full pr-0 md:pr-2 hover:bg-secondary/50 transition-colors">
               <Avatar className="h-10 w-10 border-2 border-primary/30">
                 <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`} />
                 <AvatarFallback className="bg-primary/20 text-primary">
                   {user?.name?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
+              <span className="hidden lg:block text-sm font-medium text-foreground">
+                {user?.name?.split(' ')[0]}
+              </span>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">

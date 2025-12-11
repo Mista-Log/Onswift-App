@@ -69,6 +69,34 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+async function downloadFile(file: DeliverableFile) {
+  try {
+    const response = await fetch(file.url);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    toast.success(`Downloaded ${file.name}`);
+  } catch (error) {
+    toast.error(`Failed to download ${file.name}`);
+    console.error('Download error:', error);
+  }
+}
+
+async function downloadAllFiles(files: DeliverableFile[]) {
+  toast.info(`Downloading ${files.length} files...`);
+  for (const file of files) {
+    await downloadFile(file);
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  toast.success('All files downloaded!');
+}
+
 export function DeliverableDetailModal({
   deliverable,
   open,
@@ -207,7 +235,11 @@ export function DeliverableDetailModal({
                 Attachments ({deliverable.files.length})
               </h4>
               {deliverable.files.length > 0 && (
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadAllFiles(deliverable.files)}
+                >
                   <Download className="h-4 w-4 mr-2" />
                   Download All
                 </Button>
@@ -243,7 +275,11 @@ export function DeliverableDetailModal({
                         {formatFileSize(file.size)}
                       </p>
                     </div>
-                    <Button variant="ghost" size="icon">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => downloadFile(file)}
+                    >
                       <Download className="h-4 w-4" />
                     </Button>
                   </div>

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,8 @@ import { cn } from "@/lib/utils";
 import { DeliverableCard, Deliverable } from "@/components/team/DeliverableCard";
 import { UploadDeliverableModal, DeliverableFormData } from "@/components/team/UploadDeliverableModal";
 import { DeliverableDetailModal } from "@/components/team/DeliverableDetailModal";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const teamMembers = [
   {
@@ -124,6 +127,8 @@ const mockDeliverables: Deliverable[] = [
 ];
 
 export default function Team() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [selectedMember, setSelectedMember] = useState(teamMembers[0]);
   const [message, setMessage] = useState("");
   const [activeTab, setActiveTab] = useState("members");
@@ -132,6 +137,14 @@ export default function Team() {
   const [deliverables, setDeliverables] = useState(mockDeliverables);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  // Redirect talent users to dashboard
+  useEffect(() => {
+    if (user?.userType === 'talent') {
+      toast.error("This page is only accessible to creators");
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   const handleSendMessage = () => {
     if (message.trim()) {

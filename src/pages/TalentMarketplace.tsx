@@ -69,7 +69,7 @@ const freelancers = [
   },
 ];
 
-export default function Talent() {
+export default function TalentMarketplace() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [experienceFilter, setExperienceFilter] = useState("");
