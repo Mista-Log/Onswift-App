@@ -1,0 +1,97 @@
+from rest_framework import serializers
+from django.contrib.auth import authenticate
+from .models import User, TalentProfile, CreatorProfile
+
+
+class SignupSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, min_length=8)
+
+    # Talent fields (optional)
+    professional_title = serializers.CharField(required=False)
+    skills = serializers.ListField(child=serializers.CharField(), required=False)
+    primary_skill = serializers.CharField(required=False)
+    hourly_rate = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False
+    )
+
+    # Creator fields (optional)
+    company_name = serializers.CharField(required=False)
+    bio = serializers.CharField(required=False)
+    website = serializers.URLField(required=False)
+    industry = serializers.CharField(required=False)
+    location = serializers.CharField(required=False)
+
+    class Meta:
+        model = User
+        fields = (
+            "email",
+            "full_name",
+            "password",
+            "role",
+
+            # talent
+            "professional_title",
+            "skills",
+            "primary_skill",
+            "hourly_rate",
+
+            # creator
+            "company_name",
+            "bio",
+            "website",
+            "industry",
+            "location",
+        )
+
+    def create(self, validated_data):
+        role = validated_data.get("role")
+
+        talent_fields = {
+            "professional_title": validated_data.pop("professional_title", None),
+            "skills": validated_data.pop("skills", []),
+            "primary_skill": validated_data.pop("primary_skill", None),
+            "hourly_rate": validated_data.pop("hourly_rate", None),
+        }
+
+        creator_fields = {
+            "company_name": validated_data.pop("company_name", ""),
+            "bio": validated_data.pop("bio", ""),
+            "website": validated_data.pop("website", ""),
+            "industry": validated_data.pop("industry", ""),
+            "location": validated_data.pop("location", ""),
+        }
+
+        password = validated_data.pop("password")
+
+        user = User.objects.create_user(
+            password=password,
+            **validated_data
+        )
+
+        if role == "talent":
+            TalentProfile.objects.create(user=user, **talent_fields)
+
+        elif role == "creator":
+            CreatorProfile.objects.create(user=user, **creator_fields)
+
+        return user
+
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        user = authenticate(
+            email=data.get("email"),
+            password=data.get("password"),
+        )
+
+        if not user:
+            raise serializers.ValidationError("Invalid email or password")
+
+        if not user.is_active:
+            raise serializers.ValidationError("User account is disabled")
+
+        data["user"] = user
+        return data
