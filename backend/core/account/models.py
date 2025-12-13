@@ -65,6 +65,11 @@ class CreatorProfile(models.Model):
         User, 
         on_delete=models.CASCADE,
     )
+
+    avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
+
+    social_links = models.JSONField(default=dict, blank=True)
+
     company_name = models.CharField(max_length=255, blank=True)
     bio = models.TextField(blank=True)
     website = models.URLField(blank=True)

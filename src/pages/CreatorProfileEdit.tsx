@@ -14,9 +14,18 @@ export default function CreatorProfileEdit() {
   const { user, updateProfile } = useAuth();
   const navigate = useNavigate();
 
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+
+  const [socialLinks, setSocialLinks] = useState({
+    linkedin: "",
+    twitter: "",
+    instagram: "",
+    youtube: "",
+  });
+
   const [formData, setFormData] = useState({
-    name: user?.name || "",
-    companyName: user?.companyName || "",
+    full_name: user?.full_name || "",
+    company_name: user?.company_name || "",
     bio: user?.bio || "",
     avatarUrl: user?.avatarUrl || "",
   });
@@ -34,8 +43,8 @@ export default function CreatorProfileEdit() {
     await new Promise(resolve => setTimeout(resolve, 800));
 
     updateProfile({
-      name: formData.name,
-      companyName: formData.companyName,
+      full_name: formData.full_name,
+      company_name: formData.company_name,
       bio: formData.bio,
     });
 
@@ -44,8 +53,8 @@ export default function CreatorProfileEdit() {
     navigate("/dashboard");
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const getInitials = (full_name: string) => {
+    return full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   return (
@@ -69,11 +78,32 @@ export default function CreatorProfileEdit() {
               <Avatar className="h-24 w-24 border-2 border-primary/50">
                 <AvatarImage src={formData.avatarUrl} />
                 <AvatarFallback className="text-2xl bg-secondary">
-                  {getInitials(formData.name)}
+                  {getInitials(formData.full_name)}
                 </AvatarFallback>
               </Avatar>
               <div className="space-y-2">
-                <Button type="button" variant="outline" className="gap-2">
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  id="avatar-upload"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                      setAvatarFile(e.target.files[0]);
+                      setFormData(prev => ({
+                        ...prev,
+                        avatarUrl: URL.createObjectURL(e.target.files![0]),
+                      }));
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => document.getElementById("avatar-upload")?.click()}
+                >
                   <Camera className="h-4 w-4" />
                   Upload New Photo
                 </Button>
@@ -87,20 +117,20 @@ export default function CreatorProfileEdit() {
             <h2 className="text-lg font-semibold text-foreground mb-4">Basic Information</h2>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="full_name">Full Name</Label>
                 <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="Your full name"
+                  id="full_name"
+                  value={formData.full_name}
+                  onChange={(e) => handleInputChange("full_name", e.target.value)}
+                  placeholder="Your full full_name"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="companyName">Company/Brand Name</Label>
+                <Label htmlFor="company_name">Company/Brand Name</Label>
                 <Input
-                  id="companyName"
-                  value={formData.companyName}
-                  onChange={(e) => handleInputChange("companyName", e.target.value)}
+                  id="company_name"
+                  value={formData.company_name}
+                  onChange={(e) => handleInputChange("company_name", e.target.value)}
                   placeholder="e.g., My Creative Studio"
                 />
               </div>
@@ -146,28 +176,56 @@ export default function CreatorProfileEdit() {
                 <Label>LinkedIn</Label>
                 <div className="relative">
                   <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="https://linkedin.com/in/yourname" className="pl-10" />
+                  <Input
+                  placeholder="https://linkedin.com/in/yourname"
+                  className="pl-10"
+                  value={socialLinks.linkedin}
+                  onChange={(e) =>
+                    setSocialLinks(prev => ({ ...prev, linkedin: e.target.value }))
+                  }
+                />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Twitter/X</Label>
                 <div className="relative">
                   <Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="https://twitter.com/yourhandle" className="pl-10" />
+                  <Input
+                  placeholder="https://twitter.com/in/yourname"
+                  className="pl-10"
+                  value={socialLinks.twitter}
+                  onChange={(e) =>
+                    setSocialLinks(prev => ({ ...prev, twitter: e.target.value }))
+                  }
+                />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Instagram</Label>
                 <div className="relative">
                   <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="https://instagram.com/yourhandle" className="pl-10" />
+                  <Input
+                  placeholder="https://instagram.com/in/yourname"
+                  className="pl-10"
+                  value={socialLinks.instagram}
+                  onChange={(e) =>
+                    setSocialLinks(prev => ({ ...prev, instagram: e.target.value }))
+                  }
+                />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>YouTube</Label>
                 <div className="relative">
                   <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="https://youtube.com/@yourchannel" className="pl-10" />
+                  <Input
+                  placeholder="https://youtube.com/in/yourname"
+                  className="pl-10"
+                  value={socialLinks.youtube}
+                  onChange={(e) =>
+                    setSocialLinks(prev => ({ ...prev, youtube: e.target.value }))
+                  }
+                />
                 </div>
               </div>
             </div>

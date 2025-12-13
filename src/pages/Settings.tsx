@@ -19,15 +19,15 @@ export default function Settings() {
   };
 
   const handleEditProfile = () => {
-    if (user?.userType === 'talent') {
+    if (user?.role === 'talent') {
       navigate('/profile/edit');
     } else {
       navigate('/profile/creator/edit');
     }
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const getInitials = (full_name: string) => {
+    return full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   return (
@@ -51,9 +51,9 @@ export default function Settings() {
               <div className="mb-6 flex items-center gap-6">
                 <div className="relative">
                   <Avatar className="h-20 w-20 border-2 border-primary/30">
-                    <AvatarImage src={user?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`} />
+                    <AvatarImage src={user?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.full_name || 'User'}`} />
                     <AvatarFallback className="bg-primary/20 text-primary text-xl">
-                      {getInitials(user?.name || 'User')}
+                      {getInitials(user?.full_name || 'User')}
                     </AvatarFallback>
                   </Avatar>
                   <button
@@ -64,8 +64,8 @@ export default function Settings() {
                   </button>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-foreground">{user?.name || 'User'}</h3>
-                  <p className="text-sm text-muted-foreground capitalize">{user?.userType || 'User'}</p>
+                  <h3 className="font-semibold text-foreground">{user?.full_name || 'User'}</h3>
+                  <p className="text-sm text-muted-foreground capitalize">{user?.role || 'User'}</p>
                   {user?.companyName && (
                     <p className="text-xs text-muted-foreground">{user.companyName}</p>
                   )}
@@ -74,8 +74,8 @@ export default function Settings() {
 
               <div className="grid gap-6 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" defaultValue={user?.name || ''} />
+                  <Label htmlFor="full_name">Full Name</Label>
+                  <Input id="full_name" defaultValue={user?.full_name || ''} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
@@ -83,7 +83,7 @@ export default function Settings() {
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="bio">Bio</Label>
-                  <Input id="bio" defaultValue={user?.bio || ''} placeholder={user?.userType === 'talent' ? "Professional bio" : "About your brand"} />
+                  <Input id="bio" defaultValue={user?.bio || ''} placeholder={user?.role === 'talent' ? "Professional bio" : "About your brand"} />
                 </div>
               </div>
 

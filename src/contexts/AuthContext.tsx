@@ -9,9 +9,9 @@ export interface User {
   id: string;
   full_name: string;
   email: string;
-  userType: UserRole;
-  companyName?: string;
-  professionalTitle?: string;
+  role: UserRole;
+  company_name?: string;
+  professional_title?: string;
   skills?: string[];
   avatarUrl?: string;
   bio?: string;
@@ -32,6 +32,7 @@ interface AuthContextType {
     role: UserRole;
     [key: string]: any;
   }) => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (data: Partial<User>) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
@@ -46,7 +47,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 //     name: 'Alex Creator',
 //     email: 'creator@demo.com',
 //     password: 'password123',
-//     userType: 'creator',
+//     role: 'creator',
 //     companyName: 'Creative Studios',
 //   },
 //   {
@@ -54,7 +55,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 //     name: 'Sam Talent',
 //     email: 'talent@demo.com',
 //     password: 'password123',
-//     userType: 'talent',
+//     role: 'talent',
 //     professionalTitle: 'UI/UX Designer',
 //     skills: ['UI/UX Design', 'Web Development', 'Graphic Design'],
 //   },
@@ -122,6 +123,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('onswift_token');
   };
 
+  // ---------------- UPDATE PROFILE ----------------
+  const updateProfile = async (profileData: Partial<User>) => {
+    try {
+      const data = await apiRequest('api/v1/auth/profile/', {
+        method: 'PATCH',
+        body: JSON.stringify(profileData),
+      });
+
+      const updatedUser = {
+        ...user,
+        ...data.user,
+        ...(data.profile || {}),
+      };
+
+      setUser(updatedUser);
+      localStorage.setItem('onswift_user', JSON.stringify(updatedUser));
+
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+
+
   return (
     <AuthContext.Provider
       value={{
@@ -131,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         signup,
         logout,
+        updateProfile,
       }}
     >
       {children}
