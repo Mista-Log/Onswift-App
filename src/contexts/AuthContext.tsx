@@ -1,12 +1,13 @@
 
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { apiRequest } from '@/lib/api';
 
 export type UserRole = 'creator' | 'talent';
 
 export interface User {
   id: string;
-  name: string;
+  full_name: string;
   email: string;
   userType: UserRole;
   companyName?: string;
@@ -24,40 +25,47 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signup: (userData: Partial<User> & { password: string }) => Promise<{ success: boolean; error?: string }>;
+  signup: (data: {
+    email: string;
+    full_name: string;
+    password: string;
+    role: UserRole;
+    [key: string]: any;
+  }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  updateProfile: (data: Partial<User>) => void;
 }
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+
 // Mock users for demo
-const MOCK_USERS: (User & { password: string })[] = [
-  {
-    id: '1',
-    name: 'Alex Creator',
-    email: 'creator@demo.com',
-    password: 'password123',
-    userType: 'creator',
-    companyName: 'Creative Studios',
-  },
-  {
-    id: '2',
-    name: 'Sam Talent',
-    email: 'talent@demo.com',
-    password: 'password123',
-    userType: 'talent',
-    professionalTitle: 'UI/UX Designer',
-    skills: ['UI/UX Design', 'Web Development', 'Graphic Design'],
-  },
-];
+// const MOCK_USERS: (User & { password: string })[] = [
+//   {
+//     id: '1',
+//     name: 'Alex Creator',
+//     email: 'creator@demo.com',
+//     password: 'password123',
+//     userType: 'creator',
+//     companyName: 'Creative Studios',
+//   },
+//   {
+//     id: '2',
+//     name: 'Sam Talent',
+//     email: 'talent@demo.com',
+//     password: 'password123',
+//     userType: 'talent',
+//     professionalTitle: 'UI/UX Designer',
+//     skills: ['UI/UX Design', 'Web Development', 'Graphic Design'],
+//   },
+// ];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Restore session
   useEffect(() => {
-    // Check for existing session
     const storedUser = localStorage.getItem('onswift_user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
@@ -65,69 +73,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
+  // ---------------- LOGIN ----------------
   const login = async (email: string, password: string) => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    const foundUser = MOCK_USERS.find(u => u.email === email && u.password === password);
-    
-    if (foundUser) {
-      const { password: _, ...userWithoutPassword } = foundUser;
-      setUser(userWithoutPassword);
-      localStorage.setItem('onswift_user', JSON.stringify(userWithoutPassword));
+    try {
+      const data = await apiRequest('api/v1/auth/login/', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+
+      localStorage.setItem('onswift_token', data.token);
+      localStorage.setItem('onswift_user', JSON.stringify(data.user));
+
+      setUser(data.user);
       return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
-    
-    return { success: false, error: 'Invalid email or password' };
   };
 
-  const signup = async (userData: Partial<User> & { password: string }) => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Check if email exists
-    if (MOCK_USERS.some(u => u.email === userData.email)) {
-      return { success: false, error: 'Email already exists' };
+  // ---------------- SIGNUP ----------------
+  const signup = async (formData: {
+    email: string;
+    full_name: string;
+    password: string;
+    role: UserRole;
+    [key: string]: any;
+  }) => {
+    try {
+      const data = await apiRequest('api/v1/auth/signup/', {
+        method: 'POST',
+        body: JSON.stringify(formData),
+      });
+
+      localStorage.setItem('onswift_token', data.token);
+      localStorage.setItem('onswift_user', JSON.stringify(data.user));
+
+      setUser(data.user);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
-    
-    const newUser: User = {
-      id: Date.now().toString(),
-      name: userData.name || '',
-      email: userData.email || '',
-      userType: userData.userType || 'creator',
-      companyName: userData.companyName,
-      professionalTitle: userData.professionalTitle,
-      skills: userData.skills,
-    };
-    
-    setUser(newUser);
-    localStorage.setItem('onswift_user', JSON.stringify(newUser));
-    return { success: true };
   };
 
+  // ---------------- LOGOUT ----------------
   const logout = () => {
     setUser(null);
     localStorage.removeItem('onswift_user');
-  };
-
-  const updateProfile = (data: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...data };
-      setUser(updatedUser);
-      localStorage.setItem('onswift_user', JSON.stringify(updatedUser));
-    }
+    localStorage.removeItem('onswift_token');
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      isAuthenticated: !!user,
-      isLoading,
-      login,
-      signup,
-      logout,
-      updateProfile,
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: !!user,
+        isLoading,
+        login,
+        signup,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -135,8 +140,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
 }
