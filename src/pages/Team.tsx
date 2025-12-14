@@ -58,7 +58,7 @@ export default function Team() {
 
   // Redirect talent users to dashboard
   useEffect(() => {
-    if (user?.userType === 'talent') {
+    if (user?.role === 'talent') {
       toast.error("This page is only accessible to creators");
       navigate('/dashboard');
     }

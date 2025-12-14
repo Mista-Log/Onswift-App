@@ -104,7 +104,7 @@ export default function Projects() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { projects: contextProjects, addProject } = useProjects();
-  const isTalent = user?.userType === 'talent';
+  const isTalent = user?.role === 'talent';
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",

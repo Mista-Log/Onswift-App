@@ -97,10 +97,10 @@ class LoginSerializer(serializers.Serializer):
         return data
 
 class ProfileUpdateSerializer(serializers.Serializer):
-    # User fields
+    # ---------- User ----------
     full_name = serializers.CharField(required=False)
 
-    # Talent fields
+    # ---------- Talent ----------
     professional_title = serializers.CharField(required=False)
     skills = serializers.ListField(
         child=serializers.CharField(), required=False
@@ -110,10 +110,8 @@ class ProfileUpdateSerializer(serializers.Serializer):
         max_digits=10, decimal_places=2, required=False
     )
 
-    # Creator fields
-
+    # ---------- Creator ----------
     avatar = serializers.ImageField(required=False)
-
     social_links = serializers.JSONField(required=False)
 
     company_name = serializers.CharField(required=False)
@@ -122,22 +120,24 @@ class ProfileUpdateSerializer(serializers.Serializer):
     industry = serializers.CharField(required=False)
     location = serializers.CharField(required=False)
 
-    def update(self, user: User, validated_data):
+    def update(self, user, validated_data):
         # -------- Update User --------
         if "full_name" in validated_data:
-            user.full_name = validated_data["full_name"]
+            user.full_name = validated_data.pop("full_name")
             user.save(update_fields=["full_name"])
 
         # -------- Update Talent Profile --------
         if user.role == "talent":
             profile, _ = TalentProfile.objects.get_or_create(user=user)
 
-            for field in [
+            talent_fields = [
                 "professional_title",
                 "skills",
                 "primary_skill",
                 "hourly_rate",
-            ]:
+            ]
+
+            for field in talent_fields:
                 if field in validated_data:
                     setattr(profile, field, validated_data[field])
 
@@ -147,19 +147,17 @@ class ProfileUpdateSerializer(serializers.Serializer):
         if user.role == "creator":
             profile, _ = CreatorProfile.objects.get_or_create(user=user)
 
-            if "avatar" in validated_data:
-                profile.avatar = validated_data["avatar"]
-
-            if "social_links" in validated_data:
-                profile.social_links = validated_data["social_links"]
-
-            for field in [
+            creator_fields = [
                 "company_name",
                 "bio",
                 "website",
                 "industry",
                 "location",
-            ]:
+                "avatar",
+                "social_links",
+            ]
+
+            for field in creator_fields:
                 if field in validated_data:
                     setattr(profile, field, validated_data[field])
 

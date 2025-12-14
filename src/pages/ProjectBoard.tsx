@@ -103,7 +103,7 @@ export default function ProjectBoard() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isTalent = user?.userType === 'talent';
+  const isTalent = user?.role === 'talent';
   const [tasks, setTasks] = useState(initialTasks);
   const [samples, setSamples] = useState<ProjectSample[]>(initialSamples);
   const [isDialogOpen, setIsDialogOpen] = useState(false);

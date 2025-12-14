@@ -99,6 +99,8 @@ class UpdateProfileView(APIView):
                 "website": user.creatorprofile.website,
                 "industry": user.creatorprofile.industry,
                 "location": user.creatorprofile.location,
+                "social_links": user.creatorprofile.social_links,
+
             }
 
         return Response(response_data, status=status.HTTP_200_OK)

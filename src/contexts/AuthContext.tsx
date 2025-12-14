@@ -32,7 +32,7 @@ interface AuthContextType {
     role: UserRole;
     [key: string]: any;
   }) => Promise<{ success: boolean; error?: string }>;
-  updateProfile: (data: Partial<User>) => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (data: FormData | Partial<User>) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
@@ -124,27 +124,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // ---------------- UPDATE PROFILE ----------------
-  const updateProfile = async (profileData: Partial<User>) => {
+  // const updateProfile = async (profileData: Partial<User>) => {
+  //   try {
+  //     const data = await apiRequest('api/v1/auth/profile/', {
+  //       method: 'PATCH',
+  //       body: JSON.stringify(profileData),
+  //     });
+
+  //     const updatedUser = {
+  //       ...user,
+  //       ...data.user,
+  //       ...(data.profile || {}),
+  //     };
+
+  //     setUser(updatedUser);
+  //     localStorage.setItem('onswift_user', JSON.stringify(updatedUser));
+
+  //     return { success: true };
+  //   } catch (error: any) {
+  //     return { success: false, error: error.message };
+  //   }
+  // };
+
+
+  const updateProfile = async (data: FormData | Partial<User>) => {
     try {
-      const data = await apiRequest('api/v1/auth/profile/', {
-        method: 'PATCH',
-        body: JSON.stringify(profileData),
+      const isFormData = data instanceof FormData;
+
+      const response = await apiRequest("api/v1/account/profile/", {
+        method: "PATCH",
+        body: data,
+        headers: isFormData ? {} : { "Content-Type": "application/json" },
       });
 
-      const updatedUser = {
+      /**
+       * Expected backend response shape:
+       * {
+       *   user: {...},
+       *   profile: {...}
+       * }
+       */
+
+      const updatedUser: User = {
         ...user,
-        ...data.user,
-        ...(data.profile || {}),
+        ...response.user,
+        ...response.profile, // creator-specific fields
       };
 
       setUser(updatedUser);
-      localStorage.setItem('onswift_user', JSON.stringify(updatedUser));
+      localStorage.setItem("onswift_user", JSON.stringify(updatedUser));
 
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
   };
+
 
 
 

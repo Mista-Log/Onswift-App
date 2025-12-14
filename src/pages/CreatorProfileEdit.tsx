@@ -36,22 +36,57 @@ export default function CreatorProfileEdit() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   setIsLoading(true);
+
+  //   await new Promise(resolve => setTimeout(resolve, 800));
+
+  //   updateProfile({
+  //     full_name: formData.full_name,
+  //     company_name: formData.company_name,
+  //     bio: formData.bio,
+  //   });
+
+  //   setIsLoading(false);
+  //   toast.success("Profile updated successfully!");
+  //   navigate("/dashboard");
+  // };
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    await new Promise(resolve => setTimeout(resolve, 800));
+    const form = new FormData();
 
-    updateProfile({
-      full_name: formData.full_name,
-      company_name: formData.company_name,
-      bio: formData.bio,
-    });
+    form.append("full_name", formData.full_name);
+    form.append("company_name", formData.company_name);
+    form.append("bio", formData.bio);
+
+    if (avatarFile) {
+      form.append("avatar", avatarFile);
+    }
+
+    form.append(
+      "social_links",
+      JSON.stringify(socialLinks)
+    );
+
+    console.log(form)
+
+    const result = await updateProfile(form);
 
     setIsLoading(false);
-    toast.success("Profile updated successfully!");
-    navigate("/dashboard");
+
+    if (result.success) {
+      toast.success("Profile updated successfully!");
+      navigate("/dashboard");
+    } else {
+      toast.error(result.error || "Update failed");
+    }
   };
+
 
   const getInitials = (full_name: string) => {
     return full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -98,6 +133,7 @@ export default function CreatorProfileEdit() {
                     }
                   }}
                 />
+
                 <Button
                   type="button"
                   variant="outline"
@@ -107,6 +143,7 @@ export default function CreatorProfileEdit() {
                   <Camera className="h-4 w-4" />
                   Upload New Photo
                 </Button>
+
                 <p className="text-xs text-muted-foreground">JPG, PNG or GIF. Max size 5MB.</p>
               </div>
             </div>
