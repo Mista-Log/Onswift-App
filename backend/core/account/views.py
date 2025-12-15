@@ -6,24 +6,28 @@ from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated
 from .serializers import ProfileUpdateSerializer
 from .serializers import SignupSerializer, LoginSerializer
-
+from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
 
 class SignupView(APIView):
-    permission_classes = []
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = SignupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
         user = serializer.save()
 
-        token, _ = Token.objects.get_or_create(user=user)
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
 
         return Response(
             {
                 "message": "Signup successful",
-                "token": token.key,
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
                 "user": {
-                    "id": user.id,
+                    "id": str(user.id),
                     "email": user.email,
                     "full_name": user.full_name,
                     "role": user.role,
@@ -35,23 +39,23 @@ class SignupView(APIView):
 
 
 class LoginView(APIView):
-    permission_classes = []
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = serializer.validated_data["user"]
-        token, _ = Token.objects.get_or_create(user=user)
 
-        login(request, user)
+        refresh = RefreshToken.for_user(user)
 
         return Response(
             {
                 "message": "Login successful",
-                "token": token.key,
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
                 "user": {
-                    "id": user.id,
+                    "id": str(user.id),
                     "email": user.email,
                     "full_name": user.full_name,
                     "role": user.role,
@@ -61,18 +65,24 @@ class LoginView(APIView):
         )
 
 
+
 class UpdateProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request):
+        user = request.user
+
         serializer = ProfileUpdateSerializer(
-            instance=request.user,
+            instance=user,
             data=request.data,
             partial=True,
         )
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        serializer.save()
 
+        # -----------------------------
+        # Base user payload
+        # -----------------------------
         response_data = {
             "message": "Profile updated successfully",
             "user": {
@@ -81,26 +91,45 @@ class UpdateProfileView(APIView):
                 "full_name": user.full_name,
                 "role": user.role,
             },
+            "profile": None,  # always present for frontend safety
         }
 
-        # Attach profile data
-        if user.role == "talent" and hasattr(user, "talentprofile"):
-            response_data["profile"] = {
-                "professional_title": user.talentprofile.professional_title,
-                "skills": user.talentprofile.skills,
-                "primary_skill": user.talentprofile.primary_skill,
-                "hourly_rate": user.talentprofile.hourly_rate,
-            }
+        # -----------------------------
+        # Talent Profile Response
+        # -----------------------------
+        if user.role == "talent":
+            talent_profile = getattr(user, "talentprofile", None)
 
-        if user.role == "creator" and hasattr(user, "creatorprofile"):
-            response_data["profile"] = {
-                "company_name": user.creatorprofile.company_name,
-                "bio": user.creatorprofile.bio,
-                "website": user.creatorprofile.website,
-                "industry": user.creatorprofile.industry,
-                "location": user.creatorprofile.location,
-                "social_links": user.creatorprofile.social_links,
+            if talent_profile:
+                response_data["profile"] = {
+                    "professional_title": talent_profile.professional_title,
+                    "skills": talent_profile.skills,
+                    "primary_skill": talent_profile.primary_skill,
+                    "hourly_rate": str(talent_profile.hourly_rate)
+                    if talent_profile.hourly_rate else None,
+                }
 
-            }
+        # -----------------------------
+        # Creator Profile Response
+        # -----------------------------
+        if user.role == "creator":
+            creator_profile = getattr(user, "creatorprofile", None)
+
+            if creator_profile:
+                response_data["profile"] = {
+                    "company_name": creator_profile.company_name,
+                    "bio": creator_profile.bio,
+                    "website": creator_profile.website,
+                    "industry": creator_profile.industry,
+                    "location": creator_profile.location,
+                    "social_links": creator_profile.social_links,
+
+                    # IMPORTANT: absolute avatar URL
+                    "avatar": (
+                        request.build_absolute_uri(creator_profile.avatar.url)
+                        if creator_profile.avatar
+                        else None
+                    ),
+                }
 
         return Response(response_data, status=status.HTTP_200_OK)

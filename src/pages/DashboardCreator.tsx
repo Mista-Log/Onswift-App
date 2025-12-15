@@ -35,7 +35,7 @@ export default function DashboardCreator() {
         {/* Welcome Header */}
         <div>
           <h1 className="text-3xl font-bold text-foreground">
-            Welcome back, {user?.name?.split(' ')[0] || 'there'}!
+            Welcome back, {user?.full_name?.split(' ')[0] || 'there'}!
           </h1>
         </div>
 

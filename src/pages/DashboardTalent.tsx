@@ -13,10 +13,10 @@ import { Link } from "react-router-dom";
 import { useProjects } from "@/contexts/ProjectContext";
 
 const talentTasks = [
-  { id: "1", name: "Design hero section mockups", dueDate: "Due: Tomorrow", projectName: "Brand Collab", points: 75, completed: false },
-  { id: "2", name: "Create icon set for mobile app", dueDate: "Due: In 3 days", projectName: "Mobile App", points: 50, completed: false },
-  { id: "3", name: "Review and iterate on logo design", dueDate: "Due: In 5 days", projectName: "Brand Identity", points: 40, completed: false },
-  { id: "4", name: "Prepare presentation slides", dueDate: "Due: Next week", projectName: "Client Pitch", points: 60, completed: false },
+  { id: "1", full_name: "Design hero section mockups", dueDate: "Due: Tomorrow", projectName: "Brand Collab", points: 75, completed: false },
+  { id: "2", full_name: "Create icon set for mobile app", dueDate: "Due: In 3 days", projectName: "Mobile App", points: 50, completed: false },
+  { id: "3", full_name: "Review and iterate on logo design", dueDate: "Due: In 5 days", projectName: "Brand Identity", points: 40, completed: false },
+  { id: "4", full_name: "Prepare presentation slides", dueDate: "Due: Next week", projectName: "Client Pitch", points: 60, completed: false },
 ];
 
 const talentActivities = [
@@ -52,8 +52,8 @@ export default function DashboardTalent() {
 
   // Calculate profile completion
   const profileCompletion = user ?
-    (user.name ? 10 : 0) +
-    (user.professionalTitle ? 15 : 0) +
+    (user.full_name ? 10 : 0) +
+    (user.professional_title ? 15 : 0) +
     (user.bio ? 15 : 0) +
     (user.skills?.length ? 15 : 0) +
     (user.portfolioLink ? 15 : 0) +
@@ -68,7 +68,7 @@ export default function DashboardTalent() {
         {/* Welcome Header */}
         <div>
           <h1 className="text-3xl font-bold text-foreground">
-            Welcome back, {user?.name?.split(' ')[0] || 'there'}!
+            Welcome back, {user?.full_name?.split(' ')[0] || 'there'}!
           </h1>
           <p className="text-muted-foreground mt-1">Here's what's happening with your projects today</p>
         </div>

@@ -53,39 +53,40 @@ export default function CreatorProfileEdit() {
   //   navigate("/dashboard");
   // };
 
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    const form = new FormData();
+    try {
+      const payload = new FormData();
 
-    form.append("full_name", formData.full_name);
-    form.append("company_name", formData.company_name);
-    form.append("bio", formData.bio);
+      // User
+      payload.append("full_name", formData.full_name);
 
-    if (avatarFile) {
-      form.append("avatar", avatarFile);
-    }
+      // Creator profile
+      payload.append("company_name", formData.company_name);
+      payload.append("bio", formData.bio);
 
-    form.append(
-      "social_links",
-      JSON.stringify(socialLinks)
-    );
+      // Social links (JSONField)
+      payload.append("social_links", JSON.stringify(socialLinks));
 
-    console.log(form)
+      // Avatar (file)
+      if (avatarFile) {
+        payload.append("avatar", avatarFile);
+      }
 
-    const result = await updateProfile(form);
+      const response = await updateProfile(payload);
 
-    setIsLoading(false);
-
-    if (result.success) {
       toast.success("Profile updated successfully!");
       navigate("/dashboard");
-    } else {
-      toast.error(result.error || "Update failed");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to update profile");
+    } finally {
+      setIsLoading(false);
     }
   };
+
+
 
 
   const getInitials = (full_name: string) => {

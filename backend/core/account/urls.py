@@ -8,6 +8,7 @@ urlpatterns = [
     path("auth/signup/", SignupView.as_view(), name="signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/profile/", UpdateProfileView.as_view(), name="update-profile"),
+    path("auth/token/refresh/", TokenRefreshView.as_view()),
 ]
 
 

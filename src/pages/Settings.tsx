@@ -66,8 +66,8 @@ export default function Settings() {
                 <div>
                   <h3 className="font-semibold text-foreground">{user?.full_name || 'User'}</h3>
                   <p className="text-sm text-muted-foreground capitalize">{user?.role || 'User'}</p>
-                  {user?.companyName && (
-                    <p className="text-xs text-muted-foreground">{user.companyName}</p>
+                  {user?.company_name && (
+                    <p className="text-xs text-muted-foreground">{user.company_name}</p>
                   )}
                 </div>
               </div>

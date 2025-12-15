@@ -5,6 +5,7 @@ import { apiRequest } from '@/lib/api';
 
 export type UserRole = 'creator' | 'talent';
 
+
 export interface User {
   id: string;
   full_name: string;
@@ -39,27 +40,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-// Mock users for demo
-// const MOCK_USERS: (User & { password: string })[] = [
-//   {
-//     id: '1',
-//     name: 'Alex Creator',
-//     email: 'creator@demo.com',
-//     password: 'password123',
-//     role: 'creator',
-//     companyName: 'Creative Studios',
-//   },
-//   {
-//     id: '2',
-//     name: 'Sam Talent',
-//     email: 'talent@demo.com',
-//     password: 'password123',
-//     role: 'talent',
-//     professionalTitle: 'UI/UX Designer',
-//     skills: ['UI/UX Design', 'Web Development', 'Graphic Design'],
-//   },
-// ];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -77,13 +59,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ---------------- LOGIN ----------------
   const login = async (email: string, password: string) => {
     try {
-      const data = await apiRequest('api/v1/auth/login/', {
-        method: 'POST',
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/login/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
-      localStorage.setItem('onswift_token', data.token);
-      localStorage.setItem('onswift_user', JSON.stringify(data.user));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.detail || "Login failed");
+
+      localStorage.setItem("onswift_access", data.access);
+      localStorage.setItem("onswift_refresh", data.refresh);
+      localStorage.setItem("onswift_user", JSON.stringify(data.user));
 
       setUser(data.user);
       return { success: true };
@@ -91,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: error.message };
     }
   };
+
 
   // ---------------- SIGNUP ----------------
   const signup = async (formData: {
@@ -101,13 +89,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [key: string]: any;
   }) => {
     try {
-      const data = await apiRequest('api/v1/auth/signup/', {
-        method: 'POST',
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/signup/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
 
-      localStorage.setItem('onswift_token', data.token);
-      localStorage.setItem('onswift_user', JSON.stringify(data.user));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.detail || "Signup failed");
+
+      localStorage.setItem("onswift_access", data.access);
+      localStorage.setItem("onswift_refresh", data.refresh);
+      localStorage.setItem("onswift_user", JSON.stringify(data.user));
 
       setUser(data.user);
       return { success: true };
@@ -116,59 +109,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ---------------- LOGOUT ----------------
+
+
+  // // ---------------- LOGOUT ----------------
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('onswift_user');
-    localStorage.removeItem('onswift_token');
+    localStorage.removeItem("onswift_user");
+    localStorage.removeItem("onswift_access");
+    localStorage.removeItem("onswift_refresh");
   };
 
   // ---------------- UPDATE PROFILE ----------------
-  // const updateProfile = async (profileData: Partial<User>) => {
-  //   try {
-  //     const data = await apiRequest('api/v1/auth/profile/', {
-  //       method: 'PATCH',
-  //       body: JSON.stringify(profileData),
-  //     });
-
-  //     const updatedUser = {
-  //       ...user,
-  //       ...data.user,
-  //       ...(data.profile || {}),
-  //     };
-
-  //     setUser(updatedUser);
-  //     localStorage.setItem('onswift_user', JSON.stringify(updatedUser));
-
-  //     return { success: true };
-  //   } catch (error: any) {
-  //     return { success: false, error: error.message };
-  //   }
-  // };
-
-
   const updateProfile = async (data: FormData | Partial<User>) => {
-    try {
-      const isFormData = data instanceof FormData;
+    if (!user) return { success: false, error: "Not authenticated" };
 
-      const response = await apiRequest("api/v1/account/profile/", {
+    const token = localStorage.getItem("onswift_access");
+    if (!token) return { success: false, error: "Access token missing" };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/profile/`, {
         method: "PATCH",
-        body: data,
-        headers: isFormData ? {} : { "Content-Type": "application/json" },
+        headers: data instanceof FormData
+          ? { Authorization: `Bearer ${token}` }
+          : { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: data instanceof FormData ? data : JSON.stringify(data),
       });
 
-      /**
-       * Expected backend response shape:
-       * {
-       *   user: {...},
-       *   profile: {...}
-       * }
-       */
+      const result = await response.json();
+      if (!response.ok) throw new Error(result?.detail || "Profile update failed");
 
       const updatedUser: User = {
         ...user,
-        ...response.user,
-        ...response.profile, // creator-specific fields
+        ...result.user,
+        ...(result.profile ?? {}),
+        avatarUrl: result.profile?.avatar ?? user.avatarUrl,
       };
 
       setUser(updatedUser);
@@ -179,7 +153,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: error.message };
     }
   };
-
 
 
 
