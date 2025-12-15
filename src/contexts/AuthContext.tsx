@@ -1,7 +1,6 @@
 
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiRequest } from '@/lib/api';
 
 export type UserRole = 'creator' | 'talent';
 
@@ -19,6 +18,13 @@ export interface User {
   portfolioLink?: string;
   hourlyRate?: number;
   availability?: string;
+  social_links?: {
+    linkedin?: string;
+    twitter?: string;
+    instagram?: string;
+    youtube?: string;
+    [key: string]: string | undefined;
+  };
 }
 
 interface AuthContextType {
@@ -35,6 +41,7 @@ interface AuthContextType {
   }) => Promise<{ success: boolean; error?: string }>;
   updateProfile: (data: FormData | Partial<User>) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  getUser: () => Promise<void>; // fetches the current user from backend
 }
 
 
@@ -42,6 +49,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+ 
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -55,6 +63,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setIsLoading(false);
   }, []);
+
+
+  // ---------------- GET USER ----------------
+  const getUser = async () => {
+    const token = localStorage.getItem("onswift_access");
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/user/`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch user");
+
+      const data = await response.json();
+
+      const fetchedUser: User = {
+        id: data.id,
+        full_name: data.full_name,
+        email: data.email,
+        role: data.role,
+        ...data.profile,
+        avatarUrl: data.profile?.avatar
+          ? `${API_BASE_URL}${data.profile.avatar}` // <-- prepend backend
+          : "",
+        social_links: data.profile?.social_links ?? {},
+      };
+
+      setUser(fetchedUser);
+      localStorage.setItem("onswift_user", JSON.stringify(fetchedUser));
+    } catch (error) {
+      console.error("Error fetching user:", error);
+    }
+  };
+
+
+
 
   // ---------------- LOGIN ----------------
   const login = async (email: string, password: string) => {
@@ -71,6 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("onswift_access", data.access);
       localStorage.setItem("onswift_refresh", data.refresh);
       localStorage.setItem("onswift_user", JSON.stringify(data.user));
+
+      await getUser(); // <- fetch user after login
 
       setUser(data.user);
       return { success: true };
@@ -101,6 +150,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("onswift_access", data.access);
       localStorage.setItem("onswift_refresh", data.refresh);
       localStorage.setItem("onswift_user", JSON.stringify(data.user));
+
+      await getUser(); // <- fetch user after login
 
       setUser(data.user);
       return { success: true };
@@ -143,7 +194,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...result.user,
         ...(result.profile ?? {}),
         avatarUrl: result.profile?.avatar ?? user.avatarUrl,
+        social_links: result.profile?.social_links ?? user.social_links, // <- add this
       };
+
+      await getUser(); // <- fetch fresh user data after update
 
       setUser(updatedUser);
       localStorage.setItem("onswift_user", JSON.stringify(updatedUser));
@@ -166,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         logout,
         updateProfile,
+        getUser, // optional if you want to call manually elsewhere
       }}
     >
       {children}

@@ -151,7 +151,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # settings.py
 
-MEDIA_URL = '/media/'
+MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 SIMPLE_JWT = {

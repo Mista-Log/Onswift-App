@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Camera } from "lucide-react";
+import { Edit } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -14,9 +14,14 @@ export default function Settings() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const BACKEND_URL = import.meta.env.VITE_API_BASE_URL; // e.g., http://localhost:8000
+
+
   const handleSave = () => {
     toast.success("Settings saved successfully!");
   };
+
+
 
   const handleEditProfile = () => {
     if (user?.role === 'talent') {
@@ -29,6 +34,10 @@ export default function Settings() {
   const getInitials = (full_name: string) => {
     return full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
+
+   const avatarSrc = user?.avatarUrl
+    ? `${BACKEND_URL}${user.avatarUrl}` // prepend backend URL
+    : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.full_name || 'User'}`;
 
   return (
     <MainLayout>
@@ -51,7 +60,7 @@ export default function Settings() {
               <div className="mb-6 flex items-center gap-6">
                 <div className="relative">
                   <Avatar className="h-20 w-20 border-2 border-primary/30">
-                    <AvatarImage src={user?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.full_name || 'User'}`} />
+                    <AvatarImage src={avatarSrc} />
                     <AvatarFallback className="bg-primary/20 text-primary text-xl">
                       {getInitials(user?.full_name || 'User')}
                     </AvatarFallback>
@@ -60,7 +69,7 @@ export default function Settings() {
                     onClick={handleEditProfile}
                     className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105"
                   >
-                    <Camera className="h-4 w-4" />
+                    <Edit className="h-4 w-4" />
                   </button>
                 </div>
                 <div>

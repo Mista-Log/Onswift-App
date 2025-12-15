@@ -38,6 +38,8 @@ class SignupSerializer(serializers.ModelSerializer):
             # creator
             "company_name",
             "bio",
+            "avatar",
+            "social_links",
             "website",
             "industry",
             "location",
@@ -157,6 +159,10 @@ class ProfileUpdateSerializer(serializers.Serializer):
                 "social_links",
             ]
 
+            if "avatar" in validated_data and validated_data["avatar"] is not None:
+                profile.avatar = validated_data["avatar"]
+
+
             for field in creator_fields:
                 if field in validated_data:
                     setattr(profile, field, validated_data[field])
@@ -164,3 +170,44 @@ class ProfileUpdateSerializer(serializers.Serializer):
             profile.save()
 
         return user
+    
+class UserDetailSerializer(serializers.ModelSerializer):
+    profile = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "full_name",
+            "email",
+            "role",
+            "profile",
+        ]
+
+    def get_profile(self, obj):
+        if obj.role == "talent":
+            talent_profile = getattr(obj, "talentprofile", None)
+            if talent_profile:
+                return {
+                    "professional_title": talent_profile.professional_title,
+                    "skills": talent_profile.skills,
+                    "primary_skill": talent_profile.primary_skill,
+                    "hourly_rate": str(talent_profile.hourly_rate) if talent_profile.hourly_rate else None,
+                }
+        elif obj.role == "creator":
+            creator_profile = getattr(obj, "creatorprofile", None)
+            if creator_profile:
+                return {
+                    "company_name": creator_profile.company_name,
+                    "bio": creator_profile.bio,
+                    "website": creator_profile.website,
+                    "industry": creator_profile.industry,
+                    "location": creator_profile.location,
+                    "social_links": creator_profile.social_links,
+                    "avatar": (
+                        self.context["request"].build_absolute_uri(creator_profile.avatar.url)
+                        if creator_profile.avatar
+                        else None
+                    ),
+                }
+        return None

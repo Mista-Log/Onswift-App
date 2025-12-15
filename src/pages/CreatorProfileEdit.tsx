@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Camera, Linkedin, Twitter, Instagram, Youtube } from "lucide-react";
 
 export default function CreatorProfileEdit() {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, getUser } = useAuth();
   const navigate = useNavigate();
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -29,6 +29,36 @@ export default function CreatorProfileEdit() {
     bio: user?.bio || "",
     avatarUrl: user?.avatarUrl || "",
   });
+
+  // Fetch latest user data on mount
+  useEffect(() => {
+    const fetchUser = async () => {
+      await getUser();
+    };
+    fetchUser();
+  }, []);
+
+  // Sync formData when user updates
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        full_name: user.full_name || "",
+        company_name: user.company_name || "",
+        bio: user.bio || "",
+        avatarUrl: user.avatarUrl || "",
+      });
+
+
+      setSocialLinks({
+        linkedin: user.social_links?.linkedin || "",
+        twitter: user.social_links?.twitter || "",
+        instagram: user.social_links?.instagram || "",
+        youtube: user.social_links?.youtube || "",
+      });
+    }
+  }, [user]);
+
+
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -88,7 +118,6 @@ export default function CreatorProfileEdit() {
 
 
 
-
   const getInitials = (full_name: string) => {
     return full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
@@ -118,7 +147,6 @@ export default function CreatorProfileEdit() {
                 </AvatarFallback>
               </Avatar>
               <div className="space-y-2">
-
                 <input
                   type="file"
                   accept="image/*"
@@ -134,7 +162,6 @@ export default function CreatorProfileEdit() {
                     }
                   }}
                 />
-
                 <Button
                   type="button"
                   variant="outline"
@@ -144,7 +171,6 @@ export default function CreatorProfileEdit() {
                   <Camera className="h-4 w-4" />
                   Upload New Photo
                 </Button>
-
                 <p className="text-xs text-muted-foreground">JPG, PNG or GIF. Max size 5MB.</p>
               </div>
             </div>

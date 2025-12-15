@@ -8,6 +8,8 @@ from .serializers import ProfileUpdateSerializer
 from .serializers import SignupSerializer, LoginSerializer
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.parsers import MultiPartParser, FormParser
+from .serializers import UserDetailSerializer
 
 class SignupView(APIView):
     permission_classes = [AllowAny]
@@ -67,6 +69,7 @@ class LoginView(APIView):
 
 
 class UpdateProfileView(APIView):
+    parser_classes = [MultiPartParser, FormParser]
     permission_classes = [IsAuthenticated]
 
     def patch(self, request):
@@ -133,3 +136,11 @@ class UpdateProfileView(APIView):
                 }
 
         return Response(response_data, status=status.HTTP_200_OK)
+    
+
+class UserDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserDetailSerializer(request.user, context={"request": request})
+        return Response(serializer.data)
