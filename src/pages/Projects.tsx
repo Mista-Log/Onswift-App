@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ const creatorProjects = [
     id: "1",
     name: 'Brand Collab - "Future Funk"',
     description: "Music video production and promotional materials for upcoming EP release.",
-    dueDate: "24 Oct 2023",
+    due_date: "24 Oct 2023",
     status: "in-progress" as const,
     teamMembers: [
       { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
@@ -40,7 +40,7 @@ const creatorProjects = [
     id: "2",
     name: '"Cyber Dreams" EP Visuals',
     description: "Album artwork and visualizer animations for Cyber Dreams EP.",
-    dueDate: "15 Nov 2023",
+    due_date: "15 Nov 2023",
     status: "planning" as const,
     teamMembers: [
       { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
@@ -53,7 +53,7 @@ const creatorProjects = [
     id: "3",
     name: "V-Tuber Model 2.0",
     description: "Updated VTuber model with new expressions and rigging.",
-    dueDate: "02 Oct 2023",
+    due_date: "02 Oct 2023",
     status: "completed" as const,
     teamMembers: [
       { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
@@ -69,7 +69,7 @@ const talentProjects = [
     id: "1",
     name: 'Brand Collab - "Future Funk"',
     description: "Creating promotional materials and motion graphics.",
-    dueDate: "24 Oct 2023",
+    due_date: "24 Oct 2023",
     status: "in-progress" as const,
     creatorName: "Alex Johnson",
     creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex",
@@ -80,7 +80,7 @@ const talentProjects = [
     id: "4",
     name: "Mobile App UI Redesign",
     description: "Designing new UI components and user flows.",
-    dueDate: "30 Nov 2023",
+    due_date: "30 Nov 2023",
     status: "in-progress" as const,
     creatorName: "Jordan Smith",
     creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jordan",
@@ -91,7 +91,7 @@ const talentProjects = [
     id: "5",
     name: "Logo Design for StartupX",
     description: "Brand identity and logo variations.",
-    dueDate: "10 Oct 2023",
+    due_date: "10 Oct 2023",
     status: "completed" as const,
     creatorName: "Taylor Chen",
     creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Taylor",
@@ -109,27 +109,30 @@ export default function Projects() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    dueDate: "",
+    due_date: "",
   });
 
   const projects = isTalent ? talentProjects : contextProjects;
 
-  const handleCreateProject = () => {
-    if (!formData.name || !formData.description || !formData.dueDate) {
+
+  const handleCreateProject = async () => {
+    if (!formData.name || !formData.description || !formData.due_date) {
       toast.error("Please fill in all fields");
       return;
     }
 
-    addProject({
+    await addProject({
       name: formData.name,
       description: formData.description,
-      dueDate: new Date(formData.dueDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
+      due_date: formData.due_date, // ✅ SEND RAW DATE
     });
 
     toast.success("Project created successfully!");
-    setFormData({ name: "", description: "", dueDate: "" });
+    setFormData({ name: "", description: "", due_date: "" });
     setIsDialogOpen(false);
   };
+
+
 
   return (
     <MainLayout>
@@ -183,12 +186,12 @@ export default function Projects() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="dueDate">Due Date</Label>
+                    <Label htmlFor="due_date">Due Date</Label>
                     <Input
-                      id="dueDate"
+                      id="due_date"
                       type="date"
-                      value={formData.dueDate}
-                      onChange={(e) => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+                      value={formData.due_date}
+                      onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
                     />
                   </div>
                 </div>
@@ -244,7 +247,7 @@ export default function Projects() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="h-4 w-4" />
-                  <span>{project.dueDate}</span>
+                  <span>{project.due_date}</span>
                 </div>
 
                 {isTalent ? (
