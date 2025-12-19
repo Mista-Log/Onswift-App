@@ -9,8 +9,8 @@ const mapFromBackend = (p: any): Project => ({
   due_date: p.due_date,
   status: p.status,
   teamMembers: p.teamMembers || [],
-  taskCount: p.task_count,
-  completedTasks: p.completed_tasks,
+  task_count: p.task_count,
+  completed_tasks: p.completed_tasks,
 });
 
 export { mapFromBackend };

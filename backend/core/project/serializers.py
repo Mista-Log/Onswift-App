@@ -21,6 +21,10 @@ class ProjectSerializer(serializers.ModelSerializer):
     )
     creator = serializers.ReadOnlyField(source="creator.id")
 
+    task_count = serializers.SerializerMethodField()
+    completed_tasks = serializers.SerializerMethodField()
+    progress = serializers.SerializerMethodField()
+
     class Meta:
         model = Project
         fields = (
@@ -33,6 +37,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "teamMembers",
             "task_count",
             "completed_tasks",
+            "progress",
             "created_at",
         )
 
@@ -44,6 +49,19 @@ class ProjectSerializer(serializers.ModelSerializer):
             TeamMember.objects.create(project=project, **member)
 
         return project
+    
+    def get_task_count(self, obj):
+        return obj.tasks.count()
+
+    def get_completed_tasks(self, obj):
+        return obj.tasks.filter(status="completed").count()
+
+    def get_progress(self, obj):
+        total = obj.tasks.count()
+        if total == 0:
+            return 0
+        completed = obj.tasks.filter(status="completed").count()
+        return int((completed / total) * 100)
 
 
 class ProjectSampleSerializer(serializers.ModelSerializer):

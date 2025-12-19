@@ -21,89 +21,89 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProjects } from "@/contexts/ProjectContext";
 
 // Creator's projects (projects they own)
-const creatorProjects = [
-  {
-    id: "1",
-    name: 'Brand Collab - "Future Funk"',
-    description: "Music video production and promotional materials for upcoming EP release.",
-    due_date: "24 Oct 2023",
-    status: "in-progress" as const,
-    teamMembers: [
-      { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-      { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-      { id: "3", name: "Clara Dane", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Clara" },
-    ],
-    taskCount: 12,
-    completedTasks: 7,
-  },
-  {
-    id: "2",
-    name: '"Cyber Dreams" EP Visuals',
-    description: "Album artwork and visualizer animations for Cyber Dreams EP.",
-    due_date: "15 Nov 2023",
-    status: "planning" as const,
-    teamMembers: [
-      { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-      { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-    ],
-    taskCount: 8,
-    completedTasks: 0,
-  },
-  {
-    id: "3",
-    name: "V-Tuber Model 2.0",
-    description: "Updated VTuber model with new expressions and rigging.",
-    due_date: "02 Oct 2023",
-    status: "completed" as const,
-    teamMembers: [
-      { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-    ],
-    taskCount: 6,
-    completedTasks: 6,
-  },
-];
+// const creatorProjects = [
+//   {
+//     id: "1",
+//     name: 'Brand Collab - "Future Funk"',
+//     description: "Music video production and promotional materials for upcoming EP release.",
+//     due_date: "24 Oct 2023",
+//     status: "in-progress" as const,
+//     teamMembers: [
+//       { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
+//       { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
+//       { id: "3", name: "Clara Dane", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Clara" },
+//     ],
+//     taskCount: 12,
+//     completedTasks: 7,
+//   },
+//   {
+//     id: "2",
+//     name: '"Cyber Dreams" EP Visuals',
+//     description: "Album artwork and visualizer animations for Cyber Dreams EP.",
+//     due_date: "15 Nov 2023",
+//     status: "planning" as const,
+//     teamMembers: [
+//       { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
+//       { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
+//     ],
+//     taskCount: 8,
+//     completedTasks: 0,
+//   },
+//   {
+//     id: "3",
+//     name: "V-Tuber Model 2.0",
+//     description: "Updated VTuber model with new expressions and rigging.",
+//     due_date: "02 Oct 2023",
+//     status: "completed" as const,
+//     teamMembers: [
+//       { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
+//     ],
+//     taskCount: 6,
+//     completedTasks: 6,
+//   },
+// ];
 
 // Talent's assigned projects (projects they're working on)
-const talentProjects = [
-  {
-    id: "1",
-    name: 'Brand Collab - "Future Funk"',
-    description: "Creating promotional materials and motion graphics.",
-    due_date: "24 Oct 2023",
-    status: "in-progress" as const,
-    creatorName: "Alex Johnson",
-    creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex",
-    myTasks: 5,
-    completedTasks: 3,
-  },
-  {
-    id: "4",
-    name: "Mobile App UI Redesign",
-    description: "Designing new UI components and user flows.",
-    due_date: "30 Nov 2023",
-    status: "in-progress" as const,
-    creatorName: "Jordan Smith",
-    creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jordan",
-    myTasks: 8,
-    completedTasks: 2,
-  },
-  {
-    id: "5",
-    name: "Logo Design for StartupX",
-    description: "Brand identity and logo variations.",
-    due_date: "10 Oct 2023",
-    status: "completed" as const,
-    creatorName: "Taylor Chen",
-    creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Taylor",
-    myTasks: 4,
-    completedTasks: 4,
-  },
-];
+// const talentProjects = [
+//   {
+//     id: "1",
+//     name: 'Brand Collab - "Future Funk"',
+//     description: "Creating promotional materials and motion graphics.",
+//     due_date: "24 Oct 2023",
+//     status: "in-progress" as const,
+//     creatorName: "Alex Johnson",
+//     creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex",
+//     myTasks: 5,
+//     completedTasks: 3,
+//   },
+//   {
+//     id: "4",
+//     name: "Mobile App UI Redesign",
+//     description: "Designing new UI components and user flows.",
+//     due_date: "30 Nov 2023",
+//     status: "in-progress" as const,
+//     creatorName: "Jordan Smith",
+//     creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jordan",
+//     myTasks: 8,
+//     completedTasks: 2,
+//   },
+//   {
+//     id: "5",
+//     name: "Logo Design for StartupX",
+//     description: "Brand identity and logo variations.",
+//     due_date: "10 Oct 2023",
+//     status: "completed" as const,
+//     creatorName: "Taylor Chen",
+//     creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Taylor",
+//     myTasks: 4,
+//     completedTasks: 4,
+//   },
+// ];
 
 export default function Projects() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { projects: contextProjects, addProject } = useProjects();
+  const { projects, addProject } = useProjects();
   const isTalent = user?.role === 'talent';
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -112,7 +112,9 @@ export default function Projects() {
     due_date: "",
   });
 
-  const projects = isTalent ? talentProjects : contextProjects;
+  // const projects = isTalent ? talentProjects : contextProjects;
+
+
 
 
   const handleCreateProject = async () => {
@@ -208,73 +210,65 @@ export default function Projects() {
 
         {/* Projects Grid */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
-            <div
-              key={project.id}
-              onClick={() => navigate(`/projects/${project.id}`)}
-              className="glass-card-hover cursor-pointer p-6"
-            >
-              <div className="mb-4 flex items-start justify-between">
-                <h3 className="font-semibold text-foreground">{project.name}</h3>
-                <StatusBadge status={project.status} />
-              </div>
+          {projects.map((project) => {
+            const progress =
+              project.task_count === 0
+                ? 0
+                : (project.completed_tasks / project.task_count) * 100;
 
-              <p className="mb-4 line-clamp-2 text-sm text-muted-foreground">
-                {project.description}
-              </p>
-
-              {/* Progress */}
-              <div className="mb-4">
-                <div className="mb-1 flex justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    {isTalent ? "My Progress" : "Progress"}
-                  </span>
-                  <span className="text-foreground">
-                    {project.completedTasks}/{isTalent ? (project as any).myTasks : (project as any).taskCount} tasks
-                  </span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-secondary">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{
-                      width: `${(project.completedTasks / (isTalent ? (project as any).myTasks : (project as any).taskCount)) * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Meta */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  <span>{project.due_date}</span>
+            return (
+              <div
+                key={project.id}
+                onClick={() => navigate(`/projects/${project.id}`)}
+                className="cursor-pointer p-6 rounded-lg border"
+              >
+                <div className="flex justify-between mb-3">
+                  <h3 className="font-semibold">{project.name}</h3>
+                  <StatusBadge status={project.status} />
                 </div>
 
-                {isTalent ? (
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-7 w-7 border-2 border-card">
-                      <AvatarImage src={(project as any).creatorAvatar} alt={(project as any).creatorName} />
-                      <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                        {(project as any).creatorName.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-xs text-muted-foreground">{(project as any).creatorName}</span>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {project.description}
+                </p>
+
+                {/* Progress */}
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Progress</span>
+                    <span>
+                      {project.completed_tasks}/{project.task_count}
+                    </span>
                   </div>
-                ) : (
+
+                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Meta */}
+                <div className="flex justify-between items-center text-sm">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    {project.due_date}
+                  </div>
+
                   <div className="flex -space-x-2">
-                    {(project as any).teamMembers.slice(0, 3).map((member: any) => (
-                      <Avatar key={member.id} className="h-7 w-7 border-2 border-card">
-                        <AvatarImage src={member.avatar} alt={member.name} />
-                        <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                          {member.name.charAt(0)}
+                    {project.teamMembers?.slice(0, 3).map((m) => (
+                      <Avatar key={m.id} className="h-7 w-7">
+                        <AvatarImage src={m.avatar} />
+                        <AvatarFallback>
+                          {m.name[0]}
                         </AvatarFallback>
                       </Avatar>
                     ))}
                   </div>
-                )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </MainLayout>

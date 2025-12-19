@@ -20,9 +20,6 @@ class Project(models.Model):
     description = models.TextField(blank=True, null=True)
     due_date = models.DateField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
-    task_count = models.PositiveIntegerField(default=0)
-    completed_tasks = models.PositiveIntegerField(default=0)
-
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

@@ -33,16 +33,22 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
 # Task Views
 class TaskListCreateView(generics.ListCreateAPIView):
     serializer_class = TaskSerializer
-    permission_classes = [IsAuthenticated, IsCreator]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        project_id = self.kwargs.get("project_id")
-        return Task.objects.filter(project_id=project_id)
+        project = Project.objects.get(
+            id=self.kwargs["project_id"],
+            creator=self.request.user
+        )
+        return project.tasks.all()
 
     def perform_create(self, serializer):
-        project_id = self.kwargs.get("project_id")
-        project = Project.objects.get(id=project_id)
+        project = Project.objects.get(
+            id=self.kwargs["project_id"],
+            creator=self.request.user
+        )
         serializer.save(project=project)
+
 
 
 class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
