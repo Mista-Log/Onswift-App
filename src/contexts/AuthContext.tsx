@@ -49,7 +49,31 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
- 
+
+const refreshAccessToken = async () => {
+  const refreshToken = localStorage.getItem("onswift_refresh");
+  if (!refreshToken) throw new Error("No refresh token available");
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/token/refresh/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh: refreshToken }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Refresh token expired");
+  }
+
+  const data = await response.json();
+  localStorage.setItem("onswift_access", data.access);
+  // If your backend sends a new refresh token (rotation), save it too:
+  if (data.refresh) localStorage.setItem("onswift_refresh", data.refresh);
+  
+  return data.access;
+};
+
+
+
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -65,17 +89,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
 
+  const secureFetch = async (url: string, options: RequestInit = {}) => {
+    let token = localStorage.getItem("onswift_access");
+
+    // Helper to set headers
+    const setHeaders = (t: string | null) => {
+      const headers = new Headers(options.headers);
+      if (t) headers.set("Authorization", `Bearer ${t}`);
+      return headers;
+    };
+
+    options.headers = setHeaders(token);
+    let response = await fetch(url, options);
+
+    // HANDSHAKE LOGIC: If 401, try to refresh once
+    if (response.status === 401) {
+      try {
+        const newToken = await refreshAccessToken();
+        options.headers = setHeaders(newToken);
+        response = await fetch(url, options); // Retry the request
+      } catch (error) {
+        // If refresh fails, log them out
+        logout();
+        throw new Error("Session expired. Please login again.");
+      }
+    }
+
+    return response;
+  };
+
+
   // ---------------- GET USER ----------------
   const getUser = async () => {
     const token = localStorage.getItem("onswift_access");
     if (!token) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/user/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
+      // Note: using secureFetch instead of fetch
+      const response = await secureFetch(`${API_BASE_URL}/api/v1/auth/user/`);
 
       if (!response.ok) throw new Error("Failed to fetch user");
 
@@ -175,37 +226,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return { success: false, error: "Not authenticated" };
 
     const token = localStorage.getItem("onswift_access");
-    if (!token) return { success: false, error: "Access token missing" };
+    if (!user) return { success: false, error: "Not authenticated" };
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/profile/`, {
-        method: "PATCH",
-        headers: data instanceof FormData
-          ? { Authorization: `Bearer ${token}` }
-          : { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: data instanceof FormData ? data : JSON.stringify(data),
-      });
+      try {
+        const response = await secureFetch(`${API_BASE_URL}/api/v1/auth/profile//`, {
+          method: "PATCH",
+          headers: data instanceof FormData ? {} : { "Content-Type": "application/json" },
+          body: data instanceof FormData ? data : JSON.stringify(data),
+        });
 
-      const result = await response.json();
-      if (!response.ok) throw new Error(result?.detail || "Profile update failed");
+        const result = await response.json();
+        if (!response.ok) throw new Error(result?.detail || "Profile update failed");
 
-      const updatedUser: User = {
-        ...user,
-        ...result.user,
-        ...(result.profile ?? {}),
-        avatarUrl: result.profile?.avatar ?? user.avatarUrl,
-        social_links: result.profile?.social_links ?? user.social_links, // <- add this
-      };
+        const updatedUser: User = {
+          ...user,
+          ...result.user,
+          ...(result.profile ?? {}),
+          avatarUrl: result.profile?.avatar ?? user.avatarUrl,
+          social_links: result.profile?.social_links ?? user.social_links, // <- add this
+        };
 
-      await getUser(); // <- fetch fresh user data after update
+        await getUser(); // <- fetch fresh user data after update
 
-      setUser(updatedUser);
-      localStorage.setItem("onswift_user", JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        localStorage.setItem("onswift_user", JSON.stringify(updatedUser));
 
-      return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
   };
 
 

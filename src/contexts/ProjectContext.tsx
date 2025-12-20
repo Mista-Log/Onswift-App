@@ -7,6 +7,7 @@ import {
 } from "react";
 import { mapFromBackend } from "../lib/api";
 import { useAuth } from "./AuthContext";
+import { secureFetch } from '../api/apiClient';
 
 export interface Project {
   id: string;
@@ -42,19 +43,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const getToken = () => localStorage.getItem("onswift_access");
 
-  // 🔄 Fetch projects
+  // FETCH PROJECTS
   const fetchProjects = async () => {
-    const token = getToken();
-    if (!token) return;
-
-    const res = await fetch(`${API_BASE_URL}/api/v2/projects/`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!res.ok) throw new Error("Failed to fetch projects");
-
-    const data = await res.json();
-    setProjects(data.map(mapFromBackend));
+    try {
+      // Just provide the endpoint. secureFetch handles the token + refresh!
+      const response = await secureFetch('/api/v2/projects/'); 
+      if (response.ok) {
+        const data = await response.json();
+        setProjects(data);
+      }
+    } catch (error) {
+      console.error("Error loading projects:", error);
+    }
   };
 
   // 🚀 Fetch on mount (near-realtime)
@@ -62,83 +62,79 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     fetchProjects();
   }, []);
 
+  // ---------------- ADD PROJECT ----------------
   const addProject = async (projectData: {name: string; description: string; due_date: string;}) => {
-    const token = getToken();
-    if (!token) throw new Error("No token");
+    try {
+      // secureFetch replaces fetch + getToken logic
+      const res = await secureFetch(`/api/v2/projects/`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: projectData.name,
+          description: projectData.description,
+          due_date: projectData.due_date,
+        }),
+      });
 
-    const res = await fetch(`${API_BASE_URL}/api/v2/projects/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        name: projectData.name,
-        description: projectData.description,
-        due_date: projectData.due_date, // ✅ ISO format
-      }),
-    });
-    
+      const data = await res.json();
 
-  const data = await res.json(); // 👈 READ RESPONSE
+      if (!res.ok) {
+        console.error("Backend validation error:", data);
+        throw new Error(JSON.stringify(data));
+      }
 
-  if (!res.ok) {
-    console.error("Backend validation error:", data);
-    throw new Error(JSON.stringify(data));
-  }
-
-  // 🔥 Sync progress
-  await fetchProjects();
-
-  const newProject = mapFromBackend(data);
-
-    // ⚡ optimistic realtime update
-    setProjects((prev) => [newProject, ...prev]);
+      // Sync progress & update state
+      await fetchProjects();
+      const newProject = mapFromBackend(data);
+      setProjects((prev) => [newProject, ...prev]);
+      
+    } catch (error: any) {
+      console.error("Add Project failed:", error.message);
+      throw error;
+    }
   };
 
-
+  // ---------------- UPDATE PROJECT ----------------
   const updateProject = async (id: string, updates: Partial<Project>) => {
-    const token = getToken();
-    if (!token) throw new Error("No token");
+    try {
+      const res = await secureFetch(`/api/v2/projects/${id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: updates.name,
+          description: updates.description,
+          due_date: updates.due_date,
+          status: updates.status,
+        }),
+      });
 
-    const res = await fetch(`${API_BASE_URL}/api/v2/projects/${id}/`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        name: updates.name,
-        description: updates.description,
-        due_date: updates.due_date,
-        status: updates.status,
-      }),
-    });
+      if (!res.ok) throw new Error("Failed to update project");
 
-    if (!res.ok) throw new Error("Failed to update project");
+      const data = await res.json();
+      const updated = mapFromBackend(data);
 
-    const updated = mapFromBackend(await res.json());
-
-    setProjects((prev) =>
-      prev.map((p) => (p.id === id ? updated : p))
-    );
+      setProjects((prev) =>
+        prev.map((p) => (p.id === id ? updated : p))
+      );
+    } catch (error: any) {
+      console.error("Update Project failed:", error.message);
+      throw error;
+    }
   };
 
+  // ---------------- DELETE PROJECT ----------------
+  const deleteProject = async (id: string) => {
+    try {
+      const res = await secureFetch(`/api/v2/projects/${id}/`, {
+        method: "DELETE",
+      });
 
-    const deleteProject = async (id: string) => {
-    const token = getToken();
-    if (!token) throw new Error("No token");
+      if (!res.ok) throw new Error("Failed to delete project");
 
-    const res = await fetch(`${API_BASE_URL}/api/v2/projects/${id}/`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!res.ok) throw new Error("Failed to delete project");
-
-    setProjects((prev) => prev.filter((p) => p.id !== id));
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+    } catch (error: any) {
+      console.error("Delete Project failed:", error.message);
+      throw error;
+    }
   };
-
 
 
 
