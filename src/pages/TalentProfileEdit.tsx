@@ -28,7 +28,7 @@ const AVAILABILITY_OPTIONS = [
 ];
 
 export default function TalentProfileEdit() {
-  const { user, updateProfile } = useAuth();
+  const { user, updateTalentProfile } = useAuth();
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
@@ -85,7 +85,7 @@ export default function TalentProfileEdit() {
     
     await new Promise(resolve => setTimeout(resolve, 800));
     
-    updateProfile({
+    updateTalentProfile({
       full_name: formData.full_name,
       professional_title: formData.professional_title,
       bio: formData.bio,

@@ -39,7 +39,9 @@ interface AuthContextType {
     role: UserRole;
     [key: string]: any;
   }) => Promise<{ success: boolean; error?: string }>;
-  updateProfile: (data: FormData | Partial<User>) => Promise<{ success: boolean; error?: string }>;
+  updateCreatorProfile: (data: FormData | Partial<User>) => Promise<{ success: boolean; error?: string }>;
+  updateTalentProfile: (data: FormData | Partial<User>) => Promise<{ success: boolean; error?: string }>;
+
   logout: () => void;
   getUser: () => Promise<void>; // fetches the current user from backend
 }
@@ -222,7 +224,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // ---------------- UPDATE PROFILE ----------------
-  const updateProfile = async (data: FormData | Partial<User>) => {
+  const updateCreatorProfile = async (data: FormData | Partial<User>) => {
+    if (!user) return { success: false, error: "Not authenticated" };
+
+    const token = localStorage.getItem("onswift_access");
+    if (!user) return { success: false, error: "Not authenticated" };
+
+      try {
+        const response = await secureFetch(`${API_BASE_URL}/api/v1/auth/profile//`, {
+          method: "PATCH",
+          headers: data instanceof FormData ? {} : { "Content-Type": "application/json" },
+          body: data instanceof FormData ? data : JSON.stringify(data),
+        });
+
+        const result = await response.json();
+        if (!response.ok) throw new Error(result?.detail || "Profile update failed");
+
+        const updatedUser: User = {
+          ...user,
+          ...result.user,
+          ...(result.profile ?? {}),
+          avatarUrl: result.profile?.avatar ?? user.avatarUrl,
+          social_links: result.profile?.social_links ?? user.social_links, // <- add this
+        };
+
+        await getUser(); // <- fetch fresh user data after update
+
+        setUser(updatedUser);
+        localStorage.setItem("onswift_user", JSON.stringify(updatedUser));
+
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+  };
+
+
+  // ---------------- UPDATE PROFILE ----------------
+  const updateTalentProfile = async (data: FormData | Partial<User>) => {
     if (!user) return { success: false, error: "Not authenticated" };
 
     const token = localStorage.getItem("onswift_access");
@@ -259,6 +298,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
 
+
   return (
     <AuthContext.Provider
       value={{
@@ -268,7 +308,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         signup,
         logout,
-        updateProfile,
+        updateTalentProfile,
+        updateCreatorProfile,
         getUser, // optional if you want to call manually elsewhere
       }}
     >

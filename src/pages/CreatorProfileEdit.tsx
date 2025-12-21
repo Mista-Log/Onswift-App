@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Camera, Linkedin, Twitter, Instagram, Youtube } from "lucide-react";
 
 export default function CreatorProfileEdit() {
-  const { user, updateProfile, getUser } = useAuth();
+  const { user, updateCreatorProfile, getUser } = useAuth();
   const navigate = useNavigate();
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -72,7 +72,7 @@ export default function CreatorProfileEdit() {
 
   //   await new Promise(resolve => setTimeout(resolve, 800));
 
-  //   updateProfile({
+  //   updateCreatorProfile({
   //     full_name: formData.full_name,
   //     company_name: formData.company_name,
   //     bio: formData.bio,
@@ -105,7 +105,7 @@ export default function CreatorProfileEdit() {
         payload.append("avatar", avatarFile);
       }
 
-      const response = await updateProfile(payload);
+      const response = await updateCreatorProfile(payload);
 
       toast.success("Profile updated successfully!");
       navigate("/dashboard");
