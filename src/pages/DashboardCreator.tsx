@@ -16,9 +16,9 @@ const teamMembers = [
 ];
 
 const creatorStats = [
-  { title: "Total Earnings", value: "$12,850", change: 12.5 },
-  { title: "Active Collabs", value: "8", change: 2.1 },
-  { title: "Audience Growth", value: "24.1K", change: 8.3 },
+  
+  { title: "Active Collabs", value: "8", change: 2.1 }
+  
 ];
 
 export default function DashboardCreator() {

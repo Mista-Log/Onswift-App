@@ -13,11 +13,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const creatorNavItems = [
-  { label: "Dashboard", icon: LayoutGrid, route: "/dashboard" },
+  { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
   { label: "Browse Talent", icon: Users, route: "/talent" },
-  { label: "My Team", icon: UsersRound, route: "/team" },
+  { label: "Chats", icon: UsersRound, route: "/team" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
-  { label: "Calendar", icon: Calendar, route: "/calendar" },
+  { label: "Deadlines", icon: Calendar, route: "/calendar" },
 ];
 
 const talentNavItems = [
@@ -25,7 +25,7 @@ const talentNavItems = [
   { label: "My Profile", icon: User, route: "/profile/edit" },
   { label: "My Projects", icon: FolderKanban, route: "/projects" },
   { label: "Deliverables", icon: Upload, route: "/deliverables" },
-  { label: "Messages", icon: MessageCircle, route: "/messages" },
+  { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Calendar", icon: Calendar, route: "/calendar" },
 ];
 

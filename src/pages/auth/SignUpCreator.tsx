@@ -124,12 +124,12 @@ export default function SignUpCreator() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">Work Email</label>
+              <label className="text-sm font-medium text-foreground mb-2 block">Creator Email</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   type="email"
-                  placeholder="john@company.com"
+                  placeholder="john@onswift.com"
                   className="pl-10"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}

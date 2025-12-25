@@ -76,9 +76,9 @@ export default function Team() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">My Team</h1>
+            <h1 className="text-3xl font-bold text-foreground">Team Chats</h1>
             <p className="mt-1 text-muted-foreground">
-              Manage your team and deliverables
+              Manage your team deliverables and communication
             </p>
           </div>
         </div>

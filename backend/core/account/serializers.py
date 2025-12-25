@@ -38,8 +38,6 @@ class SignupSerializer(serializers.ModelSerializer):
             # creator
             "company_name",
             "bio",
-            "avatar",
-            "social_links",
             "website",
             "industry",
             "location",

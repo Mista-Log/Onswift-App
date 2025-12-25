@@ -14,7 +14,7 @@ export interface Project {
   name: string;
   description: string;
   due_date: string;
-  status: "in-progress" | "planning" | "completed";
+  status: "in-progress" | "planning" | "complet ed";
   teamMembers: Array<{
     id: string;
     name: string;
