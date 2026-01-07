@@ -5,6 +5,7 @@ from .models import User, TalentProfile, CreatorProfile
 
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
+    invite_token = serializers.CharField(required=False, write_only=True)
 
     # Talent fields (optional)
     professional_title = serializers.CharField(required=False)
@@ -28,6 +29,7 @@ class SignupSerializer(serializers.ModelSerializer):
             "full_name",
             "password",
             "role",
+            "invite_token",
 
             # talent
             "professional_title",
@@ -44,7 +46,11 @@ class SignupSerializer(serializers.ModelSerializer):
         )
 
     def create(self, validated_data):
+        from notification.models import InviteToken, HireRequest
+        from django.utils import timezone
+
         role = validated_data.get("role")
+        invite_token_str = validated_data.pop("invite_token", None)
 
         talent_fields = {
             "professional_title": validated_data.pop("professional_title", None),
@@ -70,6 +76,28 @@ class SignupSerializer(serializers.ModelSerializer):
 
         if role == "talent":
             TalentProfile.objects.create(user=user, **talent_fields)
+
+            # Handle invite token if provided
+            if invite_token_str:
+                try:
+                    invite = InviteToken.objects.get(token=invite_token_str)
+                    if invite.is_valid():
+                        # Mark invite as used
+                        invite.is_used = True
+                        invite.used_by = user
+                        invite.used_at = timezone.now()
+                        invite.save()
+
+                        # Create accepted hire request (auto-add to team)
+                        HireRequest.objects.create(
+                            creator=invite.creator,
+                            talent=user,
+                            message=f"Joined via invite link",
+                            status="accepted",
+                            responded_at=timezone.now()
+                        )
+                except InviteToken.DoesNotExist:
+                    pass  # Silently ignore invalid tokens
 
         elif role == "creator":
             CreatorProfile.objects.create(user=user, **creator_fields)
@@ -154,7 +182,7 @@ class ProfileUpdateSerializer(serializers.Serializer):
                 "industry",
                 "location",
                 "avatar",
-                "social_links",
+                "t",
             ]
 
             if "avatar" in validated_data and validated_data["avatar"] is not None:

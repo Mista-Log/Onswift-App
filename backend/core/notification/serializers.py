@@ -1,7 +1,8 @@
 from rest_framework import serializers
-from .models import HireRequest, Notification
+from .models import HireRequest, Notification, InviteToken
 from .services import create_notification
 from django.utils import timezone
+from account.models import User
 
 
 class HireRequestCreateSerializer(serializers.ModelSerializer):
@@ -72,3 +73,99 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = "__all__"
+
+
+class TeamMemberSerializer(serializers.ModelSerializer):
+    """Serializer for displaying hired team members"""
+    id = serializers.CharField(source='talent.id', read_only=True)
+    name = serializers.CharField(source='talent.full_name', read_only=True)
+    email = serializers.EmailField(source='talent.email', read_only=True)
+    role = serializers.SerializerMethodField()
+    avatar = serializers.SerializerMethodField()
+    skills = serializers.SerializerMethodField()
+
+    class Meta:
+        model = HireRequest
+        fields = ['id', 'name', 'email', 'role', 'avatar', 'skills', 'created_at']
+
+    def get_role(self, obj):
+        """Get the talent's professional title"""
+        try:
+            return obj.talent.talentprofile.professional_title
+        except AttributeError:
+            return "Talent"
+
+    def get_avatar(self, obj):
+        """Get talent avatar URL"""
+        try:
+            if obj.talent.talentprofile.avatar:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(obj.talent.talentprofile.avatar.url)
+            return None
+        except AttributeError:
+            return None
+
+    def get_skills(self, obj):
+        """Get talent skills"""
+        try:
+            return obj.talent.talentprofile.skills
+        except AttributeError:
+            return []
+
+
+class InviteTokenCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating invite tokens"""
+    invite_url = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = InviteToken
+        fields = ['token', 'invited_email', 'expires_at', 'created_at', 'invite_url']
+        read_only_fields = ['token', 'expires_at', 'created_at', 'invite_url']
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if request and request.user.role != 'creator':
+            raise serializers.ValidationError("Only creators can generate invite links.")
+        return attrs
+
+    def create(self, validated_data):
+        creator = self.context['request'].user
+        invite = InviteToken.objects.create(
+            creator=creator,
+            **validated_data
+        )
+        return invite
+
+    def get_invite_url(self, obj):
+        """Generate the full invite URL"""
+        request = self.context.get('request')
+        if request:
+            # Build absolute URL for the frontend
+            origin = request.build_absolute_uri('/').rstrip('/')
+            # Replace backend URL with frontend URL
+            origin = origin.replace(':8000', ':5173')  # Adjust port if needed
+            return f"{origin}/signup/talent?invite={obj.token}"
+        return f"/signup/talent?invite={obj.token}"
+
+
+class InviteTokenValidateSerializer(serializers.ModelSerializer):
+    """Serializer for validating invite tokens"""
+    creator_name = serializers.CharField(source='creator.full_name', read_only=True)
+    creator_company = serializers.SerializerMethodField()
+    is_valid = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InviteToken
+        fields = ['token', 'creator_name', 'creator_company', 'is_valid', 'is_used', 'expires_at']
+
+    def get_creator_company(self, obj):
+        """Get creator's company name"""
+        try:
+            return obj.creator.creatorprofile.company_name
+        except AttributeError:
+            return None
+
+    def get_is_valid(self, obj):
+        """Check if invite is valid"""
+        return obj.is_valid()

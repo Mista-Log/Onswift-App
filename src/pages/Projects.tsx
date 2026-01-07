@@ -4,7 +4,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Calendar, Users } from "lucide-react";
+import { Plus, Calendar, Users, FolderKanban } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -209,67 +209,82 @@ export default function Projects() {
         </div>
 
         {/* Projects Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => {
-            const progress =
-              project.task_count === 0
-                ? 0
-                : (project.completed_tasks / project.task_count) * 100;
+        {projects.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-12 text-center min-h-[400px]">
+            <FolderKanban className="h-12 w-12 text-muted-foreground/50" />
+            <p className="mt-3 text-sm font-medium text-foreground">
+              {isTalent ? "No projects assigned yet" : "No projects yet"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {isTalent
+                ? "Projects assigned to you will appear here"
+                : "Click the + New Project button above to create your first project"
+              }
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {projects.map((project) => {
+              const progress =
+                project.task_count === 0
+                  ? 0
+                  : (project.completed_tasks / project.task_count) * 100;
 
-            return (
-              <div
-                key={project.id}
-                onClick={() => navigate(`/projects/${project.id}`)}
-                className="cursor-pointer p-6 rounded-lg border"
-              >
-                <div className="flex justify-between mb-3">
-                  <h3 className="font-semibold">{project.name}</h3>
-                  <StatusBadge status={project.status} />
+              return (
+                <div
+                  key={project.id}
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                  className="cursor-pointer p-6 rounded-lg border"
+                >
+                  <div className="flex justify-between mb-3">
+                    <h3 className="font-semibold">{project.name}</h3>
+                    <StatusBadge status={project.status} />
+                  </div>
+
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {project.description}
+                  </p>
+
+                  {/* Progress */}
+                  <div className="mb-4">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Progress</span>
+                      <span>
+                        {project.completed_tasks}/{project.task_count}
+                      </span>
+                    </div>
+
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Meta */}
+                  <div className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      {project.due_date}
+                    </div>
+
+                    <div className="flex -space-x-2">
+                      {project.teamMembers?.slice(0, 3).map((m) => (
+                        <Avatar key={m.id} className="h-7 w-7">
+                          <AvatarImage src={m.avatar} />
+                          <AvatarFallback>
+                            {m.name[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-
-                <p className="text-sm text-muted-foreground mb-4">
-                  {project.description}
-                </p>
-
-                {/* Progress */}
-                <div className="mb-4">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>Progress</span>
-                    <span>
-                      {project.completed_tasks}/{project.task_count}
-                    </span>
-                  </div>
-
-                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Meta */}
-                <div className="flex justify-between items-center text-sm">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    {project.due_date}
-                  </div>
-
-                  <div className="flex -space-x-2">
-                    {project.teamMembers?.slice(0, 3).map((m) => (
-                      <Avatar key={m.id} className="h-7 w-7">
-                        <AvatarImage src={m.avatar} />
-                        <AvatarFallback>
-                          {m.name[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </MainLayout>
   );

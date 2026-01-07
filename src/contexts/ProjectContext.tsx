@@ -9,12 +9,24 @@ import { mapFromBackend } from "../lib/api";
 import { useAuth } from "./AuthContext";
 import { secureFetch } from '../api/apiClient';
 
+export interface Task {
+  id: string;
+  project: string;
+  name: string;
+  description: string;
+  assignee: string | null;
+  assignee_name: string | null;
+  status: "planning" | "in-progress" | "completed";
+  deadline: string | null;
+  created_at: string;
+}
+
 export interface Project {
   id: string;
   name: string;
   description: string;
   due_date: string;
-  status: "in-progress" | "planning" | "complet ed";
+  status: "in-progress" | "planning" | "completed";
   teamMembers: Array<{
     id: string;
     name: string;
@@ -22,6 +34,7 @@ export interface Project {
   }>;
   task_count: number;
   completed_tasks: number;
+  progress?: number;
 }
 
 interface ProjectContextType {
@@ -32,6 +45,12 @@ interface ProjectContextType {
   ) => Promise<void>;
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+
+  // Task management
+  fetchProjectTasks: (projectId: string) => Promise<Task[]>;
+  addTask: (projectId: string, task: Omit<Task, "id" | "project" | "assignee_name" | "created_at">) => Promise<void>;
+  updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
+  deleteTask: (taskId: string) => Promise<void>;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -136,7 +155,89 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ---------------- FETCH PROJECT TASKS ----------------
+  const fetchProjectTasks = async (projectId: string): Promise<Task[]> => {
+    try {
+      const response = await secureFetch(`/api/v2/projects/${projectId}/tasks/`);
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      }
+      return [];
+    } catch (error) {
+      console.error("Error loading tasks:", error);
+      return [];
+    }
+  };
 
+  // ---------------- ADD TASK ----------------
+  const addTask = async (projectId: string, taskData: Omit<Task, "id" | "project" | "assignee_name" | "created_at">) => {
+    try {
+      const res = await secureFetch(`/api/v2/projects/${projectId}/tasks/`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: taskData.name,
+          description: taskData.description,
+          assignee: taskData.assignee || null,
+          status: taskData.status || "planning",
+          deadline: taskData.deadline || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        console.error("Backend validation error:", data);
+        throw new Error(JSON.stringify(data));
+      }
+
+      // Refresh projects to update task counts
+      await fetchProjects();
+    } catch (error: any) {
+      console.error("Add Task failed:", error.message);
+      throw error;
+    }
+  };
+
+  // ---------------- UPDATE TASK ----------------
+  const updateTask = async (taskId: string, updates: Partial<Task>) => {
+    try {
+      const res = await secureFetch(`/api/v2/tasks/${taskId}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: updates.name,
+          description: updates.description,
+          assignee: updates.assignee,
+          status: updates.status,
+          deadline: updates.deadline,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to update task");
+
+      // Refresh projects to update task counts
+      await fetchProjects();
+    } catch (error: any) {
+      console.error("Update Task failed:", error.message);
+      throw error;
+    }
+  };
+
+  // ---------------- DELETE TASK ----------------
+  const deleteTask = async (taskId: string) => {
+    try {
+      const res = await secureFetch(`/api/v2/tasks/${taskId}/`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("Failed to delete task");
+
+      // Refresh projects to update task counts
+      await fetchProjects();
+    } catch (error: any) {
+      console.error("Delete Task failed:", error.message);
+      throw error;
+    }
+  };
 
   return (
     <ProjectContext.Provider
@@ -146,6 +247,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         addProject,
         updateProject,
         deleteProject,
+        fetchProjectTasks,
+        addTask,
+        updateTask,
+        deleteTask,
       }}
     >
       {children}

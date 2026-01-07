@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 
 const creatorNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
@@ -73,7 +74,7 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
               O
             </div>
             <span className="text-xl font-bold text-foreground">
-              On<span className="text-primary">Swift</span>
+              OnSwift
             </span>
           </div>
         )}
@@ -198,9 +199,7 @@ export function TopBar({ onToggleSidebar, onToggleMobileSidebar, isCollapsed }: 
 
       {/* Right side */}
       <div className="flex items-center gap-2 md:gap-4">
-        <button className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
-          <Bell className="h-5 w-5" />
-        </button>
+        <NotificationDropdown />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
