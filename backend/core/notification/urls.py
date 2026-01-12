@@ -5,6 +5,8 @@ from .views import (
     ReceivedHireRequestListView,
     HireRequestRespondView,
     CreatorTeamListView,
+    TalentCreatorsListView,
+    RemoveTeamMemberView,
     NotificationListView,
     NotificationReadView,
     InviteTokenCreateView,
@@ -16,6 +18,8 @@ urlpatterns = [
     path("hire-requests/received/", ReceivedHireRequestListView.as_view()),
     path("hire-requests/<uuid:pk>/respond/", HireRequestRespondView.as_view()),
     path("team/", CreatorTeamListView.as_view()),  # Get creator's accepted team members
+    path("my-creators/", TalentCreatorsListView.as_view()),  # Get talent's creators
+    path("team/<uuid:pk>/remove/", RemoveTeamMemberView.as_view()),  # Remove team member
 
     path("notifications/", NotificationListView.as_view()),
     path('notifications/<uuid:pk>/read/', NotificationReadView.as_view()),

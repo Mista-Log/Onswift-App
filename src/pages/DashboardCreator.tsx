@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { useProjects } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { InviteMemberModal } from "@/components/dashboard/InviteMemberModal";
+import { toast } from "sonner";
 
 // const teamMembers = [
 //   { id: "1", name: "Alia Vance", role: "Manager", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
@@ -26,9 +27,27 @@ const creatorStats = [
 export default function DashboardCreator() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { projects: allProjects } = useProjects();
-  const { teamMembers, isLoading: isLoadingTeam } = useTeam();
+  const { projects: allProjects, deleteProject } = useProjects();
+  const { teamMembers, isLoading: isLoadingTeam, removeTeamMember } = useTeam();
   const [showInviteModal, setShowInviteModal] = useState(false);
+
+  const handleRemoveMember = async (memberId: string) => {
+    const success = await removeTeamMember(memberId);
+    if (success) {
+      toast.success("Team member removed successfully");
+    } else {
+      toast.error("Failed to remove team member");
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    try {
+      await deleteProject(projectId);
+      toast.success("Project deleted successfully");
+    } catch (error) {
+      toast.error("Failed to delete project");
+    }
+  };
 
   // Show only the first 3 projects
   const projects = allProjects.slice(0, 3);
@@ -78,11 +97,14 @@ export default function DashboardCreator() {
                   {projects.map((project) => (
                     <ProjectCard
                       key={project.id}
+                      id={project.id}
                       name={project.name}
                       dueDate={project.due_date}
                       status={project.status}
                       teamMembers={project.teamMembers}
                       onClick={() => navigate(`/projects/${project.id}`)}
+                      showActions={true}
+                      onDelete={handleDeleteProject}
                     />
                   ))}
                 </div>
@@ -123,9 +145,12 @@ export default function DashboardCreator() {
                   {teamMembers.map((member) => (
                     <TeamMemberCard
                       key={member.id}
+                      id={member.id}
                       name={member.name}
                       role={member.role}
                       avatar={member.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.name}`}
+                      showActions={true}
+                      onRemove={handleRemoveMember}
                     />
                   ))}
                 </div>

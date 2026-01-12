@@ -77,7 +77,9 @@ class NotificationSerializer(serializers.ModelSerializer):
 
 class TeamMemberSerializer(serializers.ModelSerializer):
     """Serializer for displaying hired team members"""
-    id = serializers.CharField(source='talent.id', read_only=True)
+    # id = HireRequest ID (for removal operations)
+    # user_id = Talent's user ID (for starting conversations)
+    user_id = serializers.CharField(source='talent.id', read_only=True)
     name = serializers.CharField(source='talent.full_name', read_only=True)
     email = serializers.EmailField(source='talent.email', read_only=True)
     role = serializers.SerializerMethodField()
@@ -86,7 +88,7 @@ class TeamMemberSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = HireRequest
-        fields = ['id', 'name', 'email', 'role', 'avatar', 'skills', 'created_at']
+        fields = ['id', 'user_id', 'name', 'email', 'role', 'avatar', 'skills', 'created_at']
 
     def get_role(self, obj):
         """Get the talent's professional title"""

@@ -47,6 +47,7 @@ class SignupSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         from notification.models import InviteToken, HireRequest
+        from notification.services import create_notification
         from django.utils import timezone
 
         role = validated_data.get("role")
@@ -95,6 +96,14 @@ class SignupSerializer(serializers.ModelSerializer):
                             message=f"Joined via invite link",
                             status="accepted",
                             responded_at=timezone.now()
+                        )
+
+                        # Notify creator that talent joined
+                        create_notification(
+                            user=invite.creator,
+                            title="New Team Member",
+                            message=f"{user.full_name} has joined your team via invite link.",
+                            notification_type="system",
                         )
                 except InviteToken.DoesNotExist:
                     pass  # Silently ignore invalid tokens

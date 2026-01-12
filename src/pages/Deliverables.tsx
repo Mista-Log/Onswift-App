@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,110 +9,119 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, Search, Filter } from "lucide-react";
+import { Upload, Search, Filter, Loader2 } from "lucide-react";
 import { DeliverableCard, Deliverable } from "@/components/team/DeliverableCard";
 import { UploadDeliverableModal, DeliverableFormData } from "@/components/team/UploadDeliverableModal";
 import { DeliverableDetailModal } from "@/components/team/DeliverableDetailModal";
-
-const mockDeliverables: Deliverable[] = [
-  {
-    id: "1",
-    title: "Final Logo Design",
-    description: "Here's the final logo with all requested changes for Brand Collab project",
-    projectId: "1",
-    projectName: "Brand Collaboration",
-    taskId: "t1",
-    taskName: "Design mockups",
-    submittedBy: {
-      id: "me",
-      name: "You",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Me",
-    },
-    files: [
-      { name: "logo_final.png", url: "#", size: 2048576, type: "image/png" },
-      { name: "logo_variants.pdf", url: "#", size: 5242880, type: "application/pdf" },
-    ],
-    status: "pending",
-    revisionCount: 0,
-    submittedAt: "2 hours ago",
-  },
-  {
-    id: "2",
-    title: "Video Edit V2",
-    description: "Updated with the new intro and outro as requested",
-    projectId: "2",
-    projectName: "Content Series",
-    taskId: "t3",
-    taskName: "Video editing",
-    submittedBy: {
-      id: "me",
-      name: "You",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Me",
-    },
-    files: [
-      { name: "video_edit_v2.mp4", url: "#", size: 104857600, type: "video/mp4" },
-    ],
-    status: "approved",
-    revisionCount: 0,
-    submittedAt: "1 day ago",
-  },
-  {
-    id: "3",
-    title: "Thumbnail Concepts",
-    description: "Three different concepts for the video thumbnails",
-    projectId: "2",
-    projectName: "Content Series",
-    taskId: "t4",
-    taskName: "Thumbnail designs",
-    submittedBy: {
-      id: "me",
-      name: "You",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Me",
-    },
-    files: [
-      { name: "thumb_1.jpg", url: "#", size: 512000, type: "image/jpeg" },
-      { name: "thumb_2.jpg", url: "#", size: 480000, type: "image/jpeg" },
-      { name: "thumb_3.jpg", url: "#", size: 495000, type: "image/jpeg" },
-    ],
-    status: "revision",
-    revisionCount: 1,
-    feedback: "Looks good! Can we try a warmer color palette for thumbnail 2?",
-    submittedAt: "3 days ago",
-  },
-];
+import { secureFetch } from "@/api/apiClient";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Deliverables() {
-  const [deliverables, setDeliverables] = useState(mockDeliverables);
+  const { user } = useAuth();
+  const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [selectedDeliverable, setSelectedDeliverable] = useState<Deliverable | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const handleUploadDeliverable = (data: DeliverableFormData) => {
-    const newDeliverable: Deliverable = {
-      id: Date.now().toString(),
-      title: data.title,
-      description: data.description,
-      projectId: data.projectId,
-      projectName: data.projectId === "1" ? "Brand Collaboration" : data.projectId === "2" ? "Content Series" : "Product Launch",
-      taskId: data.taskId,
-      taskName: "Task Name",
-      submittedBy: {
-        id: "me",
-        name: "You",
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Me",
-      },
-      files: data.files.map((f) => ({
-        name: f.name,
-        url: "#",
-        size: f.size,
-        type: f.type,
-      })),
-      status: "pending",
-      revisionCount: 0,
-      submittedAt: "Just now",
-    };
-    setDeliverables((prev) => [newDeliverable, ...prev]);
+  const isCreator = user?.role === "creator";
+
+  useEffect(() => {
+    fetchDeliverables();
+  }, []);
+
+  const fetchDeliverables = async () => {
+    try {
+      setIsLoading(true);
+      const response = await secureFetch('/api/v2/deliverables/');
+      if (response.ok) {
+        const data = await response.json();
+        // Map backend data to frontend format
+        const mapped = data.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          description: d.description,
+          projectId: d.project_id,
+          projectName: d.project_name,
+          taskId: d.task,
+          taskName: d.task_name,
+          submittedBy: {
+            id: d.submitted_by,
+            name: d.submitted_by_name,
+            avatar: d.submitted_by_avatar,
+          },
+          files: d.files?.map((f: any) => ({
+            name: f.name,
+            url: f.url,
+            size: f.size,
+            type: f.file_type,
+          })) || [],
+          status: d.status,
+          revisionCount: d.revision_count,
+          feedback: d.feedback,
+          submittedAt: new Date(d.created_at).toLocaleDateString(),
+        }));
+        setDeliverables(mapped);
+      }
+    } catch (error) {
+      console.error("Error fetching deliverables:", error);
+      toast.error("Failed to load deliverables");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUploadDeliverable = async (data: DeliverableFormData) => {
+    try {
+      const formData = new FormData();
+      formData.append("task", data.taskId);
+      formData.append("title", data.title);
+      formData.append("description", data.description);
+
+      data.files.forEach((file) => {
+        formData.append("files", file);
+      });
+
+      const response = await secureFetch('/api/v2/deliverables/', {
+        method: "POST",
+        body: formData,
+        headers: {}, // Let browser set content-type for FormData
+      });
+
+      if (response.ok) {
+        toast.success("Deliverable uploaded successfully!");
+        setUploadModalOpen(false);
+        fetchDeliverables();
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || "Failed to upload deliverable");
+      }
+    } catch (error) {
+      console.error("Error uploading deliverable:", error);
+      toast.error("Failed to upload deliverable");
+    }
+  };
+
+  const handleReviewDeliverable = async (deliverableId: string, status: "approved" | "revision", feedback?: string) => {
+    try {
+      const response = await secureFetch(`/api/v2/deliverables/${deliverableId}/review/`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, feedback }),
+      });
+
+      if (response.ok) {
+        toast.success(status === "approved" ? "Deliverable approved!" : "Revision requested");
+        setSelectedDeliverable(null);
+        fetchDeliverables();
+      } else {
+        toast.error("Failed to review deliverable");
+      }
+    } catch (error) {
+      console.error("Error reviewing deliverable:", error);
+      toast.error("Failed to review deliverable");
+    }
   };
 
   const filteredDeliverables = deliverables.filter((d) => {
@@ -137,15 +146,19 @@ export default function Deliverables() {
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">My Deliverables</h1>
+            <h1 className="text-3xl font-bold text-foreground">
+              {isCreator ? "Team Deliverables" : "My Deliverables"}
+            </h1>
             <p className="mt-1 text-muted-foreground">
-              Upload and track your work submissions
+              {isCreator ? "Review and manage work submissions from your team" : "Upload and track your work submissions"}
             </p>
           </div>
-          <Button onClick={() => setUploadModalOpen(true)} className="gap-2">
-            <Upload className="h-4 w-4" />
-            Upload Deliverable
-          </Button>
+          {!isCreator && (
+            <Button onClick={() => setUploadModalOpen(true)} className="gap-2">
+              <Upload className="h-4 w-4" />
+              Upload Deliverable
+            </Button>
+          )}
         </div>
 
         {/* Stats */}
@@ -196,7 +209,11 @@ export default function Deliverables() {
         </div>
 
         {/* Deliverables Grid */}
-        {filteredDeliverables.length > 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : filteredDeliverables.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredDeliverables.map((deliverable) => (
               <DeliverableCard
@@ -215,9 +232,11 @@ export default function Deliverables() {
             <p className="text-muted-foreground mb-6">
               {searchQuery || statusFilter !== "all"
                 ? "Try adjusting your search or filters"
-                : "Upload your first deliverable to get started"}
+                : isCreator
+                  ? "Your team hasn't submitted any deliverables yet"
+                  : "Upload your first deliverable to get started"}
             </p>
-            {!searchQuery && statusFilter === "all" && (
+            {!searchQuery && statusFilter === "all" && !isCreator && (
               <Button onClick={() => setUploadModalOpen(true)} className="gap-2">
                 <Upload className="h-4 w-4" />
                 Upload Deliverable
@@ -238,7 +257,9 @@ export default function Deliverables() {
           deliverable={selectedDeliverable}
           open={!!selectedDeliverable}
           onOpenChange={() => setSelectedDeliverable(null)}
-          isCreator={false}
+          isCreator={isCreator}
+          onApprove={isCreator ? (id) => handleReviewDeliverable(id, "approved") : undefined}
+          onRequestRevision={isCreator ? (id, feedback) => handleReviewDeliverable(id, "revision", feedback) : undefined}
         />
       </div>
     </MainLayout>

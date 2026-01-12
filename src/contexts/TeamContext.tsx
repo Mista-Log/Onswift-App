@@ -8,7 +8,8 @@ import {
 import { secureFetch } from "../api/apiClient";
 
 export interface TeamMember {
-  id: string;
+  id: string;       // HireRequest ID (for removal)
+  user_id: string;  // Talent's user ID (for conversations)
   name: string;
   email: string;
   role: string;
@@ -21,6 +22,7 @@ interface TeamContextType {
   teamMembers: TeamMember[];
   isLoading: boolean;
   fetchTeam: () => Promise<void>;
+  removeTeamMember: (memberId: string) => Promise<boolean>;
 }
 
 const TeamContext = createContext<TeamContextType | undefined>(undefined);
@@ -48,6 +50,25 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Remove team member
+  const removeTeamMember = async (memberId: string): Promise<boolean> => {
+    try {
+      const response = await secureFetch(`/api/v3/team/${memberId}/remove/`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        // Update local state
+        setTeamMembers(prev => prev.filter(m => m.id !== memberId));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error removing team member:", error);
+      return false;
+    }
+  };
+
   // Fetch on mount
   useEffect(() => {
     fetchTeam();
@@ -59,6 +80,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
         teamMembers,
         isLoading,
         fetchTeam,
+        removeTeamMember,
       }}
     >
       {children}

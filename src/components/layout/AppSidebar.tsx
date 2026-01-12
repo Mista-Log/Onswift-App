@@ -16,7 +16,7 @@ import { NotificationDropdown } from "@/components/notifications/NotificationDro
 const creatorNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
   { label: "Browse Talent", icon: Users, route: "/talent" },
-  { label: "Chats", icon: UsersRound, route: "/team" },
+  { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
   { label: "Deadlines", icon: Calendar, route: "/calendar" },
 ];
@@ -27,7 +27,7 @@ const talentNavItems = [
   { label: "My Projects", icon: FolderKanban, route: "/projects" },
   { label: "Deliverables", icon: Upload, route: "/deliverables" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
-  { label: "Calendar", icon: Calendar, route: "/calendar" },
+  { label: "Deadlines", icon: Calendar, route: "/calendar" },
 ];
 
 const bottomNavItems = [

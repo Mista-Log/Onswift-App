@@ -53,6 +53,76 @@ class CreatorTeamListView(generics.ListAPIView):
         ).select_related('talent', 'talent__talentprofile')
 
 
+class TalentCreatorsListView(generics.ListAPIView):
+    """Get all creators who have hired this talent"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return HireRequest.objects.filter(
+            talent=self.request.user,
+            status="accepted"
+        ).select_related('creator', 'creator__creatorprofile')
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        creators = []
+        for hire_request in queryset:
+            creator = hire_request.creator
+            avatar = None
+            try:
+                if creator.creatorprofile.avatar:
+                    avatar = request.build_absolute_uri(creator.creatorprofile.avatar.url)
+            except AttributeError:
+                pass
+
+            company = None
+            try:
+                company = creator.creatorprofile.company_name
+            except AttributeError:
+                pass
+
+            creators.append({
+                'id': str(hire_request.id),
+                'user_id': str(creator.id),
+                'name': creator.full_name,
+                'email': creator.email,
+                'company': company,
+                'avatar': avatar,
+                'created_at': hire_request.created_at,
+            })
+        return Response(creators)
+
+
+class RemoveTeamMemberView(generics.DestroyAPIView):
+    """Remove a talent from the creator's team"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return HireRequest.objects.filter(
+            creator=self.request.user,
+            status="accepted"
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        talent_name = instance.talent.full_name
+
+        # Create notification for the talent
+        from .services import create_notification
+        create_notification(
+            user=instance.talent,
+            title="Removed from Team",
+            message=f"You have been removed from {request.user.full_name}'s team.",
+            notification_type="system",
+        )
+
+        self.perform_destroy(instance)
+        return Response(
+            {"message": f"{talent_name} has been removed from your team."},
+            status=status.HTTP_200_OK
+        )
+
+
 class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]

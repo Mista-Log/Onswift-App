@@ -174,6 +174,7 @@ export default function ProjectDetail() {
   }
 
   const progress = project.task_count === 0 ? 0 : (project.completed_tasks / project.task_count) * 100;
+
   const planningTasks = tasks.filter((t) => t.status === "planning");
   const inProgressTasks = tasks.filter((t) => t.status === "in-progress");
   const completedTasks = tasks.filter((t) => t.status === "completed");
@@ -409,7 +410,7 @@ export default function ProjectDetail() {
                     key={task.id}
                     task={task}
                     isCreator={isCreator}
-                    onStatusChange={(status) =>
+                                        onStatusChange={(status) =>
                       handleUpdateTask(task.id, { status })
                     }
                     onDelete={() => handleDeleteTask(task.id)}
@@ -438,7 +439,7 @@ export default function ProjectDetail() {
                     key={task.id}
                     task={task}
                     isCreator={isCreator}
-                    onStatusChange={(status) =>
+                                        onStatusChange={(status) =>
                       handleUpdateTask(task.id, { status })
                     }
                     onDelete={() => handleDeleteTask(task.id)}
@@ -467,7 +468,7 @@ export default function ProjectDetail() {
                     key={task.id}
                     task={task}
                     isCreator={isCreator}
-                    onStatusChange={(status) =>
+                                        onStatusChange={(status) =>
                       handleUpdateTask(task.id, { status })
                     }
                     onDelete={() => handleDeleteTask(task.id)}

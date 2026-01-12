@@ -101,10 +101,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         throw new Error(JSON.stringify(data));
       }
 
-      // Sync progress & update state
+      // Refresh projects list (includes the new project)
       await fetchProjects();
-      const newProject = mapFromBackend(data);
-      setProjects((prev) => [newProject, ...prev]);
       
     } catch (error: any) {
       console.error("Add Project failed:", error.message);

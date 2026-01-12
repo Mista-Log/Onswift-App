@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { TalentStatCard } from "@/components/talent/TalentStatCard";
 import { TaskCard } from "@/components/talent/TaskCard";
@@ -7,48 +7,80 @@ import { ProfileCompletionBanner } from "@/components/talent/ProfileCompletionBa
 import { ProfileStrengthCard } from "@/components/talent/ProfileStrengthCard";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Folder, CheckSquare, Clock, Star, Trophy, Target, Calendar } from "lucide-react";
+import { Folder, CheckSquare, Clock, Star, Trophy, Target, Calendar, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
-import { useProjects } from "@/contexts/ProjectContext";
+import { useProjects, type Task } from "@/contexts/ProjectContext";
+import { secureFetch } from "@/api/apiClient";
+import { toast } from "sonner";
 
-const talentTasks = [
-  { id: "1", full_name: "Design hero section mockups", dueDate: "Due: Tomorrow", projectName: "Brand Collab", points: 75, completed: false },
-  { id: "2", full_name: "Create icon set for mobile app", dueDate: "Due: In 3 days", projectName: "Mobile App", points: 50, completed: false },
-  { id: "3", full_name: "Review and iterate on logo design", dueDate: "Due: In 5 days", projectName: "Brand Identity", points: 40, completed: false },
-  { id: "4", full_name: "Prepare presentation slides", dueDate: "Due: Next week", projectName: "Client Pitch", points: 60, completed: false },
-];
-
-const talentActivities = [
-  { id: "1", type: "upload" as const, message: "You submitted a deliverable for Brand Collab", timestamp: "2 hours ago" },
-  { id: "2", type: "approval" as const, message: "Alex Creator approved your work on Logo Design", timestamp: "5 hours ago" },
-  { id: "3", type: "task" as const, message: "New task assigned: Create homepage wireframes", timestamp: "Yesterday" },
-  { id: "4", type: "message" as const, message: "Jordan Smith sent you a message", timestamp: "2 days ago" },
-];
-
-const deadlines = [
-  { id: "1", date: "Dec 12", taskName: "Hero Section Design", projectName: "Brand Collab", urgent: true },
-  { id: "2", date: "Dec 15", taskName: "Icon Set Delivery", projectName: "Mobile App", urgent: false },
-  { id: "3", date: "Dec 18", taskName: "Final Logo Files", projectName: "Brand Identity", urgent: false },
-];
+interface TalentTask extends Task {
+  project_name?: string;
+}
 
 export default function DashboardTalent() {
   const { user } = useAuth();
-  // const { projects } = useProjects(); // TODO: In a real app, this would filter for projects assigned to this talent
-  const [tasks, setTasks] = useState(talentTasks);
+  const { projects, updateTask } = useProjects();
+  const [tasks, setTasks] = useState<TalentTask[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("todo");
 
-  const handleToggleTask = (taskId: string) => {
-    setTasks(prev => prev.map(task =>
-      task.id === taskId ? { ...task, completed: !task.completed } : task
-    ));
+  // Fetch tasks assigned to this talent
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const fetchTasks = async () => {
+    try {
+      setIsLoading(true);
+      const response = await secureFetch('/api/v2/my-tasks/');
+      if (response.ok) {
+        const data = await response.json();
+        setTasks(data);
+      }
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  const handleStatusChange = async (taskId: string, newStatus: "planning" | "in-progress" | "completed") => {
+    try {
+      await updateTask(taskId, { status: newStatus });
+      // Update local state
+      setTasks(prev => prev.map(task =>
+        task.id === taskId ? { ...task, status: newStatus } : task
+      ));
+      toast.success("Task status updated!");
+    } catch (error) {
+      toast.error("Failed to update task status");
+    }
+  };
+
+  // Get project name for a task
+  const getProjectName = (task: TalentTask) => {
+    const project = projects.find(p => p.id === task.project);
+    return project?.name || "Unknown Project";
+  };
+
+  // Filter tasks based on active tab
   const filteredTasks = tasks.filter(task => {
-    if (activeTab === "todo") return !task.completed;
-    if (activeTab === "completed") return task.completed;
+    if (activeTab === "todo") return task.status !== "completed";
+    if (activeTab === "completed") return task.status === "completed";
     return true;
   });
+
+  // Calculate stats
+  const completedTasksCount = tasks.filter(t => t.status === "completed").length;
+  const pendingTasksCount = tasks.filter(t => t.status !== "completed").length;
+  const activeProjectsCount = [...new Set(tasks.map(t => t.project))].length;
+
+  // Get upcoming deadlines (tasks with deadlines, sorted by date)
+  const upcomingDeadlines = tasks
+    .filter(t => t.deadline && t.status !== "completed")
+    .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())
+    .slice(0, 5);
 
   // Calculate profile completion
   const profileCompletion = user ?
@@ -61,6 +93,18 @@ export default function DashboardTalent() {
     (user.hourlyRate ? 10 : 0) +
     (user.availability ? 10 : 0)
     : 0;
+
+  const formatDeadlineDate = (date: string) => {
+    const d = new Date(date);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const isUrgent = (deadline: string) => {
+    const d = new Date(deadline);
+    const now = new Date();
+    const diffDays = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays <= 2;
+  };
 
   return (
     <MainLayout>
@@ -80,22 +124,20 @@ export default function DashboardTalent() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <TalentStatCard
             title="Active Projects"
-            value={3}
+            value={activeProjectsCount}
             icon={Folder}
-            trend={{ value: "12% from last month", positive: true }}
           />
           <TalentStatCard
             title="Pending Tasks"
-            value={tasks.filter(t => !t.completed).length}
+            value={pendingTasksCount}
             icon={CheckSquare}
             colorClass="text-warning"
           />
           <TalentStatCard
-            title="Hours This Week"
-            value="24"
-            icon={Clock}
-            trend={{ value: "4 hours from last week", positive: true }}
-            colorClass="text-info"
+            title="Completed Tasks"
+            value={completedTasksCount}
+            icon={CheckSquare}
+            colorClass="text-success"
           />
           <TalentStatCard
             title="Client Rating"
@@ -121,27 +163,40 @@ export default function DashboardTalent() {
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="mb-4">
                   <TabsTrigger value="todo">
-                    To Do <span className="ml-1 text-xs">({tasks.filter(t => !t.completed).length})</span>
+                    To Do <span className="ml-1 text-xs">({pendingTasksCount})</span>
                   </TabsTrigger>
                   <TabsTrigger value="completed">
-                    Completed <span className="ml-1 text-xs">({tasks.filter(t => t.completed).length})</span>
+                    Completed <span className="ml-1 text-xs">({completedTasksCount})</span>
                   </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value={activeTab} className="space-y-2">
-                  {filteredTasks.length > 0 ? (
+                  {isLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                  ) : filteredTasks.length > 0 ? (
                     filteredTasks.map(task => (
                       <TaskCard
                         key={task.id}
-                        {...task}
-                        onToggleComplete={handleToggleTask}
+                        id={task.id}
+                        name={task.name}
+                        description={task.description}
+                        deadline={task.deadline}
+                        projectName={getProjectName(task)}
+                        status={task.status}
+                        onStatusChange={handleStatusChange}
                       />
                     ))
                   ) : (
                     <div className="text-center py-8">
                       <CheckSquare className="h-12 w-12 text-primary mx-auto mb-2" />
-                      <p className="text-foreground font-medium">You're all caught up!</p>
-                      <p className="text-sm text-muted-foreground">No pending tasks at the moment</p>
+                      <p className="text-foreground font-medium">
+                        {activeTab === "todo" ? "You're all caught up!" : "No completed tasks yet"}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {activeTab === "todo" ? "No pending tasks at the moment" : "Complete some tasks to see them here"}
+                      </p>
                     </div>
                   )}
                 </TabsContent>
@@ -153,7 +208,7 @@ export default function DashboardTalent() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-foreground">Recent Activity</h2>
               </div>
-              <ActivityFeed activities={talentActivities} />
+              <ActivityFeed activities={[]} />
             </section>
           </div>
 
@@ -163,12 +218,12 @@ export default function DashboardTalent() {
             <div className="grid grid-cols-2 gap-3">
               <div className="glass-card p-4 text-center">
                 <Target className="h-8 w-8 text-primary mx-auto mb-2" />
-                <p className="text-2xl font-bold text-foreground">1,250</p>
+                <p className="text-2xl font-bold text-foreground">{completedTasksCount * 50}</p>
                 <p className="text-xs text-muted-foreground">Points Earned</p>
               </div>
               <div className="glass-card p-4 text-center">
                 <CheckSquare className="h-8 w-8 text-success mx-auto mb-2" />
-                <p className="text-2xl font-bold text-foreground">18</p>
+                <p className="text-2xl font-bold text-foreground">{completedTasksCount}</p>
                 <p className="text-xs text-muted-foreground">Tasks Done</p>
               </div>
             </div>
@@ -198,20 +253,28 @@ export default function DashboardTalent() {
                 <h3 className="font-semibold text-foreground">Upcoming Deadlines</h3>
               </div>
               <div className="space-y-3">
-                {deadlines.map(deadline => (
-                  <div key={deadline.id} className="flex items-center gap-3">
-                    <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-secondary flex items-center justify-center">
-                      <span className="text-xs font-medium text-foreground">{deadline.date}</span>
+                {upcomingDeadlines.length > 0 ? (
+                  upcomingDeadlines.map(task => (
+                    <div key={task.id} className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-secondary flex items-center justify-center">
+                        <span className="text-xs font-medium text-foreground">
+                          {formatDeadlineDate(task.deadline!)}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{task.name}</p>
+                        <p className="text-xs text-muted-foreground">{getProjectName(task)}</p>
+                      </div>
+                      {isUrgent(task.deadline!) && (
+                        <span className="text-xs px-2 py-1 rounded bg-destructive/20 text-destructive">Urgent</span>
+                      )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{deadline.taskName}</p>
-                      <p className="text-xs text-muted-foreground">{deadline.projectName}</p>
-                    </div>
-                    {deadline.urgent && (
-                      <span className="text-xs px-2 py-1 rounded bg-destructive/20 text-destructive">Urgent</span>
-                    )}
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No upcoming deadlines
+                  </p>
+                )}
               </div>
             </section>
           </div>
