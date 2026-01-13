@@ -1,12 +1,13 @@
-import { useState } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
-import { User, Mail, Briefcase, Lock, Eye, EyeOff, Loader2, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, Navigate, useSearchParams } from 'react-router-dom';
+import { User, Mail, Briefcase, Lock, Eye, EyeOff, Loader2, X, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { secureFetch } from '@/api/apiClient';
 
 const SKILL_OPTIONS = [
   'UI/UX Design', 'Web Development', 'Mobile Development',
@@ -20,13 +21,14 @@ export default function SignUpTalent() {
   const navigate = useNavigate();
   const { signup, isAuthenticated } = useAuth();
   const { toast } = useToast();
-  
+  const [searchParams] = useSearchParams();
+
   const [formData, setFormData] = useState({
-    name: '',
+    full_name: '',
     email: '',
-    professionalTitle: '',
+    professional_title: '',
     skills: [] as string[],
-    primarySkill: '',
+    primary_skill: '',
     password: '',
     confirmPassword: '',
     termsAgreed: false,
@@ -37,18 +39,77 @@ export default function SignUpTalent() {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Invite token state
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [inviteInfo, setInviteInfo] = useState<{ creator_name: string; creator_company?: string } | null>(null);
+  const [isValidatingInvite, setIsValidatingInvite] = useState(false);
+
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
 
+  // Validate invite token on mount
+  useEffect(() => {
+    const token = searchParams.get('invite');
+    if (token) {
+      setInviteToken(token);
+      validateInviteToken(token);
+    }
+  }, [searchParams]);
+
+  const validateInviteToken = async (token: string) => {
+    setIsValidatingInvite(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v3/invites/validate/${token}/`);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.is_valid) {
+          setInviteInfo({
+            creator_name: data.creator_name,
+            creator_company: data.creator_company,
+          });
+          toast({
+            title: 'Invite link validated!',
+            description: `You've been invited by ${data.creator_name}${data.creator_company ? ` from ${data.creator_company}` : ''}`,
+          });
+        } else {
+          toast({
+            title: 'Invalid invite link',
+            description: 'This invite link has expired or has already been used.',
+            variant: 'destructive',
+          });
+          setInviteToken(null);
+        }
+      } else {
+        toast({
+          title: 'Invalid invite link',
+          description: 'This invite link is not valid.',
+          variant: 'destructive',
+        });
+        setInviteToken(null);
+      }
+    } catch (error) {
+      console.error('Error validating invite:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to validate invite link.',
+        variant: 'destructive',
+      });
+      setInviteToken(null);
+    } finally {
+      setIsValidatingInvite(false);
+    }
+  };
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) newErrors.name = 'Name is required';
+    if (!formData.full_name.trim()) newErrors.full_name = 'Name is required';
     if (!formData.email.trim()) newErrors.email = 'Email is required';
     else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Invalid email format';
-    if (!formData.professionalTitle.trim()) newErrors.professionalTitle = 'Professional title is required';
-    if (!formData.primarySkill.trim()) newErrors.primarySkill = 'Primary skill is required';
+    if (!formData.professional_title.trim()) newErrors.professional_title = 'Professional title is required';
+    if (!formData.primary_skill.trim()) newErrors.primary_skill = 'Primary skill is required';
     if (formData.skills.length === 0) newErrors.skills = 'Select at least one skill';
     if (!formData.password) newErrors.password = 'Password is required';
     else if (formData.password.length < 8) newErrors.password = 'Password must be at least 8 characters';
@@ -88,18 +149,26 @@ export default function SignUpTalent() {
 
     setIsLoading(true);
     const result = await signup({
-      name: formData.name,
+      full_name: formData.full_name,
       email: formData.email,
-      professionalTitle: formData.professionalTitle,
-      primarySkill: formData.primarySkill,
+      professional_title: formData.professional_title,
+      primary_skill: formData.primary_skill,
       skills: formData.skills,
-      userType: 'talent',
+      role: 'talent',
       password: formData.password,
+      invite_token: inviteToken || undefined, // Include invite token if present
     });
     setIsLoading(false);
 
     if (result.success) {
-      toast({ title: 'Account created!', description: 'Welcome to OnSwift.' });
+      if (inviteToken && inviteInfo) {
+        toast({
+          title: 'Account created!',
+          description: `Welcome to ${inviteInfo.creator_company || `${inviteInfo.creator_name}'s`} team!`
+        });
+      } else {
+        toast({ title: 'Account created!', description: 'Welcome to OnSwift.' });
+      }
       navigate('/dashboard');
     } else {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
@@ -119,7 +188,21 @@ export default function SignUpTalent() {
                 On<span className="text-primary">Swift</span>
               </h1>
             </Link>
-            
+
+            {/* Invite Banner */}
+            {inviteInfo && (
+              <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-lg">
+                <div className="flex items-center justify-center gap-2 text-primary mb-1">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <p className="font-semibold">You're Invited!</p>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Join {inviteInfo.creator_name}'s team
+                  {inviteInfo.creator_company && ` at ${inviteInfo.creator_company}`}
+                </p>
+              </div>
+            )}
+
             {/* Stepper */}
             <div className="flex items-center justify-center gap-2 mb-6">
               <div className="w-3 h-3 rounded-full bg-primary" />
@@ -128,9 +211,11 @@ export default function SignUpTalent() {
               <div className="w-8 h-0.5 bg-border" />
               <div className="w-3 h-3 rounded-full bg-border" />
             </div>
-            
+
             <h2 className="text-2xl font-semibold text-foreground">Create Talent Account</h2>
-            <p className="text-muted-foreground mt-2">Set up your profile to start working</p>
+            <p className="text-muted-foreground mt-2">
+              {inviteInfo ? 'Complete your profile to join the team' : 'Set up your profile to start working'}
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -142,11 +227,11 @@ export default function SignUpTalent() {
                   type="text"
                   placeholder="Jane Smith"
                   className="pl-10"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                 />
               </div>
-              {errors.name && <p className="text-destructive text-sm mt-1">{errors.name}</p>}
+              {errors.full_name && <p className="text-destructive text-sm mt-1">{errors.full_name}</p>}
             </div>
 
             <div>
@@ -172,12 +257,12 @@ export default function SignUpTalent() {
                   type="text"
                   placeholder="UI/UX Designer"
                   className="pl-10"
-                  value={formData.professionalTitle}
-                  onChange={(e) => setFormData({ ...formData, professionalTitle: e.target.value })}
+                  value={formData.professional_title}
+                  onChange={(e) => setFormData({ ...formData, professional_title: e.target.value })}
                 />
               </div>
               <p className="text-xs text-muted-foreground mt-1">What do you specialize in?</p>
-              {errors.professionalTitle && <p className="text-destructive text-sm mt-1">{errors.professionalTitle}</p>}
+              {errors.professional_title && <p className="text-destructive text-sm mt-1">{errors.professional_title}</p>}
             </div>
 
             <div>
@@ -186,14 +271,14 @@ export default function SignUpTalent() {
               </label>
 
               {/* Display Selected Skill */}
-              {formData.primarySkill && (
+              {formData.primary_skill && (
                 <div className="flex flex-wrap gap-2 mb-2">
                   <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30">
-                    {formData.primarySkill}
+                    {formData.primary_skill}
                     <button
                       type="button"
                       onClick={() => {
-                        setFormData({ ...formData, primarySkill: '' });
+                        setFormData({ ...formData, primary_skill: '' });
                         setCustomSkillInput('');
                       }}
                       className="ml-1"
@@ -210,19 +295,19 @@ export default function SignUpTalent() {
                   type="button"
                   onClick={() => setShowSkillDropdown(!showSkillDropdown)}
                   className="w-full px-3 py-2 text-left bg-secondary/50 border border-border rounded-lg text-muted-foreground hover:border-primary/50 transition-colors"
-                  disabled={!!formData.primarySkill}
+                  disabled={!!formData.primary_skill}
                 >
-                  {formData.primarySkill || 'Select your primary skill'}
+                  {formData.primary_skill || 'Select your primary skill'}
                 </button>
 
-                {showSkillDropdown && !formData.primarySkill && (
+                {showSkillDropdown && !formData.primary_skill && (
                   <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
                     {SKILL_OPTIONS.map(skill => (
                       <button
                         key={skill}
                         type="button"
                         onClick={() => {
-                          setFormData({ ...formData, primarySkill: skill });
+                          setFormData({ ...formData, primary_skill: skill });
                           setShowSkillDropdown(false);
                         }}
                         className="w-full px-3 py-2 text-left text-sm hover:bg-secondary/50 transition-colors text-foreground"
@@ -235,7 +320,7 @@ export default function SignUpTalent() {
               </div>
 
               {/* Custom Skill Input */}
-              {!formData.primarySkill && (
+              {!formData.primary_skill && (
                 <div className="mt-2">
                   <p className="text-xs text-muted-foreground mb-2">Or type your own:</p>
                   <div className="flex gap-2">
@@ -249,7 +334,7 @@ export default function SignUpTalent() {
                       variant="outline"
                       onClick={() => {
                         if (customSkillInput.trim()) {
-                          setFormData({ ...formData, primarySkill: customSkillInput.trim() });
+                          setFormData({ ...formData, primary_skill: customSkillInput.trim() });
                           setCustomSkillInput('');
                         }
                       }}
@@ -260,7 +345,7 @@ export default function SignUpTalent() {
                   </div>
                 </div>
               )}
-              {errors.primarySkill && <p className="text-destructive text-sm mt-1">{errors.primarySkill}</p>}
+              {errors.primary_skill && <p className="text-destructive text-sm mt-1">{errors.primary_skill}</p>}
             </div>
 
             <div>
@@ -297,7 +382,7 @@ export default function SignUpTalent() {
                   <option value="">
                     {formData.skills.length >= 5 ? '5/5 skills selected' : 'Select additional skills'}
                   </option>
-                  {SKILL_OPTIONS.filter(skill => !formData.skills.includes(skill) && skill !== formData.primarySkill).map(skill => (
+                  {SKILL_OPTIONS.filter(skill => !formData.skills.includes(skill) && skill !== formData.primary_skill).map(skill => (
                     <option key={skill} value={skill}>
                       {skill}
                     </option>

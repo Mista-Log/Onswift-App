@@ -4,7 +4,7 @@ import DashboardTalent from "./DashboardTalent";
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const isTalent = user?.userType === 'talent';
+  const isTalent = user?.role === 'talent';
 
   if (isTalent) {
     return <DashboardTalent />;

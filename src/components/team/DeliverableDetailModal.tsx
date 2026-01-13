@@ -28,6 +28,8 @@ interface DeliverableDetailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isCreator?: boolean;
+  onApprove?: (deliverableId: string) => void;
+  onRequestRevision?: (deliverableId: string, feedback: string) => void;
 }
 
 // Mock comments
@@ -102,6 +104,8 @@ export function DeliverableDetailModal({
   open,
   onOpenChange,
   isCreator = true,
+  onApprove,
+  onRequestRevision,
 }: DeliverableDetailModalProps) {
   const [comments, setComments] = useState<Comment[]>(mockComments);
   const [newComment, setNewComment] = useState("");
@@ -159,8 +163,12 @@ export function DeliverableDetailModal({
   };
 
   const handleApprove = () => {
-    toast.success("Deliverable approved!");
-    onOpenChange(false);
+    if (onApprove && deliverable) {
+      onApprove(deliverable.id);
+    } else {
+      toast.success("Deliverable approved!");
+      onOpenChange(false);
+    }
   };
 
   const handleRequestRevision = () => {
@@ -168,10 +176,14 @@ export function DeliverableDetailModal({
       toast.error("Please provide revision feedback");
       return;
     }
-    toast.success("Revision requested");
+    if (onRequestRevision && deliverable) {
+      onRequestRevision(deliverable.id, revisionFeedback);
+    } else {
+      toast.success("Revision requested");
+      onOpenChange(false);
+    }
     setShowRevisionInput(false);
     setRevisionFeedback("");
-    onOpenChange(false);
   };
 
   return (

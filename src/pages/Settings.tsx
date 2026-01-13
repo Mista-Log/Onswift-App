@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Camera } from "lucide-react";
+import { Edit } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -14,21 +14,30 @@ export default function Settings() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const BACKEND_URL = import.meta.env.VITE_API_BASE_URL; // e.g., http://localhost:8000
+
+
   const handleSave = () => {
     toast.success("Settings saved successfully!");
   };
 
+
+
   const handleEditProfile = () => {
-    if (user?.userType === 'talent') {
+    if (user?.role === 'talent') {
       navigate('/profile/edit');
     } else {
       navigate('/profile/creator/edit');
     }
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const getInitials = (full_name: string) => {
+    return full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
+
+   const avatarSrc = user?.avatarUrl
+    ? `${BACKEND_URL}${user.avatarUrl}` // prepend backend URL
+    : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.full_name || 'User'}`;
 
   return (
     <MainLayout>
@@ -51,31 +60,31 @@ export default function Settings() {
               <div className="mb-6 flex items-center gap-6">
                 <div className="relative">
                   <Avatar className="h-20 w-20 border-2 border-primary/30">
-                    <AvatarImage src={user?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`} />
+                    <AvatarImage src={avatarSrc} />
                     <AvatarFallback className="bg-primary/20 text-primary text-xl">
-                      {getInitials(user?.name || 'User')}
+                      {getInitials(user?.full_name || 'User')}
                     </AvatarFallback>
                   </Avatar>
                   <button
                     onClick={handleEditProfile}
                     className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105"
                   >
-                    <Camera className="h-4 w-4" />
+                    <Edit className="h-4 w-4" />
                   </button>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-foreground">{user?.name || 'User'}</h3>
-                  <p className="text-sm text-muted-foreground capitalize">{user?.userType || 'User'}</p>
-                  {user?.companyName && (
-                    <p className="text-xs text-muted-foreground">{user.companyName}</p>
+                  <h3 className="font-semibold text-foreground">{user?.full_name || 'User'}</h3>
+                  <p className="text-sm text-muted-foreground capitalize">{user?.role || 'User'}</p>
+                  {user?.company_name && (
+                    <p className="text-xs text-muted-foreground">{user.company_name}</p>
                   )}
                 </div>
               </div>
 
               <div className="grid gap-6 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" defaultValue={user?.name || ''} />
+                  <Label htmlFor="full_name">Full Name</Label>
+                  <Input id="full_name" defaultValue={user?.full_name || ''} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
@@ -83,7 +92,7 @@ export default function Settings() {
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="bio">Bio</Label>
-                  <Input id="bio" defaultValue={user?.bio || ''} placeholder={user?.userType === 'talent' ? "Professional bio" : "About your brand"} />
+                  <Input id="bio" defaultValue={user?.bio || ''} placeholder={user?.role === 'talent' ? "Professional bio" : "About your brand"} />
                 </div>
               </div>
 

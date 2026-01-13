@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
+import { TeamProvider } from "@/contexts/TeamContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
 // Public pages
@@ -20,8 +22,7 @@ import Dashboard from "./pages/Dashboard";
 import TalentMarketplace from "./pages/TalentMarketplace";
 import Team from "./pages/Team";
 import Projects from "./pages/Projects";
-import ProjectBoard from "./pages/ProjectBoard";
-import TaskDetails from "./pages/TaskDetails";
+import ProjectDetail from "./pages/ProjectDetail";
 import Settings from "./pages/Settings";
 import Calendar from "./pages/Calendar";
 import TalentProfileEdit from "./pages/TalentProfileEdit";
@@ -38,9 +39,11 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <ProjectProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
+          <TeamProvider>
+            <NotificationProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
             <Routes>
               {/* Public routes */}
               <Route path="/" element={<Landing />} />
@@ -55,8 +58,7 @@ const App = () => (
               <Route path="/talent" element={<ProtectedRoute><TalentMarketplace /></ProtectedRoute>} />
               <Route path="/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
               <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
-              <Route path="/projects/:projectId" element={<ProtectedRoute><ProjectBoard /></ProtectedRoute>} />
-              <Route path="/projects/:projectId/tasks/:taskId" element={<ProtectedRoute><TaskDetails /></ProtectedRoute>} />
+              <Route path="/projects/:id" element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
               <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/profile/edit" element={<ProtectedRoute><TalentProfileEdit /></ProtectedRoute>} />
@@ -69,6 +71,8 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
+            </NotificationProvider>
+          </TeamProvider>
         </ProjectProvider>
       </AuthProvider>
     </TooltipProvider>

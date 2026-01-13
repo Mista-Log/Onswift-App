@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,9 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, X, FileText, Image, Video, File } from "lucide-react";
+import { Upload, X, FileText, Image, Video, File, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { secureFetch } from "@/api/apiClient";
+import { useProjects, type Task } from "@/contexts/ProjectContext";
 
 interface UploadDeliverableModalProps {
   open: boolean;
@@ -34,34 +36,6 @@ export interface DeliverableFormData {
   files: File[];
   mentionedUserIds: string[];
 }
-
-// Mock data
-const projects = [
-  { id: "1", name: "Brand Collaboration" },
-  { id: "2", name: "Content Series" },
-  { id: "3", name: "Product Launch" },
-];
-
-const tasksByProject: Record<string, { id: string; name: string }[]> = {
-  "1": [
-    { id: "t1", name: "Design mockups" },
-    { id: "t2", name: "Logo concepts" },
-  ],
-  "2": [
-    { id: "t3", name: "Video editing" },
-    { id: "t4", name: "Thumbnail designs" },
-  ],
-  "3": [
-    { id: "t5", name: "Social media assets" },
-    { id: "t6", name: "Promo video" },
-  ],
-};
-
-const teamMembers = [
-  { id: "1", name: "Alia Vance" },
-  { id: "2", name: "Ben Carter" },
-  { id: "3", name: "Clara Dane" },
-];
 
 function getFileIcon(type: string) {
   if (type.startsWith("image/")) return Image;
@@ -81,16 +55,44 @@ export function UploadDeliverableModal({
   onOpenChange,
   onSubmit,
 }: UploadDeliverableModalProps) {
-  const [projectId, setProjectId] = useState("");
+  const { projects } = useProjects();
+  const [myTasks, setMyTasks] = useState<Task[]>([]);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
   const [taskId, setTaskId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [showMentions, setShowMentions] = useState(false);
-  const [mentionFilter, setMentionFilter] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Fetch my tasks when modal opens
+  useEffect(() => {
+    if (open) {
+      fetchMyTasks();
+    }
+  }, [open]);
+
+  const fetchMyTasks = async () => {
+    try {
+      setIsLoadingTasks(true);
+      const response = await secureFetch('/api/v2/my-tasks/');
+      if (response.ok) {
+        const data = await response.json();
+        // Only show non-completed tasks
+        setMyTasks(data.filter((t: Task) => t.status !== "completed"));
+      }
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+    } finally {
+      setIsLoadingTasks(false);
+    }
+  };
+
+  const getProjectName = (projectId: string) => {
+    const project = projects.find(p => p.id === projectId);
+    return project?.name || "Unknown Project";
+  };
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -120,47 +122,14 @@ export function UploadDeliverableModal({
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    setDescription(value);
-
-    // Check for @ mentions
-    const lastAtIndex = value.lastIndexOf("@");
-    if (lastAtIndex !== -1) {
-      const textAfterAt = value.slice(lastAtIndex + 1);
-      if (!textAfterAt.includes(" ")) {
-        setShowMentions(true);
-        setMentionFilter(textAfterAt.toLowerCase());
-      } else {
-        setShowMentions(false);
-      }
-    } else {
-      setShowMentions(false);
-    }
-  };
-
-  const insertMention = (name: string) => {
-    const lastAtIndex = description.lastIndexOf("@");
-    const newDescription = description.slice(0, lastAtIndex) + `@${name} `;
-    setDescription(newDescription);
-    setShowMentions(false);
-    textareaRef.current?.focus();
-  };
-
-  const filteredMembers = teamMembers.filter((m) =>
-    m.name.toLowerCase().includes(mentionFilter)
-  );
-
   const handleSubmit = () => {
-    if (!projectId || !taskId || !title) {
+    if (!taskId || !title) {
       toast.error("Please fill in all required fields");
       return;
     }
 
-    // Extract mentioned user IDs from description
-    const mentionedUserIds = teamMembers
-      .filter((m) => description.includes(`@${m.name}`))
-      .map((m) => m.id);
+    const selectedTask = myTasks.find(t => t.id === taskId);
+    const projectId = selectedTask?.project || "";
 
     onSubmit({
       projectId,
@@ -168,20 +137,15 @@ export function UploadDeliverableModal({
       title,
       description,
       files,
-      mentionedUserIds,
+      mentionedUserIds: [],
     });
 
     // Reset form
-    setProjectId("");
     setTaskId("");
     setTitle("");
     setDescription("");
     setFiles([]);
-    onOpenChange(false);
-    toast.success("Deliverable submitted successfully!");
   };
-
-  const tasks = projectId ? tasksByProject[projectId] || [] : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -191,39 +155,37 @@ export function UploadDeliverableModal({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Project Selection */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Project *</Label>
-              <Select value={projectId} onValueChange={(v) => { setProjectId(v); setTaskId(""); }}>
+          {/* Task Selection */}
+          <div className="space-y-2">
+            <Label>Select Task *</Label>
+            {isLoadingTasks ? (
+              <div className="flex items-center gap-2 py-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm text-muted-foreground">Loading tasks...</span>
+              </div>
+            ) : myTasks.length > 0 ? (
+              <Select value={taskId} onValueChange={setTaskId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select project" />
+                  <SelectValue placeholder="Select a task" />
                 </SelectTrigger>
                 <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
+                  {myTasks.map((task) => (
+                    <SelectItem key={task.id} value={task.id}>
+                      <div className="flex flex-col items-start">
+                        <span>{task.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {getProjectName(task.project)}
+                        </span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Task *</Label>
-              <Select value={taskId} onValueChange={setTaskId} disabled={!projectId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select task" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tasks.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            ) : (
+              <p className="text-sm text-muted-foreground py-2">
+                No active tasks assigned to you.
+              </p>
+            )}
           </div>
 
           {/* Title */}
@@ -236,32 +198,16 @@ export function UploadDeliverableModal({
             />
           </div>
 
-          {/* Description with @mention */}
-          <div className="relative space-y-2">
+          {/* Description */}
+          <div className="space-y-2">
             <Label>Description / Notes</Label>
             <Textarea
               ref={textareaRef}
               value={description}
-              onChange={handleDescriptionChange}
-              placeholder="Add notes or tag team members using @"
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add notes about this deliverable..."
               rows={3}
             />
-            {showMentions && filteredMembers.length > 0 && (
-              <div className="absolute bottom-full left-0 mb-1 w-full rounded-lg border border-border bg-popover p-1 shadow-lg z-50">
-                {filteredMembers.map((member) => (
-                  <button
-                    key={member.id}
-                    onClick={() => insertMention(member.name)}
-                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-primary/20"
-                  >
-                    <div className="h-6 w-6 rounded-full bg-primary/30 flex items-center justify-center text-xs">
-                      {member.name.charAt(0)}
-                    </div>
-                    {member.name}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* File Upload */}
@@ -338,7 +284,9 @@ export function UploadDeliverableModal({
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit}>Submit Deliverable</Button>
+            <Button onClick={handleSubmit} disabled={!taskId || !title || myTasks.length === 0}>
+              Submit Deliverable
+            </Button>
           </div>
         </div>
       </DialogContent>

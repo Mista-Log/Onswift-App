@@ -13,9 +13,9 @@ export default function SignUpCreator() {
   const { toast } = useToast();
   
   const [formData, setFormData] = useState({
-    name: '',
+    full_name: '',
     email: '',
-    companyName: '',
+    company_name: '',
     password: '',
     confirmPassword: '',
     termsAgreed: false,
@@ -31,7 +31,7 @@ export default function SignUpCreator() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
-    if (!formData.name.trim()) newErrors.name = 'Name is required';
+    if (!formData.full_name.trim()) newErrors.full_name = 'Name is required';
     if (!formData.email.trim()) newErrors.email = 'Email is required';
     else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Invalid email format';
     if (!formData.password) newErrors.password = 'Password is required';
@@ -64,10 +64,10 @@ export default function SignUpCreator() {
     
     setIsLoading(true);
     const result = await signup({
-      name: formData.name,
+      full_name: formData.full_name,
       email: formData.email,
-      companyName: formData.companyName,
-      userType: 'creator',
+      company_name: formData.company_name,
+      role: 'creator',
       password: formData.password,
     });
     setIsLoading(false);
@@ -116,20 +116,20 @@ export default function SignUpCreator() {
                   type="text"
                   placeholder="John Doe"
                   className="pl-10"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                 />
               </div>
-              {errors.name && <p className="text-destructive text-sm mt-1">{errors.name}</p>}
+              {errors.full_name && <p className="text-destructive text-sm mt-1">{errors.full_name}</p>}
             </div>
 
             <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">Work Email</label>
+              <label className="text-sm font-medium text-foreground mb-2 block">Creator Email</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   type="email"
-                  placeholder="john@company.com"
+                  placeholder="john@onswift.com"
                   className="pl-10"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -146,8 +146,8 @@ export default function SignUpCreator() {
                   type="text"
                   placeholder="Acme Inc."
                   className="pl-10"
-                  value={formData.companyName}
-                  onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                  value={formData.company_name}
+                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
                 />
               </div>
             </div>

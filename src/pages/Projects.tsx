@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Calendar, Users } from "lucide-react";
+import { Plus, Calendar, Users, FolderKanban, MoreVertical, Trash2, ExternalLink } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,115 +37,141 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProjects } from "@/contexts/ProjectContext";
 
 // Creator's projects (projects they own)
-const creatorProjects = [
-  {
-    id: "1",
-    name: 'Brand Collab - "Future Funk"',
-    description: "Music video production and promotional materials for upcoming EP release.",
-    dueDate: "24 Oct 2023",
-    status: "in-progress" as const,
-    teamMembers: [
-      { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-      { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-      { id: "3", name: "Clara Dane", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Clara" },
-    ],
-    taskCount: 12,
-    completedTasks: 7,
-  },
-  {
-    id: "2",
-    name: '"Cyber Dreams" EP Visuals',
-    description: "Album artwork and visualizer animations for Cyber Dreams EP.",
-    dueDate: "15 Nov 2023",
-    status: "planning" as const,
-    teamMembers: [
-      { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-      { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-    ],
-    taskCount: 8,
-    completedTasks: 0,
-  },
-  {
-    id: "3",
-    name: "V-Tuber Model 2.0",
-    description: "Updated VTuber model with new expressions and rigging.",
-    dueDate: "02 Oct 2023",
-    status: "completed" as const,
-    teamMembers: [
-      { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-    ],
-    taskCount: 6,
-    completedTasks: 6,
-  },
-];
+// const creatorProjects = [
+//   {
+//     id: "1",
+//     name: 'Brand Collab - "Future Funk"',
+//     description: "Music video production and promotional materials for upcoming EP release.",
+//     due_date: "24 Oct 2023",
+//     status: "in-progress" as const,
+//     teamMembers: [
+//       { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
+//       { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
+//       { id: "3", name: "Clara Dane", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Clara" },
+//     ],
+//     taskCount: 12,
+//     completedTasks: 7,
+//   },
+//   {
+//     id: "2",
+//     name: '"Cyber Dreams" EP Visuals',
+//     description: "Album artwork and visualizer animations for Cyber Dreams EP.",
+//     due_date: "15 Nov 2023",
+//     status: "planning" as const,
+//     teamMembers: [
+//       { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
+//       { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
+//     ],
+//     taskCount: 8,
+//     completedTasks: 0,
+//   },
+//   {
+//     id: "3",
+//     name: "V-Tuber Model 2.0",
+//     description: "Updated VTuber model with new expressions and rigging.",
+//     due_date: "02 Oct 2023",
+//     status: "completed" as const,
+//     teamMembers: [
+//       { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
+//     ],
+//     taskCount: 6,
+//     completedTasks: 6,
+//   },
+// ];
 
 // Talent's assigned projects (projects they're working on)
-const talentProjects = [
-  {
-    id: "1",
-    name: 'Brand Collab - "Future Funk"',
-    description: "Creating promotional materials and motion graphics.",
-    dueDate: "24 Oct 2023",
-    status: "in-progress" as const,
-    creatorName: "Alex Johnson",
-    creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex",
-    myTasks: 5,
-    completedTasks: 3,
-  },
-  {
-    id: "4",
-    name: "Mobile App UI Redesign",
-    description: "Designing new UI components and user flows.",
-    dueDate: "30 Nov 2023",
-    status: "in-progress" as const,
-    creatorName: "Jordan Smith",
-    creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jordan",
-    myTasks: 8,
-    completedTasks: 2,
-  },
-  {
-    id: "5",
-    name: "Logo Design for StartupX",
-    description: "Brand identity and logo variations.",
-    dueDate: "10 Oct 2023",
-    status: "completed" as const,
-    creatorName: "Taylor Chen",
-    creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Taylor",
-    myTasks: 4,
-    completedTasks: 4,
-  },
-];
+// const talentProjects = [
+//   {
+//     id: "1",
+//     name: 'Brand Collab - "Future Funk"',
+//     description: "Creating promotional materials and motion graphics.",
+//     due_date: "24 Oct 2023",
+//     status: "in-progress" as const,
+//     creatorName: "Alex Johnson",
+//     creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex",
+//     myTasks: 5,
+//     completedTasks: 3,
+//   },
+//   {
+//     id: "4",
+//     name: "Mobile App UI Redesign",
+//     description: "Designing new UI components and user flows.",
+//     due_date: "30 Nov 2023",
+//     status: "in-progress" as const,
+//     creatorName: "Jordan Smith",
+//     creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jordan",
+//     myTasks: 8,
+//     completedTasks: 2,
+//   },
+//   {
+//     id: "5",
+//     name: "Logo Design for StartupX",
+//     description: "Brand identity and logo variations.",
+//     due_date: "10 Oct 2023",
+//     status: "completed" as const,
+//     creatorName: "Taylor Chen",
+//     creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Taylor",
+//     myTasks: 4,
+//     completedTasks: 4,
+//   },
+// ];
 
 export default function Projects() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { projects: contextProjects, addProject } = useProjects();
-  const isTalent = user?.userType === 'talent';
+  const { projects, addProject, deleteProject } = useProjects();
+  const isTalent = user?.role === 'talent';
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    dueDate: "",
+    due_date: "",
   });
 
-  const projects = isTalent ? talentProjects : contextProjects;
+  const handleDeleteProject = async () => {
+    if (!projectToDelete) return;
+    try {
+      await deleteProject(projectToDelete.id);
+      toast.success("Project deleted successfully");
+    } catch (error) {
+      toast.error("Failed to delete project");
+    } finally {
+      setDeleteDialogOpen(false);
+      setProjectToDelete(null);
+    }
+  };
 
-  const handleCreateProject = () => {
-    if (!formData.name || !formData.description || !formData.dueDate) {
+  const openDeleteDialog = (e: React.MouseEvent, project: { id: string; name: string }) => {
+    e.stopPropagation();
+    setProjectToDelete(project);
+    setDeleteDialogOpen(true);
+  };
+
+  // const projects = isTalent ? talentProjects : contextProjects;
+
+
+
+
+  const handleCreateProject = async () => {
+    if (!formData.name || !formData.description || !formData.due_date) {
       toast.error("Please fill in all fields");
       return;
     }
 
-    addProject({
+    await addProject({
       name: formData.name,
       description: formData.description,
-      dueDate: new Date(formData.dueDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
+      due_date: formData.due_date, // ✅ SEND RAW DATE
     });
 
     toast.success("Project created successfully!");
-    setFormData({ name: "", description: "", dueDate: "" });
+    setFormData({ name: "", description: "", due_date: "" });
     setIsDialogOpen(false);
   };
+
+
 
   return (
     <MainLayout>
@@ -183,12 +225,12 @@ export default function Projects() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="dueDate">Due Date</Label>
+                    <Label htmlFor="due_date">Due Date</Label>
                     <Input
-                      id="dueDate"
+                      id="due_date"
                       type="date"
-                      value={formData.dueDate}
-                      onChange={(e) => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+                      value={formData.due_date}
+                      onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
                     />
                   </div>
                 </div>
@@ -204,75 +246,131 @@ export default function Projects() {
         </div>
 
         {/* Projects Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
-            <div
-              key={project.id}
-              onClick={() => navigate(`/projects/${project.id}`)}
-              className="glass-card-hover cursor-pointer p-6"
-            >
-              <div className="mb-4 flex items-start justify-between">
-                <h3 className="font-semibold text-foreground">{project.name}</h3>
-                <StatusBadge status={project.status} />
-              </div>
+        {projects.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-12 text-center min-h-[400px]">
+            <FolderKanban className="h-12 w-12 text-muted-foreground/50" />
+            <p className="mt-3 text-sm font-medium text-foreground">
+              {isTalent ? "No projects assigned yet" : "No projects yet"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {isTalent
+                ? "Projects assigned to you will appear here"
+                : "Click the + New Project button above to create your first project"
+              }
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {projects.map((project) => {
+              const progress =
+                project.task_count === 0
+                  ? 0
+                  : (project.completed_tasks / project.task_count) * 100;
 
-              <p className="mb-4 line-clamp-2 text-sm text-muted-foreground">
-                {project.description}
-              </p>
-
-              {/* Progress */}
-              <div className="mb-4">
-                <div className="mb-1 flex justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    {isTalent ? "My Progress" : "Progress"}
-                  </span>
-                  <span className="text-foreground">
-                    {project.completedTasks}/{isTalent ? (project as any).myTasks : (project as any).taskCount} tasks
-                  </span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-secondary">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{
-                      width: `${(project.completedTasks / (isTalent ? (project as any).myTasks : (project as any).taskCount)) * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Meta */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  <span>{project.dueDate}</span>
-                </div>
-
-                {isTalent ? (
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-7 w-7 border-2 border-card">
-                      <AvatarImage src={(project as any).creatorAvatar} alt={(project as any).creatorName} />
-                      <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                        {(project as any).creatorName.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-xs text-muted-foreground">{(project as any).creatorName}</span>
+              return (
+                <div
+                  key={project.id}
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                  className="cursor-pointer p-6 rounded-lg border group hover:border-primary/50 transition-colors"
+                >
+                  <div className="flex justify-between mb-3">
+                    <h3 className="font-semibold">{project.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={project.status} />
+                      {!isTalent && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/projects/${project.id}`); }}>
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              Open Project
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => openDeleteDialog(e, { id: project.id, name: project.name })}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete Project
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <div className="flex -space-x-2">
-                    {(project as any).teamMembers.slice(0, 3).map((member: any) => (
-                      <Avatar key={member.id} className="h-7 w-7 border-2 border-card">
-                        <AvatarImage src={member.avatar} alt={member.name} />
-                        <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                          {member.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                    ))}
+
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {project.description}
+                  </p>
+
+                  {/* Progress */}
+                  <div className="mb-4">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Progress</span>
+                      <span>
+                        {project.completed_tasks}/{project.task_count}
+                      </span>
+                    </div>
+
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+
+                  {/* Meta */}
+                  <div className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      {project.due_date}
+                    </div>
+
+                    <div className="flex -space-x-2">
+                      {project.teamMembers?.slice(0, 3).map((m) => (
+                        <Avatar key={m.id} className="h-7 w-7">
+                          <AvatarImage src={m.avatar} />
+                          <AvatarFallback>
+                            {m.name[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Project</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{projectToDelete?.name}"? This action cannot be undone and will remove all tasks and deliverables associated with this project.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteProject}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </MainLayout>
   );

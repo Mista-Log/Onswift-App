@@ -11,13 +11,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 
 const creatorNavItems = [
-  { label: "Dashboard", icon: LayoutGrid, route: "/dashboard" },
+  { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
   { label: "Browse Talent", icon: Users, route: "/talent" },
-  { label: "My Team", icon: UsersRound, route: "/team" },
+  { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
-  { label: "Calendar", icon: Calendar, route: "/calendar" },
+  { label: "Deadlines", icon: Calendar, route: "/calendar" },
 ];
 
 const talentNavItems = [
@@ -25,8 +26,8 @@ const talentNavItems = [
   { label: "My Profile", icon: User, route: "/profile/edit" },
   { label: "My Projects", icon: FolderKanban, route: "/projects" },
   { label: "Deliverables", icon: Upload, route: "/deliverables" },
-  { label: "Messages", icon: MessageCircle, route: "/messages" },
-  { label: "Calendar", icon: Calendar, route: "/calendar" },
+  { label: "Chats", icon: MessageCircle, route: "/messages" },
+  { label: "Deadlines", icon: Calendar, route: "/calendar" },
 ];
 
 const bottomNavItems = [
@@ -42,7 +43,7 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
   const location = useLocation();
   const { user } = useAuth();
 
-  const navItems = user?.userType === 'talent' ? talentNavItems : creatorNavItems;
+  const navItems = user?.role === 'talent' ? talentNavItems : creatorNavItems;
 
   return (
     <aside
@@ -73,7 +74,7 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
               O
             </div>
             <span className="text-xl font-bold text-foreground">
-              On<span className="text-primary">Swift</span>
+              OnSwift
             </span>
           </div>
         )}
@@ -198,32 +199,30 @@ export function TopBar({ onToggleSidebar, onToggleMobileSidebar, isCollapsed }: 
 
       {/* Right side */}
       <div className="flex items-center gap-2 md:gap-4">
-        <button className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
-          <Bell className="h-5 w-5" />
-        </button>
+        <NotificationDropdown />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 md:gap-3 rounded-full pr-0 md:pr-2 hover:bg-secondary/50 transition-colors">
               <Avatar className="h-10 w-10 border-2 border-primary/30">
-                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`} />
+                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.full_name || 'User'}`} />
                 <AvatarFallback className="bg-primary/20 text-primary">
-                  {user?.name?.charAt(0) || 'U'}
+                  {user?.full_name?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
               <span className="hidden lg:block text-sm font-medium text-foreground">
-                {user?.name?.split(' ')[0]}
+                {user?.full_name?.split(' ')[0]}
               </span>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <div className="px-2 py-1.5">
-              <p className="text-sm font-medium text-foreground">{user?.name}</p>
+              <p className="text-sm font-medium text-foreground">{user?.full_name}</p>
               <p className="text-xs text-muted-foreground">{user?.email}</p>
-              <p className="text-xs text-primary capitalize mt-1">{user?.userType}</p>
+              <p className="text-xs text-primary capitalize mt-1">{user?.role}</p>
             </div>
             <DropdownMenuSeparator />
-            {user?.userType === 'talent' && (
+            {user?.role === 'talent' && (
               <DropdownMenuItem onClick={() => navigate('/profile/edit')}>
                 <User className="mr-2 h-4 w-4" />
                 My Profile

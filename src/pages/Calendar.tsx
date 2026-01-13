@@ -247,7 +247,7 @@ export default function Calendar() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground bg-gradient-to-r from-primary to-primary/50 bg-clip-text text-transparent">
-              Project Calendar
+              Project Deadlines
             </h1>
             <p className="mt-1 text-muted-foreground">
               Track deadlines and stay on schedule

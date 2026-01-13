@@ -28,12 +28,12 @@ const AVAILABILITY_OPTIONS = [
 ];
 
 export default function TalentProfileEdit() {
-  const { user, updateProfile } = useAuth();
+  const { user, updateTalentProfile } = useAuth();
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
-    name: user?.name || "",
-    professionalTitle: user?.professionalTitle || "",
+    full_name: user?.full_name || "",
+    professional_title: user?.professional_title || "",
     bio: user?.bio || "",
     skills: user?.skills || [],
     portfolioLink: user?.portfolioLink || "",
@@ -85,9 +85,9 @@ export default function TalentProfileEdit() {
     
     await new Promise(resolve => setTimeout(resolve, 800));
     
-    updateProfile({
-      name: formData.name,
-      professionalTitle: formData.professionalTitle,
+    updateTalentProfile({
+      full_name: formData.full_name,
+      professional_title: formData.professional_title,
       bio: formData.bio,
       skills: formData.skills,
       portfolioLink: portfolioLinks[0] || "",
@@ -100,8 +100,8 @@ export default function TalentProfileEdit() {
     navigate("/dashboard");
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const getInitials = (full_name: string) => {
+    return full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   return (
@@ -125,7 +125,7 @@ export default function TalentProfileEdit() {
               <Avatar className="h-24 w-24 border-2 border-primary/50">
                 <AvatarImage src={formData.avatarUrl} />
                 <AvatarFallback className="text-2xl bg-secondary">
-                  {getInitials(formData.name)}
+                  {getInitials(formData.full_name)}
                 </AvatarFallback>
               </Avatar>
               <div className="space-y-2">
@@ -143,20 +143,20 @@ export default function TalentProfileEdit() {
             <h2 className="text-lg font-semibold text-foreground mb-4">Basic Information</h2>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="full_name">Full Name</Label>
                 <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="Your full name"
+                  id="full_name"
+                  value={formData.full_name}
+                  onChange={(e) => handleInputChange("full_name", e.target.value)}
+                  placeholder="Your full full_name"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="professionalTitle">Professional Title</Label>
+                <Label htmlFor="professional_title">Professional Title</Label>
                 <Input
-                  id="professionalTitle"
-                  value={formData.professionalTitle}
-                  onChange={(e) => handleInputChange("professionalTitle", e.target.value)}
+                  id="professional_title"
+                  value={formData.professional_title}
+                  onChange={(e) => handleInputChange("professional_title", e.target.value)}
                   placeholder="e.g., Senior UI/UX Designer"
                 />
               </div>

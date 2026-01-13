@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,15 +11,54 @@ import { toast } from "sonner";
 import { Camera, Linkedin, Twitter, Instagram, Youtube } from "lucide-react";
 
 export default function CreatorProfileEdit() {
-  const { user, updateProfile } = useAuth();
+  const { user, updateCreatorProfile, getUser } = useAuth();
   const navigate = useNavigate();
 
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+
+  const [socialLinks, setSocialLinks] = useState({
+    linkedin: "",
+    twitter: "",
+    instagram: "",
+    youtube: "",
+  });
+
   const [formData, setFormData] = useState({
-    name: user?.name || "",
-    companyName: user?.companyName || "",
+    full_name: user?.full_name || "",
+    company_name: user?.company_name || "",
     bio: user?.bio || "",
     avatarUrl: user?.avatarUrl || "",
   });
+
+  // Fetch latest user data on mount
+  useEffect(() => {
+    const fetchUser = async () => {
+      await getUser();
+    };
+    fetchUser();
+  }, []);
+
+  // Sync formData when user updates
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        full_name: user.full_name || "",
+        company_name: user.company_name || "",
+        bio: user.bio || "",
+        avatarUrl: user.avatarUrl || "",
+      });
+
+
+      setSocialLinks({
+        linkedin: user.social_links?.linkedin || "",
+        twitter: user.social_links?.twitter || "",
+        instagram: user.social_links?.instagram || "",
+        youtube: user.social_links?.youtube || "",
+      });
+    }
+  }, [user]);
+
+
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -27,25 +66,60 @@ export default function CreatorProfileEdit() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   setIsLoading(true);
+
+  //   await new Promise(resolve => setTimeout(resolve, 800));
+
+  //   updateCreatorProfile({
+  //     full_name: formData.full_name,
+  //     company_name: formData.company_name,
+  //     bio: formData.bio,
+  //   });
+
+  //   setIsLoading(false);
+  //   toast.success("Profile updated successfully!");
+  //   navigate("/dashboard");
+  // };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      const payload = new FormData();
 
-    updateProfile({
-      name: formData.name,
-      companyName: formData.companyName,
-      bio: formData.bio,
-    });
+      // User
+      payload.append("full_name", formData.full_name);
 
-    setIsLoading(false);
-    toast.success("Profile updated successfully!");
-    navigate("/dashboard");
+      // Creator profile
+      payload.append("company_name", formData.company_name);
+      payload.append("bio", formData.bio);
+
+      // Social links (JSONField)
+      payload.append("social_links", JSON.stringify(socialLinks));
+
+      // Avatar (file)
+      if (avatarFile) {
+        payload.append("avatar", avatarFile);
+      }
+
+      const response = await updateCreatorProfile(payload);
+
+      toast.success("Profile updated successfully!");
+      navigate("/dashboard");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to update profile");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+
+  const getInitials = (full_name: string) => {
+    return full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   return (
@@ -69,11 +143,31 @@ export default function CreatorProfileEdit() {
               <Avatar className="h-24 w-24 border-2 border-primary/50">
                 <AvatarImage src={formData.avatarUrl} />
                 <AvatarFallback className="text-2xl bg-secondary">
-                  {getInitials(formData.name)}
+                  {getInitials(formData.full_name)}
                 </AvatarFallback>
               </Avatar>
               <div className="space-y-2">
-                <Button type="button" variant="outline" className="gap-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  id="avatar-upload"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                      setAvatarFile(e.target.files[0]);
+                      setFormData(prev => ({
+                        ...prev,
+                        avatarUrl: URL.createObjectURL(e.target.files![0]),
+                      }));
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => document.getElementById("avatar-upload")?.click()}
+                >
                   <Camera className="h-4 w-4" />
                   Upload New Photo
                 </Button>
@@ -87,20 +181,20 @@ export default function CreatorProfileEdit() {
             <h2 className="text-lg font-semibold text-foreground mb-4">Basic Information</h2>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="full_name">Full Name</Label>
                 <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="Your full name"
+                  id="full_name"
+                  value={formData.full_name}
+                  onChange={(e) => handleInputChange("full_name", e.target.value)}
+                  placeholder="Your full full_name"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="companyName">Company/Brand Name</Label>
+                <Label htmlFor="company_name">Company/Brand Name</Label>
                 <Input
-                  id="companyName"
-                  value={formData.companyName}
-                  onChange={(e) => handleInputChange("companyName", e.target.value)}
+                  id="company_name"
+                  value={formData.company_name}
+                  onChange={(e) => handleInputChange("company_name", e.target.value)}
                   placeholder="e.g., My Creative Studio"
                 />
               </div>
@@ -146,28 +240,56 @@ export default function CreatorProfileEdit() {
                 <Label>LinkedIn</Label>
                 <div className="relative">
                   <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="https://linkedin.com/in/yourname" className="pl-10" />
+                  <Input
+                  placeholder="https://linkedin.com/in/yourname"
+                  className="pl-10"
+                  value={socialLinks.linkedin}
+                  onChange={(e) =>
+                    setSocialLinks(prev => ({ ...prev, linkedin: e.target.value }))
+                  }
+                />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Twitter/X</Label>
                 <div className="relative">
                   <Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="https://twitter.com/yourhandle" className="pl-10" />
+                  <Input
+                  placeholder="https://twitter.com/in/yourname"
+                  className="pl-10"
+                  value={socialLinks.twitter}
+                  onChange={(e) =>
+                    setSocialLinks(prev => ({ ...prev, twitter: e.target.value }))
+                  }
+                />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Instagram</Label>
                 <div className="relative">
                   <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="https://instagram.com/yourhandle" className="pl-10" />
+                  <Input
+                  placeholder="https://instagram.com/in/yourname"
+                  className="pl-10"
+                  value={socialLinks.instagram}
+                  onChange={(e) =>
+                    setSocialLinks(prev => ({ ...prev, instagram: e.target.value }))
+                  }
+                />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>YouTube</Label>
                 <div className="relative">
                   <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="https://youtube.com/@yourchannel" className="pl-10" />
+                  <Input
+                  placeholder="https://youtube.com/in/yourname"
+                  className="pl-10"
+                  value={socialLinks.youtube}
+                  onChange={(e) =>
+                    setSocialLinks(prev => ({ ...prev, youtube: e.target.value }))
+                  }
+                />
                 </div>
               </div>
             </div>

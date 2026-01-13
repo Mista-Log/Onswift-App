@@ -1,99 +1,256 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useEffect,
+} from "react";
+import { mapFromBackend } from "../lib/api";
+import { useAuth } from "./AuthContext";
+import { secureFetch } from '../api/apiClient';
+
+export interface Task {
+  id: string;
+  project: string;
+  name: string;
+  description: string;
+  assignee: string | null;
+  assignee_name: string | null;
+  status: "planning" | "in-progress" | "completed";
+  deadline: string | null;
+  created_at: string;
+}
 
 export interface Project {
   id: string;
   name: string;
   description: string;
-  dueDate: string;
+  due_date: string;
   status: "in-progress" | "planning" | "completed";
   teamMembers: Array<{
     id: string;
     name: string;
     avatar: string;
   }>;
-  taskCount: number;
-  completedTasks: number;
+  task_count: number;
+  completed_tasks: number;
+  progress?: number;
 }
 
 interface ProjectContextType {
   projects: Project[];
-  addProject: (project: Omit<Project, "id" | "teamMembers" | "taskCount" | "completedTasks" | "status">) => void;
-  updateProject: (id: string, updates: Partial<Project>) => void;
-  deleteProject: (id: string) => void;
+  fetchProjects: () => Promise<void>;
+  addProject: (
+    project: Omit<Project, "id" | "teamMembers" | "task_count" | "completed_tasks" | "status" | "progress">
+  ) => Promise<void>;
+  updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
+
+  // Task management
+  fetchProjectTasks: (projectId: string) => Promise<Task[]>;
+  addTask: (projectId: string, task: Omit<Task, "id" | "project" | "assignee_name" | "created_at">) => Promise<void>;
+  updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
+  deleteTask: (taskId: string) => Promise<void>;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
-const initialProjects: Project[] = [
-  {
-    id: "1",
-    name: 'Brand Collab - "Future Funk"',
-    description: "Music video production and promotional materials for upcoming EP release.",
-    dueDate: "24 Oct 2023",
-    status: "in-progress",
-    teamMembers: [
-      { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-      { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-      { id: "3", name: "Clara Dane", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Clara" },
-      { id: "4", name: "David Lee", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=David" },
-    ],
-    taskCount: 12,
-    completedTasks: 7,
-  },
-  {
-    id: "2",
-    name: '"Cyber Dreams" EP Visuals',
-    description: "Album artwork and visualizer animations for Cyber Dreams EP.",
-    dueDate: "15 Nov 2023",
-    status: "planning",
-    teamMembers: [
-      { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-      { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-    ],
-    taskCount: 8,
-    completedTasks: 0,
-  },
-  {
-    id: "3",
-    name: "V-Tuber Model 2.0",
-    description: "Updated VTuber model with new expressions and rigging.",
-    dueDate: "02 Oct 2023",
-    status: "completed",
-    teamMembers: [
-      { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-    ],
-    taskCount: 6,
-    completedTasks: 6,
-  },
-];
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
 
-  const addProject = (projectData: Omit<Project, "id" | "teamMembers" | "taskCount" | "completedTasks" | "status">) => {
-    const newProject: Project = {
-      ...projectData,
-      id: Date.now().toString(),
-      teamMembers: [],
-      taskCount: 0,
-      completedTasks: 0,
-      status: "planning",
-    };
-    setProjects((prev) => [newProject, ...prev]);
+  const getToken = () => localStorage.getItem("onswift_access");
+
+  // FETCH PROJECTS
+  const fetchProjects = async () => {
+    try {
+      // Just provide the endpoint. secureFetch handles the token + refresh!
+      const response = await secureFetch('/api/v2/projects/'); 
+      if (response.ok) {
+        const data = await response.json();
+        setProjects(data);
+      }
+    } catch (error) {
+      console.error("Error loading projects:", error);
+    }
   };
 
-  const updateProject = (id: string, updates: Partial<Project>) => {
-    setProjects((prev) =>
-      prev.map((project) => (project.id === id ? { ...project, ...updates } : project))
-    );
+  // 🚀 Fetch on mount (near-realtime)
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  // ---------------- ADD PROJECT ----------------
+  const addProject = async (projectData: {name: string; description: string; due_date: string;}) => {
+    try {
+      // secureFetch replaces fetch + getToken logic
+      const res = await secureFetch(`/api/v2/projects/`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: projectData.name,
+          description: projectData.description,
+          due_date: projectData.due_date,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("Backend validation error:", data);
+        throw new Error(JSON.stringify(data));
+      }
+
+      // Refresh projects list (includes the new project)
+      await fetchProjects();
+      
+    } catch (error: any) {
+      console.error("Add Project failed:", error.message);
+      throw error;
+    }
   };
 
-  const deleteProject = (id: string) => {
-    setProjects((prev) => prev.filter((project) => project.id !== id));
+  // ---------------- UPDATE PROJECT ----------------
+  const updateProject = async (id: string, updates: Partial<Project>) => {
+    try {
+      const res = await secureFetch(`/api/v2/projects/${id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: updates.name,
+          description: updates.description,
+          due_date: updates.due_date,
+          status: updates.status,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to update project");
+
+      const data = await res.json();
+      const updated = mapFromBackend(data);
+
+      setProjects((prev) =>
+        prev.map((p) => (p.id === id ? updated : p))
+      );
+    } catch (error: any) {
+      console.error("Update Project failed:", error.message);
+      throw error;
+    }
+  };
+
+  // ---------------- DELETE PROJECT ----------------
+  const deleteProject = async (id: string) => {
+    try {
+      const res = await secureFetch(`/api/v2/projects/${id}/`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("Failed to delete project");
+
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+    } catch (error: any) {
+      console.error("Delete Project failed:", error.message);
+      throw error;
+    }
+  };
+
+  // ---------------- FETCH PROJECT TASKS ----------------
+  const fetchProjectTasks = async (projectId: string): Promise<Task[]> => {
+    try {
+      const response = await secureFetch(`/api/v2/projects/${projectId}/tasks/`);
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      }
+      return [];
+    } catch (error) {
+      console.error("Error loading tasks:", error);
+      return [];
+    }
+  };
+
+  // ---------------- ADD TASK ----------------
+  const addTask = async (projectId: string, taskData: Omit<Task, "id" | "project" | "assignee_name" | "created_at">) => {
+    try {
+      const res = await secureFetch(`/api/v2/projects/${projectId}/tasks/`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: taskData.name,
+          description: taskData.description,
+          assignee: taskData.assignee || null,
+          status: taskData.status || "planning",
+          deadline: taskData.deadline || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        console.error("Backend validation error:", data);
+        throw new Error(JSON.stringify(data));
+      }
+
+      // Refresh projects to update task counts
+      await fetchProjects();
+    } catch (error: any) {
+      console.error("Add Task failed:", error.message);
+      throw error;
+    }
+  };
+
+  // ---------------- UPDATE TASK ----------------
+  const updateTask = async (taskId: string, updates: Partial<Task>) => {
+    try {
+      const res = await secureFetch(`/api/v2/tasks/${taskId}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: updates.name,
+          description: updates.description,
+          assignee: updates.assignee,
+          status: updates.status,
+          deadline: updates.deadline,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to update task");
+
+      // Refresh projects to update task counts
+      await fetchProjects();
+    } catch (error: any) {
+      console.error("Update Task failed:", error.message);
+      throw error;
+    }
+  };
+
+  // ---------------- DELETE TASK ----------------
+  const deleteTask = async (taskId: string) => {
+    try {
+      const res = await secureFetch(`/api/v2/tasks/${taskId}/`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("Failed to delete task");
+
+      // Refresh projects to update task counts
+      await fetchProjects();
+    } catch (error: any) {
+      console.error("Delete Task failed:", error.message);
+      throw error;
+    }
   };
 
   return (
-    <ProjectContext.Provider value={{ projects, addProject, updateProject, deleteProject }}>
+    <ProjectContext.Provider
+      value={{
+        projects,
+        fetchProjects,
+        addProject,
+        updateProject,
+        deleteProject,
+        fetchProjectTasks,
+        addTask,
+        updateTask,
+        deleteTask,
+      }}
+    >
       {children}
     </ProjectContext.Provider>
   );

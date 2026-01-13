@@ -1,22 +1,28 @@
-
-
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { publicFetch, secureFetch } from '@/api/apiClient'; // Import both
 
 export type UserRole = 'creator' | 'talent';
 
 export interface User {
   id: string;
-  name: string;
+  full_name: string;
   email: string;
-  userType: UserRole;
-  companyName?: string;
-  professionalTitle?: string;
+  role: UserRole;
+  company_name?: string;
+  professional_title?: string;
   skills?: string[];
   avatarUrl?: string;
   bio?: string;
   portfolioLink?: string;
   hourlyRate?: number;
   availability?: string;
+  social_links?: {
+    linkedin?: string;
+    twitter?: string;
+    instagram?: string;
+    youtube?: string;
+    [key: string]: string | undefined;
+  };
 }
 
 interface AuthContextType {
@@ -24,40 +30,29 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signup: (userData: Partial<User> & { password: string }) => Promise<{ success: boolean; error?: string }>;
+  signup: (data: {
+    email: string;
+    full_name: string;
+    password: string;
+    role: UserRole;
+    [key: string]: any;
+  }) => Promise<{ success: boolean; error?: string }>;
+  updateCreatorProfile: (data: FormData | Partial<User>) => Promise<{ success: boolean; error?: string }>;
+  updateTalentProfile: (data: FormData | Partial<User>) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  updateProfile: (data: Partial<User>) => void;
+  getUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users for demo
-const MOCK_USERS: (User & { password: string })[] = [
-  {
-    id: '1',
-    name: 'Alex Creator',
-    email: 'creator@demo.com',
-    password: 'password123',
-    userType: 'creator',
-    companyName: 'Creative Studios',
-  },
-  {
-    id: '2',
-    name: 'Sam Talent',
-    email: 'talent@demo.com',
-    password: 'password123',
-    userType: 'talent',
-    professionalTitle: 'UI/UX Designer',
-    skills: ['UI/UX Design', 'Web Development', 'Graphic Design'],
-  },
-];
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Restore session
   useEffect(() => {
-    // Check for existing session
     const storedUser = localStorage.getItem('onswift_user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
@@ -65,69 +60,156 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
+  // GET USER (requires auth)
+  const getUser = async () => {
+    const token = localStorage.getItem("onswift_access");
+    if (!token) return;
+
+    try {
+      const response = await secureFetch('/api/v1/auth/user/');
+      if (!response.ok) throw new Error("Failed to fetch user");
+
+      const data = await response.json();
+
+      const fetchedUser: User = {
+        id: data.id,
+        full_name: data.full_name,
+        email: data.email,
+        role: data.role,
+        ...data.profile,
+        avatarUrl: data.profile?.avatar
+          ? `${API_BASE_URL}${data.profile.avatar}`
+          : "",
+        social_links: data.profile?.social_links ?? {},
+      };
+
+      setUser(fetchedUser);
+      localStorage.setItem("onswift_user", JSON.stringify(fetchedUser));
+    } catch (error) {
+      console.error("Error fetching user:", error);
+    }
+  };
+
+  // LOGIN (public - no auth needed)
   const login = async (email: string, password: string) => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    const foundUser = MOCK_USERS.find(u => u.email === email && u.password === password);
-    
-    if (foundUser) {
-      const { password: _, ...userWithoutPassword } = foundUser;
-      setUser(userWithoutPassword);
-      localStorage.setItem('onswift_user', JSON.stringify(userWithoutPassword));
+    try {
+      const response = await publicFetch('/api/v1/auth/login/', {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.detail || "Login failed");
+
+      localStorage.setItem("onswift_access", data.access);
+      localStorage.setItem("onswift_refresh", data.refresh);
+      localStorage.setItem("onswift_user", JSON.stringify(data.user));
+
+      await getUser();
+      setUser(data.user);
+      
       return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
-    
-    return { success: false, error: 'Invalid email or password' };
   };
 
-  const signup = async (userData: Partial<User> & { password: string }) => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Check if email exists
-    if (MOCK_USERS.some(u => u.email === userData.email)) {
-      return { success: false, error: 'Email already exists' };
+  // SIGNUP (public - no auth needed)
+  const signup = async (formData: {
+    email: string;
+    full_name: string;
+    password: string;
+    role: UserRole;
+    [key: string]: any;
+  }) => {
+    try {
+      const response = await publicFetch('/api/v1/auth/signup/', {
+        method: "POST",
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.detail || "Signup failed");
+
+      localStorage.setItem("onswift_access", data.access);
+      localStorage.setItem("onswift_refresh", data.refresh);
+      localStorage.setItem("onswift_user", JSON.stringify(data.user));
+
+      await getUser();
+      setUser(data.user);
+      
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
-    
-    const newUser: User = {
-      id: Date.now().toString(),
-      name: userData.name || '',
-      email: userData.email || '',
-      userType: userData.userType || 'creator',
-      companyName: userData.companyName,
-      professionalTitle: userData.professionalTitle,
-      skills: userData.skills,
-    };
-    
-    setUser(newUser);
-    localStorage.setItem('onswift_user', JSON.stringify(newUser));
-    return { success: true };
   };
 
+  // LOGOUT
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('onswift_user');
+    localStorage.removeItem("onswift_user");
+    localStorage.removeItem("onswift_access");
+    localStorage.removeItem("onswift_refresh");
   };
 
-  const updateProfile = (data: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...data };
-      setUser(updatedUser);
-      localStorage.setItem('onswift_user', JSON.stringify(updatedUser));
+  // UPDATE CREATOR PROFILE (requires auth)
+  const updateCreatorProfile = async (data: FormData | Partial<User>) => {
+    if (!user) return { success: false, error: "Not authenticated" };
+
+    try {
+      const response = await secureFetch('/api/v1/auth/profile/', {
+        method: "PATCH",
+        headers: data instanceof FormData ? {} : { "Content-Type": "application/json" },
+        body: data instanceof FormData ? data : JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result?.detail || "Profile update failed");
+
+      await getUser();
+      
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  // UPDATE TALENT PROFILE (requires auth)
+  const updateTalentProfile = async (data: FormData | Partial<User>) => {
+    if (!user) return { success: false, error: "Not authenticated" };
+
+    try {
+      const response = await secureFetch('/api/v1/auth/profile/', {
+        method: "PATCH",
+        headers: data instanceof FormData ? {} : { "Content-Type": "application/json" },
+        body: data instanceof FormData ? data : JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result?.detail || "Profile update failed");
+
+      await getUser();
+      
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      isAuthenticated: !!user,
-      isLoading,
-      login,
-      signup,
-      logout,
-      updateProfile,
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: !!user,
+        isLoading,
+        login,
+        signup,
+        logout,
+        updateTalentProfile,
+        updateCreatorProfile,
+        getUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -135,8 +217,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
 }
