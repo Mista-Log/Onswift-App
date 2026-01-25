@@ -31,6 +31,8 @@ export default function DashboardCreator() {
   const { teamMembers, isLoading: isLoadingTeam, removeTeamMember } = useTeam();
   const [showInviteModal, setShowInviteModal] = useState(false);
 
+  const profilePicture = user?.profilePicture;
+
   const handleRemoveMember = async (memberId: string) => {
     const success = await removeTeamMember(memberId);
     if (success) {

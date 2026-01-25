@@ -14,7 +14,7 @@ export default function Settings() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const BACKEND_URL = import.meta.env.VITE_API_BASE_URL; // e.g., http://localhost:8000
+  const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
 
 
   const handleSave = () => {
@@ -35,9 +35,7 @@ export default function Settings() {
     return full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-   const avatarSrc = user?.avatarUrl
-    ? `${BACKEND_URL}${user.avatarUrl}` // prepend backend URL
-    : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.full_name || 'User'}`;
+
 
   return (
     <MainLayout>
@@ -60,7 +58,7 @@ export default function Settings() {
               <div className="mb-6 flex items-center gap-6">
                 <div className="relative">
                   <Avatar className="h-20 w-20 border-2 border-primary/30">
-                    <AvatarImage src={avatarSrc} />
+                    <AvatarImage src={user?.profilePicture || ""} />
                     <AvatarFallback className="bg-primary/20 text-primary text-xl">
                       {getInitials(user?.full_name || 'User')}
                     </AvatarFallback>

@@ -11,7 +11,7 @@ export interface User {
   company_name?: string;
   professional_title?: string;
   skills?: string[];
-  avatarUrl?: string;
+  profilePicture?: string;
   bio?: string;
   portfolioLink?: string;
   hourlyRate?: number;
@@ -53,12 +53,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restore session
   useEffect(() => {
-    const storedUser = localStorage.getItem('onswift_user');
+    const storedUser = localStorage.getItem("onswift_user");
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {
+        localStorage.removeItem("onswift_user");
+      }
     }
     setIsLoading(false);
   }, []);
+
 
   // GET USER (requires auth)
   const getUser = async () => {
@@ -77,9 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: data.email,
         role: data.role,
         ...data.profile,
-        avatarUrl: data.profile?.avatar
-          ? `${API_BASE_URL}${data.profile.avatar}`
-          : "",
+        profilePicture: data.profile?.profile_picture || "",
         social_links: data.profile?.social_links ?? {},
       };
 
@@ -106,7 +109,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("onswift_user", JSON.stringify(data.user));
 
       await getUser();
-      setUser(data.user);
+      return { success: true };
+
       
       return { success: true };
     } catch (error: any) {
@@ -136,7 +140,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("onswift_user", JSON.stringify(data.user));
 
       await getUser();
-      setUser(data.user);
+      return { success: true };
+
       
       return { success: true };
     } catch (error: any) {

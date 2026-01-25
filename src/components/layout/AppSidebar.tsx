@@ -159,6 +159,10 @@ export function TopBar({ onToggleSidebar, onToggleMobileSidebar, isCollapsed }: 
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  const profilePicture = user?.profilePicture;
+
+
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -204,12 +208,17 @@ export function TopBar({ onToggleSidebar, onToggleMobileSidebar, isCollapsed }: 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 md:gap-3 rounded-full pr-0 md:pr-2 hover:bg-secondary/50 transition-colors">
-              <Avatar className="h-10 w-10 border-2 border-primary/30">
-                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.full_name || 'User'}`} />
-                <AvatarFallback className="bg-primary/20 text-primary">
-                  {user?.full_name?.charAt(0) || 'U'}
-                </AvatarFallback>
-              </Avatar>
+            <Avatar className="h-14 w-14">
+              <AvatarImage src={user?.profilePicture || ""} />
+              <AvatarFallback>
+                {user?.full_name
+                  ?.split(" ")
+                  .map(n => n[0])
+                  .join("")
+                  .slice(0, 2)
+                  .toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
               <span className="hidden lg:block text-sm font-medium text-foreground">
                 {user?.full_name?.split(' ')[0]}
               </span>

@@ -75,17 +75,10 @@ class UpdateProfileView(APIView):
     def patch(self, request):
         user = request.user
 
-        serializer = ProfileUpdateSerializer(
-            instance=user,
-            data=request.data,
-            partial=True,
-        )
+        serializer = ProfileUpdateSerializer(instance=user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        # -----------------------------
-        # Base user payload
-        # -----------------------------
         response_data = {
             "message": "Profile updated successfully",
             "user": {
@@ -94,48 +87,36 @@ class UpdateProfileView(APIView):
                 "full_name": user.full_name,
                 "role": user.role,
             },
-            "profile": None,  # always present for frontend safety
+            "profile": {
+                "profile_picture": request.build_absolute_uri(user.profile_picture.url)
+                if user.profile_picture else None
+            }
         }
 
-        # -----------------------------
-        # Talent Profile Response
-        # -----------------------------
         if user.role == "talent":
             talent_profile = getattr(user, "talentprofile", None)
-
             if talent_profile:
-                response_data["profile"] = {
+                response_data["profile"].update({
                     "professional_title": talent_profile.professional_title,
                     "skills": talent_profile.skills,
                     "primary_skill": talent_profile.primary_skill,
-                    "hourly_rate": str(talent_profile.hourly_rate)
-                    if talent_profile.hourly_rate else None,
-                }
+                    "hourly_rate": str(talent_profile.hourly_rate) if talent_profile.hourly_rate else None,
+                })
 
-        # -----------------------------
-        # Creator Profile Response
-        # -----------------------------
         if user.role == "creator":
             creator_profile = getattr(user, "creatorprofile", None)
-
             if creator_profile:
-                response_data["profile"] = {
+                response_data["profile"].update({
                     "company_name": creator_profile.company_name,
                     "bio": creator_profile.bio,
                     "website": creator_profile.website,
                     "industry": creator_profile.industry,
                     "location": creator_profile.location,
                     "social_links": creator_profile.social_links,
-
-                    # IMPORTANT: absolute avatar URL
-                    "avatar": (
-                        request.build_absolute_uri(creator_profile.avatar.url)
-                        if creator_profile.avatar
-                        else None
-                    ),
-                }
+                })
 
         return Response(response_data, status=status.HTTP_200_OK)
+
     
 
 class UserDetailView(APIView):

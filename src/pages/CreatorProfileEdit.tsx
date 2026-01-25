@@ -14,7 +14,9 @@ export default function CreatorProfileEdit() {
   const { user, updateCreatorProfile, getUser } = useAuth();
   const navigate = useNavigate();
 
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  // const [avatarFile, setAvatarFile] = useState<File | null>(null);
+
+  const [profilePicture, setProfilePicture] = useState<File | null>(null);
 
   const [socialLinks, setSocialLinks] = useState({
     linkedin: "",
@@ -27,7 +29,6 @@ export default function CreatorProfileEdit() {
     full_name: user?.full_name || "",
     company_name: user?.company_name || "",
     bio: user?.bio || "",
-    avatarUrl: user?.avatarUrl || "",
   });
 
   // Fetch latest user data on mount
@@ -45,7 +46,6 @@ export default function CreatorProfileEdit() {
         full_name: user.full_name || "",
         company_name: user.company_name || "",
         bio: user.bio || "",
-        avatarUrl: user.avatarUrl || "",
       });
 
 
@@ -100,10 +100,12 @@ export default function CreatorProfileEdit() {
       // Social links (JSONField)
       payload.append("social_links", JSON.stringify(socialLinks));
 
-      // Avatar (file)
-      if (avatarFile) {
-        payload.append("avatar", avatarFile);
+      // Profile picture (image)
+      if (profilePicture) {
+        payload.append("profile_picture", profilePicture);
       }
+
+      console.log("Submitting payload:", Array.from(payload.entries()));
 
       const response = await updateCreatorProfile(payload);
 
@@ -141,7 +143,13 @@ export default function CreatorProfileEdit() {
             <h2 className="text-lg font-semibold text-foreground mb-4">Profile Picture</h2>
             <div className="flex items-center gap-6">
               <Avatar className="h-24 w-24 border-2 border-primary/50">
-                <AvatarImage src={formData.avatarUrl} />
+                  <AvatarImage 
+                  src={
+                    profilePicture 
+                      ? URL.createObjectURL(profilePicture) 
+                      : user?.profilePicture || ""
+                  } 
+                />
                 <AvatarFallback className="text-2xl bg-secondary">
                   {getInitials(formData.full_name)}
                 </AvatarFallback>
@@ -154,11 +162,7 @@ export default function CreatorProfileEdit() {
                   id="avatar-upload"
                   onChange={(e) => {
                     if (e.target.files?.[0]) {
-                      setAvatarFile(e.target.files[0]);
-                      setFormData(prev => ({
-                        ...prev,
-                        avatarUrl: URL.createObjectURL(e.target.files![0]),
-                      }));
+                      setProfilePicture(e.target.files[0]);
                     }
                   }}
                 />

@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 import uuid
+from cloudinary.models import CloudinaryField
 
 
 
@@ -33,7 +34,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
-
+    profile_picture = CloudinaryField(
+        "profile_picture",
+        blank=True,
+        null=True
+    )
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)
@@ -68,10 +73,7 @@ class CreatorProfile(models.Model):
         on_delete=models.CASCADE,
     )
 
-    avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
-
     social_links = models.JSONField(default=dict, blank=True)
-
     company_name = models.CharField(max_length=255, blank=True)
     bio = models.TextField(blank=True)
     website = models.URLField(blank=True)

@@ -30,6 +30,9 @@ const AVAILABILITY_OPTIONS = [
 export default function TalentProfileEdit() {
   const { user, updateTalentProfile } = useAuth();
   const navigate = useNavigate();
+
+  const [profilePicture, setProfilePicture] = useState<File | null>(null);
+  
   
   const [formData, setFormData] = useState({
     full_name: user?.full_name || "",
@@ -39,7 +42,7 @@ export default function TalentProfileEdit() {
     portfolioLink: user?.portfolioLink || "",
     hourlyRate: user?.hourlyRate || "",
     availability: user?.availability || "",
-    avatarUrl: user?.avatarUrl || "",
+    profilePicture: user?.profilePicture || "",
   });
 
   const [portfolioLinks, setPortfolioLinks] = useState<string[]>([formData.portfolioLink].filter(Boolean));
@@ -79,26 +82,48 @@ export default function TalentProfileEdit() {
     setPortfolioLinks(portfolioLinks.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    updateTalentProfile({
-      full_name: formData.full_name,
-      professional_title: formData.professional_title,
-      bio: formData.bio,
-      skills: formData.skills,
-      portfolioLink: portfolioLinks[0] || "",
-      hourlyRate: Number(formData.hourlyRate) || undefined,
-      availability: formData.availability,
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
+
+  try {
+    const formPayload = new FormData();
+
+    // User fields
+    formPayload.append("full_name", formData.full_name);
+    if (profilePicture) {
+      formPayload.append("profile_picture", profilePicture);
+    }
+
+    // Talent fields
+    formPayload.append("professional_title", formData.professional_title);
+    formPayload.append("bio", formData.bio);
+    formPayload.append("hourly_rate", String(formData.hourlyRate || ""));
+    formPayload.append("availability", formData.availability);
+
+    // Skills array
+    formData.skills.forEach((skill) => {
+      formPayload.append("skills", skill);
     });
 
-    setIsLoading(false);
+    // Portfolio link (only first for now)
+    if (portfolioLinks.length > 0) {
+      formPayload.append("portfolioLink", portfolioLinks[0]);
+    }
+
+    // Call your existing AuthContext function
+    await updateTalentProfile(formPayload);
+
     toast.success("Profile updated successfully!");
     navigate("/dashboard");
-  };
+  } catch (error: any) {
+    console.error(error);
+    toast.error(error?.message || "Failed to update profile.");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   const getInitials = (full_name: string) => {
     return full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -123,13 +148,35 @@ export default function TalentProfileEdit() {
             <h2 className="text-lg font-semibold text-foreground mb-4">Profile Picture</h2>
             <div className="flex items-center gap-6">
               <Avatar className="h-24 w-24 border-2 border-primary/50">
-                <AvatarImage src={formData.avatarUrl} />
+                  <AvatarImage 
+                  src={
+                    profilePicture 
+                      ? URL.createObjectURL(profilePicture) 
+                      : user?.profilePicture || ""
+                  } 
+                />
                 <AvatarFallback className="text-2xl bg-secondary">
                   {getInitials(formData.full_name)}
                 </AvatarFallback>
               </Avatar>
               <div className="space-y-2">
-                <Button type="button" variant="outline" className="gap-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  id="avatar-upload"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                      setProfilePicture(e.target.files[0]);
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => document.getElementById("avatar-upload")?.click()}
+                >
                   <Camera className="h-4 w-4" />
                   Upload New Photo
                 </Button>
