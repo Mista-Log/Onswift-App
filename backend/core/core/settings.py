@@ -184,6 +184,10 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://onswift-creator-command-centre.vercel.app",
+]
+
 # settings.py
 
 MEDIA_URL = "/media/"
