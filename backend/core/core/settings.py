@@ -175,7 +175,9 @@ REST_FRAMEWORK = {
 }
 
 AUTH_USER_MODEL = "account.User"
+
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
 
 # settings.py
 
