@@ -41,6 +41,9 @@ interface AuthContextType {
   updateTalentProfile: (data: FormData | Partial<User>) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   getUser: () => Promise<void>;
+
+  requestPasswordReset: (email: string) => Promise<void>;
+  confirmPasswordReset: (uid: string, token: string, password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -63,6 +66,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setIsLoading(false);
   }, []);
+
+  const requestPasswordReset = async (email: string) => {
+    const response = await publicFetch("/api/v1/password-reset/", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+
+    // Backend should always return 200 for security
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data?.error || "Failed to send reset email");
+    }
+  };
+
+  const confirmPasswordReset = async (uid: string, token: string, password: string) => {
+    const response = await publicFetch("/api/v1/password-reset-confirm/", {
+      method: "POST",
+      body: JSON.stringify({ uid, token, password }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data?.error || "Password reset failed");
+    }
+  };
 
 
   // GET USER (requires auth)
@@ -213,6 +241,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateTalentProfile,
         updateCreatorProfile,
         getUser,
+        requestPasswordReset,
+        confirmPasswordReset,
       }}
     >
       {children}

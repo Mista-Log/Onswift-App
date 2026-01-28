@@ -31,6 +31,8 @@ import TalentPublicProfile from "./pages/TalentPublicProfile";
 import Messages from "./pages/Messages";
 import Deliverables from "./pages/Deliverables";
 import NotFound from "./pages/NotFound";
+import ResetPassword from "./pages/auth/ResetPassword";
+
 
 const queryClient = new QueryClient();
 
@@ -66,6 +68,8 @@ const App = () => (
               <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
               <Route path="/deliverables" element={<ProtectedRoute><Deliverables /></ProtectedRoute>} />
               <Route path="/talent/:userId" element={<ProtectedRoute><TalentPublicProfile /></ProtectedRoute>} />
+              <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
+
 
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />

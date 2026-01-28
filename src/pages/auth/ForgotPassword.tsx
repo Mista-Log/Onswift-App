@@ -3,27 +3,36 @@ import { Link } from 'react-router-dom';
 import { Mail, Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useAuth } from "@/contexts/AuthContext";
+
+
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const { requestPasswordReset } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    
+    setError("");
+
     if (!email || !/\S+@\S+\.\S+/.test(email)) {
-      setError('Please enter a valid email address');
+      setError("Please enter a valid email address");
       return;
     }
-    
+
     setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsLoading(false);
-    setIsSubmitted(true);
+
+    try {
+      await requestPasswordReset(email);
+      setIsSubmitted(true);
+    } catch (err: any) {
+      setError(err.message || "Something went wrong");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
