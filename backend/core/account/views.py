@@ -157,7 +157,7 @@ class PasswordResetRequestView(APIView):
         token = PasswordResetTokenGenerator().make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
 
-        reset_url = f"{settings.FRONTEND_URL}reset-password/{uid}/{token}"
+        reset_url = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}"
 
         send_mail(
             subject="Reset Your Password",
@@ -175,7 +175,7 @@ class PasswordResetRequestView(APIView):
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
 
-    
+
     def post(self, request):
         uid = request.data.get("uid")
         token = request.data.get("token")
