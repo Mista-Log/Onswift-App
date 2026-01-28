@@ -140,6 +140,9 @@ class UserDetailView(APIView):
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
 
+    def options(self, request, *args, **kwargs):
+        """Handle preflight OPTIONS requests for CORS"""
+        return Response(status=status.HTTP_200_OK)
 
     def post(self, request):
         email = request.data.get("email")
