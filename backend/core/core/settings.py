@@ -63,7 +63,6 @@ MIDDLEWARE = [
 
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -176,7 +175,13 @@ REST_FRAMEWORK = {
 
 AUTH_USER_MODEL = "account.User"
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
+
+CORS_ALLOWED_ORIGINS = [
+    "https://onswift-creator-command-centre.vercel.app",
+    "http://localhost:8080",
+]
+
 CORS_ALLOW_CREDENTIALS = True
 
 # settings.py
