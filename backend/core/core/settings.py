@@ -199,4 +199,5 @@ EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL")
 
 
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:8080/")
+FRONTEND_URL = os.environ.get("FRONTEND_URL")
+
