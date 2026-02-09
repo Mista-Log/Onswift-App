@@ -55,22 +55,20 @@ export default function Login() {
         <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-2xl p-8 md:p-12 shadow-glow">
           {/* Header */}
           <div className="text-center mb-8">
-            <Link to="/" className="inline-block mb-6">
-              <h1 className="text-2xl font-bold text-foreground">
-                On<span className="text-primary">Swift</span>
-              </h1>
+            <Link to="/" className="inline-flex flex-col items-center gap-3 mb-6">
+              <img
+                src="/onswift%20logo.png"
+                alt="OnSwift logo"
+                className="h-14 w-14 object-contain"
+              />
+              
             </Link>
             <h2 className="text-2xl font-semibold text-foreground">Welcome Back</h2>
             <p className="text-muted-foreground mt-2">Sign in to continue</p>
           </div>
 
           {/* Demo Credentials */}
-          <div className="bg-primary/10 border border-primary/30 rounded-lg p-4 mb-6">
-            <p className="text-sm text-foreground font-medium mb-2">Demo Credentials:</p>
-            <p className="text-xs text-muted-foreground">Creator: creator@demo.com / password123</p>
-            <p className="text-xs text-muted-foreground">Talent: talent@demo.com / password123</p>
-          </div>
-
+          
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
               <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3">

@@ -18,11 +18,6 @@ import { toast } from "sonner";
 //   { id: "3", name: "Clara Dane", role: "Illustrator", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Clara" },
 // ];
 
-const creatorStats = [
-  
-  { title: "Active Collabs", value: "--", change: 0.0 }
-  
-];
 
 export default function DashboardCreator() {
   const { user } = useAuth();
@@ -56,19 +51,19 @@ export default function DashboardCreator() {
 
   return (
     <MainLayout>
-      <div className="animate-fade-in space-y-8">
+      <div className="animate-fade-in space-y-6 sm:space-y-8">
         {/* Welcome Header */}
         <div>
-          <h1 className="text-3xl font-bold text-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">
             Welcome back, {user?.full_name?.split(' ')[0] || 'there'}!
           </h1>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-5 sm:gap-6 lg:grid-cols-3">
           {/* Left Column - Projects & Stats */}
           <div className="space-y-6 lg:col-span-2">
             {/* Active Projects */}
-            <section className="glass-card p-6">
+            <section className="glass-card p-5 sm:p-6 md:p-7">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Active Projects</h2>
                 <Button
@@ -114,21 +109,12 @@ export default function DashboardCreator() {
             </section>
 
             {/* Stats */}
-            <div className="grid gap-4 sm:grid-cols-3">
-              {creatorStats.map((stat) => (
-                <StatCard
-                  key={stat.title}
-                  title={stat.title}
-                  value={stat.value}
-                  change={stat.change}
-                />
-              ))}
-            </div>
+            
           </div>
 
           {/* Right Column - Team */}
           <div className="space-y-6">
-            <section className="glass-card p-6">
+            <section className="glass-card p-5 sm:p-6 md:p-7">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Team</h2>
                 {teamMembers.length > 0 && (
@@ -143,7 +129,7 @@ export default function DashboardCreator() {
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
                 </div>
               ) : teamMembers.length > 0 ? (
-                <div className="space-y-1 max-h-80 overflow-y-auto">
+                <div className="space-y-2 max-h-80 overflow-y-auto">
                   {teamMembers.map((member) => (
                     <TeamMemberCard
                       key={member.id}

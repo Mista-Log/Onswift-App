@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data?.detail || "Login failed");
+      if (!response.ok) throw new Error(data?.detail || "Unable to connect your account. Please try again.");
 
       localStorage.setItem("onswift_access", data.access);
       localStorage.setItem("onswift_refresh", data.refresh);

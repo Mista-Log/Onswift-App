@@ -15,7 +15,7 @@ import { NotificationDropdown } from "@/components/notifications/NotificationDro
 
 const creatorNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
-  { label: "Browse Talent", icon: Users, route: "/talent" },
+  { label: "Find Talent", icon: Users, route: "/talent" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
   { label: "Deadlines", icon: Calendar, route: "/calendar" },
@@ -48,7 +48,8 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-sidebar-border bg-sidebar py-6 transition-all duration-300",
+        "flex h-screen flex-col border-r border-sidebar-border bg-sidebar py-6 transition-all duration-300",
+        !onClose ? "fixed left-0 top-0 z-40" : "relative",
         isCollapsed ? "w-20 items-center" : "w-64 px-4"
       )}
     >
@@ -65,13 +66,21 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
       {/* Logo */}
       <div className={cn("mb-8", isCollapsed ? "px-0" : "px-2")}>
         {isCollapsed ? (
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg shadow-glow">
-            O
+          <div className="flex items-center justify-center rounded-xl">
+            <img
+              src="/onswift%20logo.png"
+              alt="OnSwift logo"
+              className="h-10 w-10 object-contain"
+            />
           </div>
         ) : (
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold shadow-glow">
-              O
+            <div className="flex items-center justify-center rounded-xl">
+              <img
+                src="/onswift%20logo.png"
+                alt="OnSwift logo"
+                className="h-8 w-8 object-contain"
+              />
             </div>
             <span className="text-xl font-bold text-foreground">
               OnSwift
