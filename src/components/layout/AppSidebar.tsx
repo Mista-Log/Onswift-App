@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
-
 const creatorNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
   { label: "Find Talent", icon: Users, route: "/talent" },
