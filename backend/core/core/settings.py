@@ -179,6 +179,7 @@ CORS_ALLOW_ALL_ORIGINS = False
 
 CORS_ALLOWED_ORIGINS = [
     "https://onswift-app.vercel.app",
+    "https://onswift.org/"
     "http://localhost:8080",
 ]
 
@@ -186,6 +187,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "https://onswift-app.vercel.app",
+    "https://onswift.org/",
 ]
 
 
