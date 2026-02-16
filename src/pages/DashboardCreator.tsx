@@ -18,11 +18,6 @@ import { toast } from "sonner";
 //   { id: "3", name: "Clara Dane", role: "Illustrator", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Clara" },
 // ];
 
-const creatorStats = [
-  
-  { title: "Active Collabs", value: "--", change: 0.0 }
-  
-];
 
 export default function DashboardCreator() {
   const { user } = useAuth();
@@ -112,18 +107,7 @@ export default function DashboardCreator() {
                 </div>
               )}
             </section>
-
-            {/* Stats */}
-            <div className="grid gap-4 sm:grid-cols-3">
-              {creatorStats.map((stat) => (
-                <StatCard
-                  key={stat.title}
-                  title={stat.title}
-                  value={stat.value}
-                  change={stat.change}
-                />
-              ))}
-            </div>
+                    
           </div>
 
           {/* Right Column - Team */}
