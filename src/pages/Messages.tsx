@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageCircle, Send, Search, Loader2 } from "lucide-react";
+import { MessageCircle, Send, Search, Loader2, ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/contexts/TeamContext";
@@ -246,16 +246,21 @@ export default function Messages() {
     <MainLayout>
       <div className="animate-fade-in h-[calc(100vh-8rem)]">
         <div className="glass-card h-full overflow-hidden">
-          <div className="grid h-full md:grid-cols-[320px_1fr]">
+          <div className="h-full md:grid md:grid-cols-[320px_1fr]">
             {/* Contact List */}
-            <div className="border-r border-border/50">
-              <div className="border-b border-border/50 p-4">
-                <h2 className="mb-3 text-lg font-semibold text-foreground">Messages</h2>
+            <div
+              className={cn(
+                "border-r border-border/50",
+                selectedConversation ? "hidden md:block" : "block"
+              )}
+            >
+              <div className="border-b border-border/50 p-4 sm:p-5">
+                <h2 className="mb-3 text-base font-semibold text-foreground sm:text-lg">Messages</h2>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder="Search conversations..."
-                    className="pl-10"
+                    className="pl-10 text-sm"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -277,24 +282,23 @@ export default function Messages() {
                         selectedConversation?.id === conv.id && "bg-secondary/50"
                       )}
                     >
-                      <div className="flex items-start gap-3">
-                        <Avatar className="h-12 w-12">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-11 w-11 sm:h-12 sm:w-12">
                           <AvatarImage src={conv.other_user.avatar || undefined} alt={conv.other_user.name} />
                           <AvatarFallback className="bg-primary/20 text-primary">
                             {conv.other_user.name.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="font-medium text-foreground truncate">{conv.other_user.name}</p>
-                            <span className="text-xs text-muted-foreground">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-foreground truncate sm:text-base">
+                              {conv.other_user.name}
+                            </p>
+                            <span className="hidden text-[10px] text-muted-foreground sm:inline sm:text-xs">
                               {formatDate(conv.last_message_time)}
                             </span>
                           </div>
-                          {conv.other_user.company && (
-                            <p className="text-xs text-muted-foreground mb-1">{conv.other_user.company}</p>
-                          )}
-                          <p className="text-sm text-muted-foreground truncate">
+                          <p className="text-xs text-muted-foreground truncate sm:text-sm">
                             {conv.last_message_content || "No messages yet"}
                           </p>
                         </div>
@@ -345,11 +349,23 @@ export default function Messages() {
             </div>
 
             {/* Chat Area */}
-            <div className="flex flex-col">
+            <div
+              className={cn(
+                "flex flex-col h-full",
+                selectedConversation ? "flex" : "hidden md:flex"
+              )}
+            >
               {selectedConversation ? (
                 <>
                   {/* Chat Header */}
-                  <div className="flex items-center gap-3 border-b border-border/50 p-4">
+                  <div className="flex items-center gap-2 border-b border-border/50 p-4 sm:p-5">
+                    <button
+                      onClick={() => setSelectedConversation(null)}
+                      className="md:hidden p-1 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
+                      aria-label="Back to conversations"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
                     <Avatar className="h-10 w-10">
                       <AvatarImage
                         src={selectedConversation.other_user.avatar || undefined}
@@ -368,7 +384,7 @@ export default function Messages() {
                   </div>
 
                   {/* Messages */}
-                  <div className="flex-1 space-y-4 overflow-y-auto p-4">
+                  <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
                     {isLoadingMessages && messages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
                         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -417,7 +433,7 @@ export default function Messages() {
                   </div>
 
                   {/* Message Input */}
-                  <div className="border-t border-border/50 p-4">
+                  <div className="border-t border-border/50 p-4 sm:p-5">
                     <div className="flex gap-3">
                       <Input
                         placeholder="Type a message..."

@@ -150,7 +150,7 @@ function CountdownTimer({ targetDate }: { targetDate: Date }) {
 
   return (
     <div className={cn(
-      "glass-card p-6 border-2",
+      "glass-card p-5 sm:p-6 border-2",
       isUrgent ? "border-destructive animate-pulse-border" : "border-primary/30"
     )}>
       <div className="flex items-center gap-2 mb-4">
@@ -242,11 +242,11 @@ export default function Calendar() {
 
   return (
     <MainLayout>
-      <div className="animate-fade-in space-y-6">
+      <div className="animate-fade-in space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground bg-gradient-to-r from-primary to-primary/50 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground bg-gradient-to-r from-primary to-primary/50 bg-clip-text text-transparent">
               Project Deadlines
             </h1>
             <p className="mt-1 text-muted-foreground">

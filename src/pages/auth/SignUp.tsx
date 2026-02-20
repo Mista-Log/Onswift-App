@@ -15,10 +15,13 @@ export default function SignUp() {
         <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-2xl p-8 md:p-12 shadow-glow">
           {/* Header */}
           <div className="text-center mb-8">
-            <Link to="/" className="inline-block mb-6">
-              <h1 className="text-2xl font-bold text-foreground">
-                On<span className="text-primary">Swift</span>
-              </h1>
+            <Link to="/" className="inline-flex flex-col items-center gap-3 mb-6">
+              <img
+                src="/onswift%20logo.png"
+                alt="OnSwift logo"
+                className="h-14 w-14 object-contain"
+              />
+              
             </Link>
             <h2 className="text-2xl font-semibold text-foreground">Join OnSwift</h2>
             <p className="text-muted-foreground mt-2">Choose how you want to get started</p>

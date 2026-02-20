@@ -39,23 +39,23 @@ export default function Settings() {
 
   return (
     <MainLayout>
-      <div className="animate-fade-in space-y-8">
+      <div className="animate-fade-in space-y-6 sm:space-y-8">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">Settings</h1>
           <p className="mt-1 text-muted-foreground">
             Manage your account and preferences
           </p>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-3">
+        <div className="grid gap-6 sm:gap-8 lg:grid-cols-3">
           {/* Profile Section */}
           <div className="lg:col-span-2">
-            <section className="glass-card p-6">
+            <section className="glass-card p-5 sm:p-6 md:p-7">
               <h2 className="mb-6 text-lg font-semibold text-foreground">Profile</h2>
 
               {/* Avatar */}
-              <div className="mb-6 flex items-center gap-6">
+              <div className="mb-6 flex items-center gap-4 sm:gap-6">
                 <div className="relative">
                   <Avatar className="h-20 w-20 border-2 border-primary/30">
                     <AvatarImage src={user?.profilePicture || ""} />
@@ -130,7 +130,7 @@ export default function Settings() {
 
           {/* Quick Stats */}
           <div className="space-y-6">
-            <section className="glass-card p-6">
+            <section className="glass-card p-5 sm:p-6 md:p-7">
               <h3 className="mb-4 font-semibold text-foreground">Account Stats</h3>
               <div className="space-y-4">
                 <div className="flex justify-between">
@@ -152,7 +152,7 @@ export default function Settings() {
               </div>
             </section>
 
-            <section className="glass-card p-6">
+            <section className="glass-card p-5 sm:p-6 md:p-7">
               <h3 className="mb-4 font-semibold text-foreground">Danger Zone</h3>
               <p className="mb-4 text-sm text-muted-foreground">
                 Once you delete your account, there is no going back. Please be certain.
