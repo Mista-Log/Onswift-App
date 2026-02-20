@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "echo \"No tests specified yet\""
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -84,4 +85,5 @@
     "typescript-eslint": "^8.38.0",
     "vite": "^5.4.19"
   }
+  
 }
