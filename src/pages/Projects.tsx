@@ -175,11 +175,11 @@ export default function Projects() {
 
   return (
     <MainLayout>
-      <div className="animate-fade-in space-y-6">
+      <div className="animate-fade-in space-y-6 sm:space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">
               {isTalent ? "My Projects" : "Projects"}
             </h1>
             <p className="mt-1 text-muted-foreground">
@@ -193,7 +193,7 @@ export default function Projects() {
           {!isTalent && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2">
+                <Button className="gap-2 w-full sm:w-auto">
                   <Plus className="h-4 w-4" />
                   New Project
                 </Button>
@@ -247,7 +247,7 @@ export default function Projects() {
 
         {/* Projects Grid */}
         {projects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-12 text-center min-h-[400px]">
+          <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center min-h-[360px]">
             <FolderKanban className="h-12 w-12 text-muted-foreground/50" />
             <p className="mt-3 text-sm font-medium text-foreground">
               {isTalent ? "No projects assigned yet" : "No projects yet"}

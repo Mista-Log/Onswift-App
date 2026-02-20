@@ -178,14 +178,18 @@ AUTH_USER_MODEL = "account.User"
 CORS_ALLOW_ALL_ORIGINS = False
 
 CORS_ALLOWED_ORIGINS = [
-    "https://onswift-creator-command-centre.vercel.app",
+    "https://onswift-app.vercel.app",
+    "https://www.onswift.org",
     "http://localhost:8080",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://onswift-creator-command-centre.vercel.app",
+    "https://onswift-app.vercel.app",
+    "https://onswift.org/",
+    "https://onswift-app.onrender.com",
+    "https://www.onswift.org",
 ]
 
 

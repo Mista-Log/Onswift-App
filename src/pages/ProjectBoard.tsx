@@ -4,8 +4,21 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Plus, Calendar, Upload, Link as LinkIcon, FileText, X } from "lucide-react";
+import { ArrowLeft, Plus, Upload, Link as LinkIcon, FileText, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import {
   Dialog,
   DialogContent,
@@ -21,14 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -85,6 +90,7 @@ const initialTasks = [
 ];
 
 type TaskStatus = "planning" | "in-progress" | "completed";
+type Task = typeof initialTasks[number];
 
 interface ProjectSample {
   id: string;
@@ -108,6 +114,7 @@ export default function ProjectBoard() {
   const [samples, setSamples] = useState<ProjectSample[]>(initialSamples);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSampleDialogOpen, setIsSampleDialogOpen] = useState(false);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [sampleFormData, setSampleFormData] = useState({
     name: "",
     type: "file" as "file" | "link",
@@ -115,10 +122,21 @@ export default function ProjectBoard() {
     description: "",
   });
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 2 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 180, tolerance: 6 },
+    })
+  );
+
   const updateTaskStatus = (taskId: string, newStatus: TaskStatus) => {
-    setTasks(tasks.map(task => 
-      task.id === taskId ? { ...task, status: newStatus } : task
-    ));
+    setTasks(prev =>
+      prev.map(task =>
+        task.id === taskId ? { ...task, status: newStatus } : task
+      )
+    );
     toast.success("Task status updated!");
   };
 
@@ -156,11 +174,153 @@ export default function ProjectBoard() {
     toast.success("Sample removed");
   };
 
+  const statusColumns: { key: TaskStatus; title: string; helper: string }[] = [
+    { key: "planning", title: "Planning", helper: "Ready to start" },
+    { key: "in-progress", title: "In Progress", helper: "Currently active" },
+    { key: "completed", title: "Completed", helper: "Finished tasks" },
+  ];
+
+  const isStatusColumn = (value: string): value is TaskStatus =>
+    statusColumns.some((column) => column.key === value);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveTaskId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const overStatus = event.over?.data.current?.status as TaskStatus | undefined;
+    if (activeTaskId && overStatus && isStatusColumn(overStatus)) {
+      updateTaskStatus(activeTaskId, overStatus);
+    }
+    setActiveTaskId(null);
+  };
+
+  const handleDragCancel = () => {
+    setActiveTaskId(null);
+  };
+
+  const TaskCardContent = ({ task }: { task: Task }) => (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-medium text-foreground">{task.name}</p>
+          <p className="text-sm text-muted-foreground">{task.description}</p>
+        </div>
+        <StatusBadge status={task.status} />
+      </div>
+      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <Avatar className="h-6 w-6">
+            <AvatarImage src={task.assignee.avatar} alt={task.assignee.name} />
+            <AvatarFallback className="bg-primary/20 text-primary text-[10px]">
+              {task.assignee.name.charAt(0)}
+            </AvatarFallback>
+          </Avatar>
+          <span>{task.assignee.name}</span>
+        </div>
+        <span>{task.deadline}</span>
+      </div>
+    </>
+  );
+
+  const DraggableTaskCard = ({ task }: { task: Task }) => {
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+      id: task.id,
+    });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition: isDragging ? "none" : "transform 160ms ease",
+      opacity: isDragging ? 0.6 : 1,
+    };
+
+    return (
+      <div
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
+        onPointerDown={(event) => event.preventDefault()}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => {
+          if (!isDragging) {
+            navigate(`/projects/${projectId}/tasks/${task.id}`);
+          }
+        }}
+        className={
+          "relative rounded-xl border border-border/50 bg-secondary/20 p-4 shadow-sm transition-all hover:bg-secondary/30 " +
+          "touch-none select-none cursor-grab active:cursor-grabbing ring-1 ring-primary/20 " +
+          "shadow-[0_0_14px_rgba(59,130,246,0.18)] hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] " +
+          (isDragging ? "shadow-[0_0_28px_rgba(59,130,246,0.45)]" : "animate-pulse")
+        }
+        style={{ ...style, touchAction: "none" }}
+      >
+        <TaskCardContent task={task} />
+      </div>
+    );
+  };
+
+  const DragOverlayCard = ({ task }: { task: Task }) => (
+    <div
+      className="rounded-xl border border-border/50 bg-secondary/30 p-4 shadow-md ring-1 ring-primary/30 shadow-[0_0_28px_rgba(59,130,246,0.45)]"
+      style={{ zIndex: 50 }}
+    >
+      <TaskCardContent task={task} />
+    </div>
+  );
+
+  const activeTask = activeTaskId ? tasks.find(task => task.id === activeTaskId) : null;
+
+  const TaskColumn = ({
+    column,
+    columnTasks,
+  }: {
+    column: { key: TaskStatus; title: string; helper: string };
+    columnTasks: Task[];
+  }) => {
+    const { setNodeRef, isOver } = useDroppable({
+      id: column.key,
+      data: { status: column.key },
+    });
+
+    return (
+      <div
+        ref={setNodeRef}
+        className={
+          "flex flex-col rounded-2xl border border-border/50 bg-secondary/10 p-5 min-h-[280px] transition-colors"
+        }
+        style={{
+          outline: isOver ? "2px solid hsl(var(--primary))" : "none",
+          outlineOffset: "2px",
+        }}
+      >
+        <div className="mb-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-foreground">{column.title}</h3>
+            <span className="text-xs text-muted-foreground">{columnTasks.length}</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">{column.helper}</p>
+        </div>
+
+        <div className="flex flex-1 flex-col gap-3">
+          {columnTasks.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/50 text-xs text-muted-foreground">
+              Drop tasks here
+            </div>
+          ) : (
+            columnTasks.map((task) => (
+              <DraggableTaskCard key={task.id} task={task} />
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <MainLayout>
-      <div className="animate-fade-in space-y-6">
+      <div className="animate-fade-in space-y-6 sm:space-y-8">
         {/* Header */}
-        <div className="flex items-start gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <Button
             variant="ghost"
             size="icon"
@@ -171,7 +331,7 @@ export default function ProjectBoard() {
           </Button>
 
           <div className="flex-1">
-            <h1 className="text-3xl font-bold text-foreground">{projectData.name}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">{projectData.name}</h1>
             <p className="mt-1 text-muted-foreground">{projectData.description}</p>
 
             {/* Team Avatars */}
@@ -192,7 +352,7 @@ export default function ProjectBoard() {
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2">
+              <Button className="gap-2 w-full sm:w-auto">
                 <Plus className="h-4 w-4" />
                 Create Task
               </Button>
@@ -245,7 +405,7 @@ export default function ProjectBoard() {
 
         {/* Project Samples - Creator Only */}
         {!isTalent && (
-          <div className="glass-card p-6">
+          <div className="glass-card p-5 sm:p-6 md:p-7">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Project Samples & References</h2>
@@ -368,68 +528,40 @@ export default function ProjectBoard() {
           </div>
         )}
 
-        {/* Task Table */}
-        <div className="glass-card overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border/50 hover:bg-transparent">
-                <TableHead className="text-muted-foreground">Date</TableHead>
-                <TableHead className="text-muted-foreground">Task</TableHead>
-                <TableHead className="text-muted-foreground">Assigned To</TableHead>
-                <TableHead className="text-muted-foreground">Status</TableHead>
-                <TableHead className="text-muted-foreground">Deadline</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tasks.map((task) => (
-                <TableRow
-                  key={task.id}
-                  className="cursor-pointer border-border/30 transition-colors hover:bg-secondary/30"
-                  onClick={() => navigate(`/projects/${projectId}/tasks/${task.id}`)}
-                >
-                  <TableCell className="text-muted-foreground">{task.createdAt}</TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium text-foreground">{task.name}</p>
-                      <p className="text-sm text-muted-foreground">{task.description}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-7 w-7">
-                        <AvatarImage src={task.assignee.avatar} alt={task.assignee.name} />
-                        <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                          {task.assignee.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-foreground">{task.assignee.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Select
-                      value={task.status}
-                      onValueChange={(value) => updateTaskStatus(task.id, value as TaskStatus)}
-                    >
-                      <SelectTrigger className="w-36 border-none bg-transparent p-0 shadow-none focus:ring-0">
-                        <StatusBadge status={task.status} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="planning">Planning</SelectItem>
-                        <SelectItem value="in-progress">In Progress</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="h-4 w-4" />
-                      <span>{task.deadline}</span>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        {/* Task Board */}
+        <div className="glass-card p-5 sm:p-6 md:p-7">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Tasks</h2>
+              <p className="text-sm text-muted-foreground">
+                Drag and drop tasks between stages. On mobile, hold to drag.
+              </p>
+            </div>
+          </div>
+
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+          >
+            <div className="grid gap-5 md:grid-cols-3">
+              {statusColumns.map((column) => {
+                const columnTasks = tasks.filter(task => task.status === column.key);
+                return (
+                  <TaskColumn
+                    key={column.key}
+                    column={column}
+                    columnTasks={columnTasks}
+                  />
+                );
+              })}
+            </div>
+
+            <DragOverlay>
+              {activeTask ? <DragOverlayCard task={activeTask} /> : null}
+            </DragOverlay>
+          </DndContext>
         </div>
       </div>
     </MainLayout>
