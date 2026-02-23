@@ -3,7 +3,9 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageCircle, Send, Search, Loader2, ChevronLeft } from "lucide-react";
+import { MessageCircle, Send, Search, Loader2, ChevronLeft, Plus } from "lucide-react";
+import { CreateGroupModal } from "@/components/messaging/CreateGroupModal";
+import { MessagingProvider } from "@/contexts/MessagingContext";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/contexts/TeamContext";
@@ -55,6 +57,7 @@ export default function Messages() {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [myCreators, setMyCreators] = useState<Contact[]>([]);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isCreator = user?.role === "creator";
@@ -255,7 +258,17 @@ export default function Messages() {
               )}
             >
               <div className="border-b border-border/50 p-4 sm:p-5">
-                <h2 className="mb-3 text-base font-semibold text-foreground sm:text-lg">Messages</h2>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-semibold text-foreground sm:text-lg">Messages</h2>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setShowCreateGroup(true)}
+                    title="Create new group"
+                  >
+                    <Plus className="h-5 w-5" />
+                  </Button>
+                </div>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -470,6 +483,14 @@ export default function Messages() {
           </div>
         </div>
       </div>
+
+      {/* Create Group Modal */}
+      <MessagingProvider>
+        <CreateGroupModal
+          open={showCreateGroup}
+          onClose={() => setShowCreateGroup(false)}
+        />
+      </MessagingProvider>
     </MainLayout>
   );
 }
