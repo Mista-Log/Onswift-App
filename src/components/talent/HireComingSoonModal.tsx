@@ -48,7 +48,7 @@ export function HireComingSoonModal({
             Hiring Coming Soon
           </h3>
           <p className="text-center text-sm text-muted-foreground mb-6">
-            We're working on the hiring system. Check back soon to start hiring talented creators!
+            We're working on the hiring system. Check back soon to start hiring talented creatives!
           </p>
         </div>
 

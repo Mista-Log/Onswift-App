@@ -85,3 +85,20 @@ class CreatorProfile(models.Model):
 
     def __str__(self):
         return f"Creator: {self.user.full_name or self.user.email}"
+
+
+class UserSettings(models.Model):
+    """User notification and account preferences"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='settings')
+    email_notifications = models.BooleanField(default=True)
+    push_notifications = models.BooleanField(default=True)
+    message_alerts = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Settings for {self.user.email}"
+
+    class Meta:
+        verbose_name = "User Settings"
+        verbose_name_plural = "User Settings"

@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from .models import Project, Task, Deliverable, DeliverableFile, Message, Conversation
-from .models import ProjectSample, TeamMember
+from .models import ProjectSample, TeamMember, Group, GroupMembership, GroupMessage, GroupMessageReadStatus
+from .models import GoogleCalendarToken, CalendarSyncedTask
+from django.conf import settings
 
 class TaskSerializer(serializers.ModelSerializer):
     assignee_name = serializers.CharField(source="assignee.full_name", read_only=True)
@@ -311,4 +313,333 @@ class ConversationSerializer(serializers.ModelSerializer):
             recipient=user,
             is_read=False
         ).count()
+
+
+# ============================================
+# Group Chat Serializers
+# ============================================
+
+class GroupMemberSerializer(serializers.ModelSerializer):
+    """Serializer for group members"""
+    user_id = serializers.CharField(source='user.id', read_only=True)
+    name = serializers.CharField(source='user.full_name', read_only=True)
+    email = serializers.EmailField(source='user.email', read_only=True)
+    avatar = serializers.SerializerMethodField()
+    is_admin = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GroupMembership
+        fields = ['id', 'user_id', 'name', 'email', 'avatar', 'role', 'is_admin', 'joined_at']
+
+    def get_avatar(self, obj):
+        request = self.context.get('request')
+        try:
+            if obj.user.role == "creator" and obj.user.creatorprofile.avatar and request:
+                return request.build_absolute_uri(obj.user.creatorprofile.avatar.url)
+            elif obj.user.role == "talent" and obj.user.talentprofile.avatar and request:
+                return request.build_absolute_uri(obj.user.talentprofile.avatar.url)
+        except AttributeError:
+            pass
+        return None
+
+    def get_is_admin(self, obj):
+        return obj.role == "admin"
+
+
+class GroupMessageSerializer(serializers.ModelSerializer):
+    """Serializer for group messages"""
+    sender_id = serializers.CharField(source='sender.id', read_only=True)
+    sender_name = serializers.CharField(source='sender.full_name', read_only=True)
+    sender_avatar = serializers.SerializerMethodField()
+    is_mine = serializers.SerializerMethodField()
+    read_by = serializers.SerializerMethodField()
+    mentioned_users = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GroupMessage
+        fields = [
+            'id', 'group', 'sender_id', 'sender_name', 'sender_avatar',
+            'content', 'is_mine', 'read_by', 'mentioned_users', 'created_at'
+        ]
+        read_only_fields = ['sender', 'created_at']
+
+    def get_sender_avatar(self, obj):
+        request = self.context.get('request')
+        try:
+            if obj.sender.role == "creator" and obj.sender.creatorprofile.avatar and request:
+                return request.build_absolute_uri(obj.sender.creatorprofile.avatar.url)
+            elif obj.sender.role == "talent" and obj.sender.talentprofile.avatar and request:
+                return request.build_absolute_uri(obj.sender.talentprofile.avatar.url)
+        except AttributeError:
+            pass
+        return None
+
+    def get_is_mine(self, obj):
+        request = self.context.get('request')
+        if request and request.user:
+            return str(obj.sender.id) == str(request.user.id)
+        return False
+
+    def get_read_by(self, obj):
+        """Get list of users who have read this message"""
+        return list(obj.read_statuses.values_list('user__full_name', flat=True))
+
+    def get_mentioned_users(self, obj):
+        """Get list of mentioned user IDs"""
+        return [str(user.id) for user in obj.mentions.all()]
+
+
+class GroupSerializer(serializers.ModelSerializer):
+    """Serializer for listing groups"""
+    members = GroupMemberSerializer(source='memberships', many=True, read_only=True)
+    member_count = serializers.SerializerMethodField()
+    last_message = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
+    is_admin = serializers.SerializerMethodField()
+    avatar_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Group
+        fields = [
+            'id', 'name', 'description', 'avatar_url', 'creator',
+            'members', 'member_count', 'last_message', 'unread_count',
+            'is_admin', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['creator', 'created_at', 'updated_at']
+
+    def get_member_count(self, obj):
+        return obj.memberships.count()
+
+    def get_last_message(self, obj):
+        last_msg = obj.messages.order_by('-created_at').first()
+        if last_msg:
+            return {
+                'content': last_msg.content,
+                'sender_name': last_msg.sender.full_name,
+                'timestamp': last_msg.created_at,
+            }
+        return None
+
+    def get_unread_count(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user:
+            return 0
+
+        # Count messages not read by this user
+        total_messages = obj.messages.count()
+        read_messages = GroupMessageReadStatus.objects.filter(
+            message__group=obj,
+            user=request.user
+        ).count()
+        return total_messages - read_messages
+
+    def get_is_admin(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user:
+            return False
+        try:
+            membership = obj.memberships.get(user=request.user)
+            return membership.role == "admin"
+        except GroupMembership.DoesNotExist:
+            return False
+
+    def get_avatar_url(self, obj):
+        request = self.context.get('request')
+        if obj.avatar and request:
+            return request.build_absolute_uri(obj.avatar.url)
+        return None
+
+
+class GroupCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating a group"""
+    member_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=True
+    )
+
+    class Meta:
+        model = Group
+        fields = ['name', 'description', 'avatar', 'member_ids']
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if request and request.user.role != 'creator':
+            raise serializers.ValidationError("Only creators can create groups.")
+        
+        member_ids = attrs.get('member_ids', [])
+        if len(member_ids) == 0:
+            raise serializers.ValidationError("At least one member is required.")
+        
+        return attrs
+
+    def create(self, validated_data):
+        member_ids = validated_data.pop('member_ids', [])
+        creator = self.context['request'].user
+
+        # Create the group
+        group = Group.objects.create(creator=creator, **validated_data)
+
+        # Add creator as admin
+        GroupMembership.objects.create(
+            group=group,
+            user=creator,
+            role="admin"
+        )
+
+        # Add members
+        from account.models import User
+        for member_id in member_ids:
+            try:
+                user = User.objects.get(id=member_id)
+                GroupMembership.objects.create(
+                    group=group,
+                    user=user,
+                    role="member"
+                )
+            except User.DoesNotExist:
+                continue
+
+        return group
+
+
+class GroupUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating a group"""
+    class Meta:
+        model = Group
+        fields = ['name', 'description', 'avatar']
+
+
+class GroupAddMembersSerializer(serializers.Serializer):
+    """Serializer for adding members to a group"""
+    member_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=True
+    )
+
+    def validate_member_ids(self, value):
+        if len(value) == 0:
+            raise serializers.ValidationError("At least one member ID is required.")
+        return value
+
+
+class GroupMessageCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating a group message"""
+    mention_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False,
+        default=[]
+    )
+
+    class Meta:
+        model = GroupMessage
+        fields = ['content', 'mention_ids']
+
+    def create(self, validated_data):
+        mention_ids = validated_data.pop('mention_ids', [])
+        sender = self.context['request'].user
+        group = self.context['group']
+
+        message = GroupMessage.objects.create(
+            group=group,
+            sender=sender,
+            **validated_data
+        )
+
+        # Add mentions and send notifications
+        if mention_ids:
+            from account.models import User
+            from notification.services import create_notification
+            
+            for mention_id in mention_ids:
+                try:
+                    mentioned_user = User.objects.get(id=mention_id)
+                    # Only mention if user is a member of the group
+                    if group.memberships.filter(user=mentioned_user).exists():
+                        message.mentions.add(mentioned_user)
+                        
+                        # Send notification to mentioned user (skip sender)
+                        if str(mentioned_user.id) != str(sender.id):
+                            create_notification(
+                                user=mentioned_user,
+                                title="You were mentioned",
+                                message=f"{sender.full_name} mentioned you in {group.name}: \"{validated_data['content'][:50]}...\"",
+                                notification_type="system",
+                            )
+                except User.DoesNotExist:
+                    continue
+
+        # Mark as read by sender
+        GroupMessageReadStatus.objects.create(
+            message=message,
+            user=sender
+        )
+
+        # Update group's updated_at
+        group.save()
+
+        return message
+
+
+# Google Calendar Serializers
+class GoogleCalendarStatusSerializer(serializers.Serializer):
+    """Serializer for Google Calendar connection status"""
+    is_connected = serializers.BooleanField()
+    synced_tasks_count = serializers.IntegerField()
+
+
+class GoogleCalendarConnectSerializer(serializers.Serializer):
+    """Serializer for storing Google OAuth tokens"""
+    access_token = serializers.CharField()
+    refresh_token = serializers.CharField(required=False, allow_null=True)
+    expires_in = serializers.IntegerField(required=False)
+    scope = serializers.CharField(required=False)
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+        from datetime import timedelta
+        from django.utils import timezone
+        
+        expiry = None
+        if validated_data.get('expires_in'):
+            expiry = timezone.now() + timedelta(seconds=validated_data['expires_in'])
+        
+        scopes = validated_data.get('scope', '').split() if validated_data.get('scope') else []
+        
+        token, created = GoogleCalendarToken.objects.update_or_create(
+            user=user,
+            defaults={
+                'access_token': validated_data['access_token'],
+                'refresh_token': validated_data.get('refresh_token'),
+                'client_id': getattr(settings, 'GOOGLE_CLIENT_ID', ''),
+                'client_secret': getattr(settings, 'GOOGLE_CLIENT_SECRET', ''),
+                'scopes': scopes,
+                'expiry': expiry,
+            }
+        )
+        return token
+
+
+class TaskSyncSerializer(serializers.Serializer):
+    """Serializer for syncing a task to Google Calendar"""
+    task_id = serializers.UUIDField()
+    
+    def validate_task_id(self, value):
+        try:
+            Task.objects.get(id=value)
+        except Task.DoesNotExist:
+            raise serializers.ValidationError("Task not found")
+        return value
+
+
+class CalendarSyncedTaskSerializer(serializers.ModelSerializer):
+    """Serializer for synced task info"""
+    task_name = serializers.CharField(source='task.name', read_only=True)
+    project_name = serializers.CharField(source='task.project.name', read_only=True)
+    deadline = serializers.DateField(source='task.deadline', read_only=True)
+
+    class Meta:
+        model = CalendarSyncedTask
+        fields = ['id', 'task_name', 'project_name', 'deadline', 'google_event_id', 'synced_at']
 

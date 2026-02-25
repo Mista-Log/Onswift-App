@@ -173,3 +173,146 @@ class Conversation(models.Model):
 
     class Meta:
         ordering = ["-updated_at"]
+
+
+class Group(models.Model):
+    """Group chat for team communication"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+    avatar = models.ImageField(upload_to="group_avatars/", blank=True, null=True)
+    creator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="created_groups"
+    )
+    members = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        through="GroupMembership",
+        related_name="group_memberships"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return self.name
+
+
+class GroupMembership(models.Model):
+    """Through model for group membership with admin status"""
+    ROLE_CHOICES = [
+        ("admin", "Admin"),
+        ("member", "Member"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name="memberships")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="group_membership_details"
+    )
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default="member")
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("group", "user")
+
+    def __str__(self):
+        return f"{self.user} in {self.group.name} ({self.role})"
+
+
+class GroupMessage(models.Model):
+    """Messages in a group chat"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name="messages")
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="group_messages"
+    )
+    content = models.TextField()
+    mentions = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name="mentioned_in_messages",
+        blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.sender} in {self.group.name}: {self.content[:50]}"
+
+
+class GroupMessageReadStatus(models.Model):
+    """Tracks which users have read which messages"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    message = models.ForeignKey(
+        GroupMessage,
+        on_delete=models.CASCADE,
+        related_name="read_statuses"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="group_message_reads"
+    )
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("message", "user")
+
+
+class GoogleCalendarToken(models.Model):
+    """Store Google OAuth tokens for calendar sync"""
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='google_calendar_token'
+    )
+    access_token = models.TextField()
+    refresh_token = models.TextField(null=True, blank=True)
+    token_uri = models.CharField(max_length=255, default='https://oauth2.googleapis.com/token')
+    client_id = models.CharField(max_length=255)
+    client_secret = models.CharField(max_length=255)
+    scopes = models.JSONField(default=list)
+    expiry = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Google Calendar Token for {self.user.email}"
+
+    class Meta:
+        verbose_name = "Google Calendar Token"
+        verbose_name_plural = "Google Calendar Tokens"
+
+
+class CalendarSyncedTask(models.Model):
+    """Track which tasks have been synced to Google Calendar"""
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name='calendar_syncs'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='synced_tasks'
+    )
+    google_event_id = models.CharField(max_length=255)
+    synced_at = models.DateTimeField(auto_now_add=True)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['task', 'user']
+        verbose_name = "Calendar Synced Task"
+        verbose_name_plural = "Calendar Synced Tasks"
+
+    def __str__(self):
+        return f"{self.task.name} synced for {self.user.email}"

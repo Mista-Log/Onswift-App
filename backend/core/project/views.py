@@ -2,15 +2,22 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Project, Task, ProjectSample, Deliverable, Message, Conversation
+from .models import Project, Task, ProjectSample, Deliverable, Message, Conversation, Group, GroupMembership, GroupMessage, GroupMessageReadStatus
+from .models import GoogleCalendarToken, CalendarSyncedTask
 from .serializers import (
     ProjectSerializer, TaskSerializer, ProjectSampleSerializer,
     DeliverableSerializer, DeliverableCreateSerializer, DeliverableReviewSerializer,
-    MessageSerializer, ConversationSerializer
+    MessageSerializer, ConversationSerializer,
+    GroupSerializer, GroupCreateSerializer, GroupUpdateSerializer,
+    GroupMemberSerializer, GroupMessageSerializer, GroupMessageCreateSerializer,
+    GroupAddMembersSerializer,
+    GoogleCalendarStatusSerializer, GoogleCalendarConnectSerializer,
+    TaskSyncSerializer, CalendarSyncedTaskSerializer,
 )
 from .permissions import IsCreator
 from rest_framework import permissions
 from django.db.models import Q
+from . import google_calendar
 
 # Project Views
 class ProjectListCreateView(generics.ListCreateAPIView):
@@ -318,3 +325,406 @@ class MessageMarkReadView(APIView):
         ).update(is_read=True)
 
         return Response({"status": "ok"})
+
+
+# ============================================
+# Group Chat Views
+# ============================================
+
+class GroupListCreateView(generics.ListCreateAPIView):
+    """List user's groups or create a new group"""
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return GroupCreateSerializer
+        return GroupSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return Group.objects.filter(memberships__user=user).distinct()
+
+
+class GroupDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Get, update, or delete a group"""
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method in ['PUT', 'PATCH']:
+            return GroupUpdateSerializer
+        return GroupSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return Group.objects.filter(memberships__user=user)
+
+    def check_object_permissions(self, request, obj):
+        super().check_object_permissions(request, obj)
+        # Only admins can update/delete
+        if request.method in ['PUT', 'PATCH', 'DELETE']:
+            try:
+                membership = obj.memberships.get(user=request.user)
+                if membership.role != "admin":
+                    from rest_framework.exceptions import PermissionDenied
+                    raise PermissionDenied("Only group admins can modify the group.")
+            except GroupMembership.DoesNotExist:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You are not a member of this group.")
+
+
+class GroupMembersView(APIView):
+    """List members or add members to a group"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, group_id):
+        """List group members"""
+        try:
+            group = Group.objects.get(id=group_id, memberships__user=request.user)
+        except Group.DoesNotExist:
+            return Response({"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        memberships = group.memberships.select_related('user')
+        serializer = GroupMemberSerializer(memberships, many=True, context={"request": request})
+        return Response(serializer.data)
+
+    def post(self, request, group_id):
+        """Add members to a group"""
+        try:
+            group = Group.objects.get(id=group_id)
+            membership = group.memberships.get(user=request.user)
+            if membership.role != "admin":
+                return Response({"error": "Only admins can add members"}, status=status.HTTP_403_FORBIDDEN)
+        except Group.DoesNotExist:
+            return Response({"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND)
+        except GroupMembership.DoesNotExist:
+            return Response({"error": "You are not a member of this group"}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = GroupAddMembersSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        from account.models import User
+        added = []
+        for member_id in serializer.validated_data['member_ids']:
+            try:
+                user = User.objects.get(id=member_id)
+                # Check if already a member
+                if not group.memberships.filter(user=user).exists():
+                    GroupMembership.objects.create(
+                        group=group,
+                        user=user,
+                        role="member"
+                    )
+                    added.append(str(member_id))
+            except User.DoesNotExist:
+                continue
+
+        return Response({"added": added}, status=status.HTTP_201_CREATED)
+
+
+class GroupRemoveMemberView(APIView):
+    """Remove a member from a group"""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, group_id, user_id):
+        try:
+            group = Group.objects.get(id=group_id)
+            requester_membership = group.memberships.get(user=request.user)
+        except Group.DoesNotExist:
+            return Response({"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND)
+        except GroupMembership.DoesNotExist:
+            return Response({"error": "You are not a member of this group"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Only admins can remove others, but anyone can leave
+        if str(request.user.id) != str(user_id) and requester_membership.role != "admin":
+            return Response({"error": "Only admins can remove other members"}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            membership_to_remove = group.memberships.get(user_id=user_id)
+            
+            # Prevent removing the last admin
+            if membership_to_remove.role == "admin":
+                admin_count = group.memberships.filter(role="admin").count()
+                if admin_count <= 1:
+                    return Response(
+                        {"error": "Cannot remove the last admin. Promote another member first."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            membership_to_remove.delete()
+            return Response({"status": "removed"}, status=status.HTTP_200_OK)
+        except GroupMembership.DoesNotExist:
+            return Response({"error": "User is not a member of this group"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class GroupLeaveView(APIView):
+    """Leave a group"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, group_id):
+        try:
+            group = Group.objects.get(id=group_id)
+            membership = group.memberships.get(user=request.user)
+        except Group.DoesNotExist:
+            return Response({"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND)
+        except GroupMembership.DoesNotExist:
+            return Response({"error": "You are not a member of this group"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Prevent last admin from leaving
+        if membership.role == "admin":
+            admin_count = group.memberships.filter(role="admin").count()
+            if admin_count <= 1 and group.memberships.count() > 1:
+                return Response(
+                    {"error": "You are the last admin. Promote another member first."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        membership.delete()
+
+        # If no members left, delete the group
+        if group.memberships.count() == 0:
+            group.delete()
+
+        return Response({"status": "left"})
+
+
+class GroupMessagesView(generics.ListAPIView):
+    """List messages in a group"""
+    serializer_class = GroupMessageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        group_id = self.kwargs.get('group_id')
+        user = self.request.user
+
+        # Verify user is a member
+        try:
+            Group.objects.get(id=group_id, memberships__user=user)
+        except Group.DoesNotExist:
+            return GroupMessage.objects.none()
+
+        return GroupMessage.objects.filter(group_id=group_id).order_by('created_at')
+
+
+class GroupMessageCreateView(APIView):
+    """Send a message to a group"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, group_id):
+        user = request.user
+        content = request.data.get('content')
+        mention_ids = request.data.get('mention_ids', [])
+
+        if not content:
+            return Response({"error": "content is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify user is a member
+        try:
+            group = Group.objects.get(id=group_id, memberships__user=user)
+        except Group.DoesNotExist:
+            return Response({"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = GroupMessageCreateSerializer(
+            data={'content': content, 'mention_ids': mention_ids},
+            context={'request': request, 'group': group}
+        )
+
+        if serializer.is_valid():
+            message = serializer.save()
+            return Response(
+                GroupMessageSerializer(message, context={'request': request}).data,
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class GroupMessagesMarkReadView(APIView):
+    """Mark all messages in a group as read"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, group_id):
+        user = request.user
+
+        try:
+            group = Group.objects.get(id=group_id, memberships__user=user)
+        except Group.DoesNotExist:
+            return Response({"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Get all unread messages
+        unread_messages = group.messages.exclude(
+            read_statuses__user=user
+        )
+
+        # Create read status for each
+        for message in unread_messages:
+            GroupMessageReadStatus.objects.get_or_create(
+                message=message,
+                user=user
+            )
+
+        return Response({"status": "ok"})
+
+
+class AvailableMembersView(APIView):
+    """Get available team members that can be added to a group"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        if user.role != 'creator':
+            return Response({"error": "Only creators can access this endpoint"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get accepted team members from HireRequest
+        from notification.models import HireRequest
+        
+        accepted_hires = HireRequest.objects.filter(
+            creator=user,
+            status="accepted"
+        ).select_related('talent', 'talent__talentprofile')
+
+        members = []
+        for hire in accepted_hires:
+            talent = hire.talent
+            avatar = None
+            try:
+                if talent.talentprofile.avatar:
+                    avatar = request.build_absolute_uri(talent.talentprofile.avatar.url)
+            except AttributeError:
+                pass
+
+            role = "Talent"
+            try:
+                role = talent.talentprofile.professional_title or "Talent"
+            except AttributeError:
+                pass
+
+            members.append({
+                'userId': str(talent.id),
+                'name': talent.full_name,
+                'email': talent.email,
+                'role': role,
+                'avatar': avatar,
+            })
+
+        return Response(members)
+
+
+# Google Calendar Views
+class GoogleCalendarStatusView(APIView):
+    """Check if user has connected Google Calendar"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            GoogleCalendarToken.objects.get(user=request.user)
+            synced_count = CalendarSyncedTask.objects.filter(user=request.user).count()
+            return Response({
+                'is_connected': True,
+                'synced_tasks_count': synced_count,
+            })
+        except GoogleCalendarToken.DoesNotExist:
+            return Response({
+                'is_connected': False,
+                'synced_tasks_count': 0,
+            })
+
+
+class GoogleCalendarConnectView(generics.CreateAPIView):
+    """Store Google OAuth tokens after frontend OAuth flow"""
+    permission_classes = [IsAuthenticated]
+    serializer_class = GoogleCalendarConnectSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({
+            'message': 'Google Calendar connected successfully',
+            'is_connected': True
+        }, status=status.HTTP_201_CREATED)
+
+
+class GoogleCalendarDisconnectView(APIView):
+    """Disconnect Google Calendar"""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, *args, **kwargs):
+        GoogleCalendarToken.objects.filter(user=request.user).delete()
+        CalendarSyncedTask.objects.filter(user=request.user).delete()
+        return Response({
+            'message': 'Google Calendar disconnected',
+            'is_connected': False
+        }, status=status.HTTP_200_OK)
+
+
+class SyncTaskToCalendarView(APIView):
+    """Sync a single task to Google Calendar"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = TaskSyncSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        task_id = serializer.validated_data['task_id']
+        task = Task.objects.get(id=task_id)
+        
+        event_id = google_calendar.create_calendar_event(request.user, task)
+        
+        if event_id:
+            return Response({
+                'message': 'Task synced to Google Calendar',
+                'google_event_id': event_id
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response({
+                'error': 'Failed to sync task. Make sure Google Calendar is connected and the task has a deadline.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UnsyncTaskFromCalendarView(APIView):
+    """Remove a task from Google Calendar"""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, task_id, *args, **kwargs):
+        try:
+            task = Task.objects.get(id=task_id)
+            success = google_calendar.delete_calendar_event(request.user, task)
+            
+            if success:
+                return Response({
+                    'message': 'Task removed from Google Calendar'
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Failed to remove task from calendar'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        except Task.DoesNotExist:
+            return Response({
+                'error': 'Task not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+class SyncAllTasksView(APIView):
+    """Sync all tasks to Google Calendar"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        result = google_calendar.sync_all_tasks(request.user)
+        
+        if 'error' in result:
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            'message': f"Synced {result['success']} tasks, {result['failed']} failed",
+            **result
+        }, status=status.HTTP_200_OK)
+
+
+class SyncedTasksListView(generics.ListAPIView):
+    """List all synced tasks for the current user"""
+    permission_classes = [IsAuthenticated]
+    serializer_class = CalendarSyncedTaskSerializer
+
+    def get_queryset(self):
+        return CalendarSyncedTask.objects.filter(user=self.request.user)

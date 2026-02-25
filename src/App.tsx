@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -32,6 +33,7 @@ import Messages from "./pages/Messages";
 import Deliverables from "./pages/Deliverables";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/auth/ResetPassword";
+import GoogleOAuthCallback from "./pages/auth/GoogleOAuthCallback";
 
 
 const queryClient = new QueryClient();
@@ -43,9 +45,10 @@ const App = () => (
         <ProjectProvider>
           <TeamProvider>
             <NotificationProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
+              <ThemeProvider attribute="class" defaultTheme="system">
+                <Toaster />
+                <Sonner />
+                <BrowserRouter>
             <Routes>
               {/* Public routes */}
               <Route path="/" element={<Landing />} />
@@ -69,12 +72,14 @@ const App = () => (
               <Route path="/deliverables" element={<ProtectedRoute><Deliverables /></ProtectedRoute>} />
               <Route path="/talent/:userId" element={<ProtectedRoute><TalentPublicProfile /></ProtectedRoute>} />
               <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
+              <Route path="/auth/google/callback" element={<GoogleOAuthCallback />} />
 
 
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </BrowserRouter>
+                </BrowserRouter>
+              </ThemeProvider>
             </NotificationProvider>
           </TeamProvider>
         </ProjectProvider>

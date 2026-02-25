@@ -4,7 +4,11 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Plus, Upload, Link as LinkIcon, FileText, X } from "lucide-react";
+import { ArrowLeft, Plus, Upload, Link as LinkIcon, FileText, X, Calendar as CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   DndContext,
@@ -115,6 +119,7 @@ export default function ProjectBoard() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSampleDialogOpen, setIsSampleDialogOpen] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [taskDeadline, setTaskDeadline] = useState<Date | undefined>(undefined);
   const [sampleFormData, setSampleFormData] = useState({
     name: "",
     type: "file" as "file" | "link",
@@ -389,8 +394,29 @@ export default function ProjectBoard() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="deadline">Deadline</Label>
-                  <Input id="deadline" type="date" />
+                  <Label>Deadline</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !taskDeadline && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {taskDeadline ? format(taskDeadline, "PPP") : "Pick a deadline"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={taskDeadline}
+                        onSelect={setTaskDeadline}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
               <div className="flex justify-end gap-3">

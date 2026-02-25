@@ -4,7 +4,11 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Calendar, Users, FolderKanban, MoreVertical, Trash2, ExternalLink } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Users, FolderKanban, MoreVertical, Trash2, ExternalLink } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -225,13 +229,29 @@ export default function Projects() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="due_date">Due Date</Label>
-                    <Input
-                      id="due_date"
-                      type="date"
-                      value={formData.due_date}
-                      onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                    />
+                    <Label>Due Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !formData.due_date && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {formData.due_date ? format(new Date(formData.due_date), "PPP") : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 z-50" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={formData.due_date ? new Date(formData.due_date) : undefined}
+                          onSelect={(date) => setFormData(prev => ({ ...prev, due_date: date ? format(date, "yyyy-MM-dd") : "" }))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
                 <div className="flex justify-end gap-3">
@@ -328,7 +348,7 @@ export default function Projects() {
                   </div>
 
                   {/* Meta */}
-                  <div className="flex justify-between items-center text-sm">
+                  {/* <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
                       {project.due_date}
@@ -344,7 +364,7 @@ export default function Projects() {
                         </Avatar>
                       ))}
                     </div>
-                  </div>
+                  </div> */}
                 </div>
               );
             })}

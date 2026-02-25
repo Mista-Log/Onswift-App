@@ -12,9 +12,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
+import { useTheme } from "next-themes";
 const creatorNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
   { label: "Find Talent", icon: Users, route: "/talent" },
+  { label: "Team", icon: UsersRound, route: "/team" },
+  { label: "Deliverables", icon: Upload, route: "/deliverables" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
   { label: "Deadlines", icon: Calendar, route: "/calendar" },
@@ -41,6 +44,7 @@ interface AppSidebarProps {
 export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
   const location = useLocation();
   const { user } = useAuth();
+  const { resolvedTheme } = useTheme();
 
   const navItems = user?.role === 'talent' ? talentNavItems : creatorNavItems;
 
@@ -65,20 +69,22 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
       {/* Logo */}
       <div className={cn("mb-8", isCollapsed ? "px-0" : "px-2")}>
         {isCollapsed ? (
-          <div className="flex items-center justify-center rounded-xl">
-            <img
-              src="/onswift%20logo.png"
-              alt="OnSwift logo"
-              className="h-10 w-10 object-contain"
-            />
+          <div className="flex items-center justify-center">
+            <div className="h-10 w-10 flex items-center justify-center rounded-xl overflow-hidden bg-transparent">
+              <img
+                src={resolvedTheme === "light" ? "/onswift-purple-logo.png" : "/onswift%20logo.png"}
+                alt="OnSwift logo"
+                className="h-full w-full object-contain"
+              />
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center rounded-xl">
+            <div className="h-10 w-10 flex items-center justify-center rounded-xl overflow-hidden bg-transparent">
               <img
-                src="/onswift%20logo.png"
+                src={resolvedTheme === "light" ? "/onswift-purple-logo.png" : "/onswift%20logo.png"}
                 alt="OnSwift logo"
-                className="h-8 w-8 object-contain"
+                className="h-full w-full object-contain"
               />
             </div>
             <span className="text-xl font-bold text-foreground">
@@ -168,8 +174,6 @@ export function TopBar({ onToggleSidebar, onToggleMobileSidebar, isCollapsed }: 
   const navigate = useNavigate();
 
   const profilePicture = user?.profilePicture;
-
-
 
   const handleLogout = () => {
     logout();

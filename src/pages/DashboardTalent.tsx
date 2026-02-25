@@ -37,6 +37,37 @@ export default function DashboardTalent() {
       if (response.ok) {
         const data = await response.json();
         setTasks(data);
+
+        // Auto-start recently assigned tasks for the logged-in talent
+        if (user && data && Array.isArray(data)) {
+          const now = Date.now();
+          const RECENT_MS = 5 * 60 * 1000; // 5 minutes
+
+          data.forEach((task: any) => {
+            try {
+              if (
+                task.status === "planning" &&
+                task.assignee === user.id &&
+                task.created_at &&
+                now - new Date(task.created_at).getTime() <= RECENT_MS
+              ) {
+                // update remotely and locally
+                updateTask(task.id, { status: "in-progress" })
+                  .then(() => {
+                    setTasks((prev) =>
+                      prev.map((t) => (t.id === task.id ? { ...t, status: "in-progress" } : t))
+                    );
+                    toast.success("New task started");
+                  })
+                  .catch((err) => {
+                    console.error("Failed to auto-start newly assigned task:", err);
+                  });
+              }
+            } catch (err) {
+              console.error("Error auto-starting task:", err);
+            }
+          });
+        }
       }
     } catch (error) {
       console.error("Error fetching tasks:", error);

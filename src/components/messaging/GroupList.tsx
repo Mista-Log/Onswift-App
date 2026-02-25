@@ -7,11 +7,13 @@ import { Plus, Search, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMessaging } from '@/contexts/MessagingContext';
 import { CreateGroupModal } from './CreateGroupModal';
+import { GroupInfoModal } from './GroupInfoModal';
 
 export function GroupList() {
   const { groups, activeConversationId, setActiveConversation, getUnreadCount } = useMessaging();
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [infoGroup, setInfoGroup] = useState(null);
 
   const filteredGroups = groups.filter((group) =>
     group.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -93,14 +95,15 @@ export function GroupList() {
             return (
               <div
                 key={group.id}
-                onClick={() => setActiveConversation(group.id)}
                 className={cn(
                   'flex cursor-pointer items-start gap-3 border-b border-border/30 p-4 transition-colors hover:bg-secondary/50',
                   isActive && 'bg-secondary/50'
                 )}
               >
-                <div className="relative">
-                  <Avatar className="h-12 w-12 border border-border/50">
+                <div className="relative group">
+                  <Avatar className="h-12 w-12 border border-border/50 cursor-pointer"
+                    onClick={e => { e.stopPropagation(); setInfoGroup(group); }}
+                  >
                     <AvatarImage src={group.avatar} alt={group.name} />
                     <AvatarFallback className="bg-primary/20 text-primary">
                       {group.name.charAt(0)}
@@ -116,7 +119,7 @@ export function GroupList() {
                   )}
                 </div>
 
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-hidden" onClick={() => setActiveConversation(group.id)}>
                   <div className="flex items-center justify-between gap-2">
                     <span className={cn(
                       "font-medium truncate",
@@ -160,6 +163,8 @@ export function GroupList() {
         open={showCreateGroup}
         onClose={() => setShowCreateGroup(false)}
       />
+      {/* Group Info Modal (moved outside main container for stacking) */}
+      <GroupInfoModal group={infoGroup} open={!!infoGroup} onClose={() => setInfoGroup(null)} />
     </div>
   );
 }

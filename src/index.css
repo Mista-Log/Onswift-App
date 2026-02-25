@@ -12,6 +12,64 @@
 
 @layer base {
   :root {
+    /* Light mode (default) - all white with purple accents */
+    --background: 0 0% 100%;
+    --foreground: 220 15% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 8%;
+
+    /* Keep primary as purple accents */
+    --primary: 250 76% 63%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 270 10% 95%;
+    --secondary-foreground: 220 15% 8%;
+
+    --muted: 210 10% 92%;
+    --muted-foreground: 220 12% 40%;
+
+    --accent: 250 100% 75%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 160 84% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 45 100% 60%;
+    --warning-foreground: 270 50% 10%;
+
+    --border: 220 12% 92%;
+    --input: 220 12% 96%;
+    --ring: 250 76% 63%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 15% 8%;
+    --sidebar-primary: 250 76% 63%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 100%;
+    --sidebar-accent-foreground: 220 15% 8%;
+    --sidebar-border: 220 12% 92%;
+    --sidebar-ring: 250 76% 63%;
+
+    /* Custom design tokens */
+    --glow-primary: 250 76% 63%;
+    --gradient-start: 0 0% 100%;
+    --gradient-end: 0 0% 100%;
+    --card-glow: 0 0 40px hsl(250 76% 63% / 0.06);
+    --button-glow: 0 0 20px hsl(250 76% 63% / 0.12);
+    --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+  }
+
+  /* Dark mode restores previous dark palette */
+  .dark {
     --background: 270 50% 5%;
     --foreground: 0 0% 100%;
 
@@ -56,20 +114,6 @@
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 270 30% 18%;
     --sidebar-ring: 250 76% 63%;
-
-    /* Custom design tokens */
-    --glow-primary: 250 76% 63%;
-    --gradient-start: 270 50% 8%;
-    --gradient-end: 260 45% 15%;
-    --card-glow: 0 0 40px hsl(250 76% 63% / 0.15);
-    --button-glow: 0 0 20px hsl(250 76% 63% / 0.4);
-    --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
-  }
-
-  .dark {
-    --background: 270 50% 5%;
-    --foreground: 0 0% 100%;
-    --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
   }
 }
 
@@ -81,8 +125,11 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, sans-serif;
-    background: linear-gradient(135deg, hsl(270 50% 5%) 0%, hsl(260 45% 10%) 50%, hsl(270 50% 5%) 100%);
+    background: var(--background);
     min-height: 100vh;
+  }
+  .dark body {
+    background: linear-gradient(135deg, hsl(270 50% 5%) 0%, hsl(260 45% 10%) 50%, hsl(270 50% 5%) 100%);
   }
 }
 

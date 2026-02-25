@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -13,25 +13,61 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useMessaging } from '@/contexts/MessagingContext';
-import { mockTalents } from '@/data/mockMessaging';
+import { secureFetch } from '@/api/apiClient';
 import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
+
+interface TeamMember {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  avatar: string | null;
+}
 
 interface CreateGroupModalProps {
   open: boolean;
   onClose: () => void;
+  onGroupCreated?: () => void;
 }
 
-export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
-  const { createGroup } = useMessaging();
+export function CreateGroupModal({ open, onClose, onGroupCreated }: CreateGroupModalProps) {
   const [groupName, setGroupName] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
-  const filteredTalents = mockTalents.filter(
-    (talent) =>
-      talent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      talent.role.toLowerCase().includes(searchQuery.toLowerCase())
+  // Fetch available team members when modal opens
+  useEffect(() => {
+    if (open) {
+      fetchTeamMembers();
+    }
+  }, [open]);
+
+  const fetchTeamMembers = async () => {
+    setIsLoading(true);
+    try {
+      const response = await secureFetch('/api/v2/groups/available-members/');
+      if (response.ok) {
+        const data = await response.json();
+        setTeamMembers(data);
+      } else {
+        toast.error('Failed to load team members');
+      }
+    } catch (error) {
+      console.error('Error fetching team members:', error);
+      toast.error('Failed to load team members');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredMembers = teamMembers.filter(
+    (member) =>
+      member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      member.role.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleToggleMember = (userId: string) => {
@@ -42,7 +78,7 @@ export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
     );
   };
 
-  const handleCreateGroup = () => {
+  const handleCreateGroup = async () => {
     if (!groupName.trim()) {
       toast.error('Please enter a group name');
       return;
@@ -53,14 +89,30 @@ export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
       return;
     }
 
-    createGroup(groupName.trim(), selectedMembers);
-    toast.success(`Group "${groupName}" created successfully!`);
+    setIsCreating(true);
+    try {
+      const response = await secureFetch('/api/v2/groups/', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: groupName.trim(),
+          member_ids: selectedMembers,
+        }),
+      });
 
-    // Reset and close
-    setGroupName('');
-    setSelectedMembers([]);
-    setSearchQuery('');
-    onClose();
+      if (response.ok) {
+        toast.success(`Group "${groupName}" created successfully!`);
+        handleClose();
+        onGroupCreated?.();
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Failed to create group');
+      }
+    } catch (error) {
+      console.error('Error creating group:', error);
+      toast.error('Failed to create group');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleClose = () => {
@@ -101,7 +153,7 @@ export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
             <Label htmlFor="member-search">Add Members</Label>
             <Input
               id="member-search"
-              placeholder="Search talents..."
+              placeholder="Search team members..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -110,33 +162,39 @@ export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
           {/* Member List */}
           <ScrollArea className="h-64 rounded-md border border-border">
             <div className="p-4 space-y-3">
-              {filteredTalents.length === 0 ? (
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : filteredMembers.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  No talents found
+                  {teamMembers.length === 0
+                    ? 'No team members available. Hire talents first!'
+                    : 'No members found'}
                 </p>
               ) : (
-                filteredTalents.map((talent) => (
+                filteredMembers.map((member) => (
                   <div
-                    key={talent.userId}
+                    key={member.userId}
                     className="flex items-center gap-3 rounded-lg p-2 hover:bg-secondary/50 cursor-pointer transition-colors"
-                    onClick={() => handleToggleMember(talent.userId)}
+                    onClick={() => handleToggleMember(member.userId)}
                   >
                     <Checkbox
-                      checked={selectedMembers.includes(talent.userId)}
-                      onCheckedChange={() => handleToggleMember(talent.userId)}
+                      checked={selectedMembers.includes(member.userId)}
+                      onCheckedChange={() => handleToggleMember(member.userId)}
                     />
                     <Avatar className="h-10 w-10 border border-border/50">
-                      <AvatarImage src={talent.avatar} alt={talent.name} />
+                      <AvatarImage src={member.avatar || undefined} alt={member.name} />
                       <AvatarFallback className="bg-primary/20 text-primary">
-                        {talent.name.charAt(0)}
+                        {member.name.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
                       <p className="text-sm font-medium text-foreground">
-                        {talent.name}
+                        {member.name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {talent.role}
+                        {member.role}
                       </p>
                     </div>
                   </div>
@@ -153,10 +211,19 @@ export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose} disabled={isCreating}>
             Cancel
           </Button>
-          <Button onClick={handleCreateGroup}>Create Group</Button>
+          <Button onClick={handleCreateGroup} disabled={isCreating}>
+            {isCreating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              'Create Group'
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
