@@ -4,11 +4,13 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 import { ArrowLeft, Plus, Upload, Link as LinkIcon, FileText, X, Calendar as CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+
 import { useAuth } from "@/contexts/AuthContext";
 import {
   DndContext,
@@ -119,7 +121,9 @@ export default function ProjectBoard() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSampleDialogOpen, setIsSampleDialogOpen] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+
   const [taskDeadline, setTaskDeadline] = useState<Date | undefined>(undefined);
+
   const [sampleFormData, setSampleFormData] = useState({
     name: "",
     type: "file" as "file" | "link",

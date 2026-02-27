@@ -547,6 +547,7 @@ export default function Messages() {
       <div className="animate-fade-in h-[calc(100vh-8rem)]">
         <div className="glass-card h-full overflow-hidden">
           <div className="h-full md:grid md:grid-cols-[320px_1fr]">
+          <div className="h-full md:grid md:grid-cols-[320px_1fr]">
             {/* Contact List */}
             <div
               className={cn(
@@ -605,6 +606,8 @@ export default function Messages() {
                         selectedConversation?.id === conv.id && "bg-secondary/50"
                       )}
                     >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-11 w-11 sm:h-12 sm:w-12">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-11 w-11 sm:h-12 sm:w-12">
                           <AvatarImage src={conv.other_user.avatar || undefined} alt={conv.other_user.name} />

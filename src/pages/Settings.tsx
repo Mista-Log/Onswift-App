@@ -210,9 +210,7 @@ export default function Settings() {
               )}
             </button>
           </div>
-          <p className="mt-1 text-muted-foreground">
-            Manage your account and preferences
-          </p>
+
         </div>
 
         <div className="grid gap-6 sm:gap-8 lg:grid-cols-3">

@@ -17,11 +17,11 @@ class SignupSerializer(serializers.ModelSerializer):
     )
 
     # Creator fields (optional)
-    company_name = serializers.CharField(required=False)
-    bio = serializers.CharField(required=False)
-    website = serializers.URLField(required=False)
-    industry = serializers.CharField(required=False)
-    location = serializers.CharField(required=False)
+    company_name = serializers.CharField(required=False, allow_blank=True)
+    bio = serializers.CharField(required=False, allow_blank=True)
+    website = serializers.URLField(required=False, allow_blank=True)
+    industry = serializers.CharField(required=False, allow_blank=True)
+    location = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = User

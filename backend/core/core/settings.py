@@ -136,9 +136,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-STATICFILES_DIRS = [
-    BASE_DIR / "static",
-]
+# STATICFILES_DIRS = [
+#     BASE_DIR / "static",
+# ]
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
@@ -179,6 +179,7 @@ CORS_ALLOW_ALL_ORIGINS = False
 
 CORS_ALLOWED_ORIGINS = [
     "https://onswift-app.vercel.app",
+    "https://www.onswift.org",
     "http://localhost:8080",
 ]
 
@@ -186,6 +187,9 @@ CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "https://onswift-app.vercel.app",
+    "https://onswift.org/",
+    "https://onswift-app.onrender.com",
+    "https://www.onswift.org",
 ]
 
 
