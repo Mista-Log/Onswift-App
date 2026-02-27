@@ -28,6 +28,7 @@ export interface Deliverable {
   status: "pending" | "approved" | "revision";
   revisionCount: number;
   submittedAt: string;
+  feedback?: string;
 }
 
 interface DeliverableCardProps {

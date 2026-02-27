@@ -1,7 +1,7 @@
 from urllib import request
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import User, TalentProfile, CreatorProfile
+from .models import User, TalentProfile, CreatorProfile, UserSettings
 
 
 class SignupSerializer(serializers.ModelSerializer):
@@ -245,3 +245,55 @@ class UserDetailSerializer(serializers.ModelSerializer):
 
                 }
         return None
+
+
+class UserSettingsSerializer(serializers.ModelSerializer):
+    """Serializer for user notification settings"""
+    class Meta:
+        model = UserSettings
+        fields = ['email_notifications', 'push_notifications', 'message_alerts']
+
+
+class AccountStatsSerializer(serializers.Serializer):
+    """Serializer for account statistics"""
+    member_since = serializers.DateTimeField()
+    projects_count = serializers.IntegerField()
+    team_members_count = serializers.IntegerField()
+    completed_tasks_count = serializers.IntegerField()
+
+
+class ProfileUpdateBasicSerializer(serializers.ModelSerializer):
+    """Serializer for updating basic profile info from settings"""
+    bio = serializers.CharField(required=False, allow_blank=True)
+    
+    class Meta:
+        model = User
+        fields = ['full_name', 'email', 'bio']
+        extra_kwargs = {
+            'email': {'required': False},
+            'full_name': {'required': False},
+        }
+
+    def update(self, instance, validated_data):
+        bio = validated_data.pop('bio', None)
+        
+        # Update User fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Update bio in the appropriate profile
+        if bio is not None:
+            if instance.role == 'talent':
+                talent_profile, _ = TalentProfile.objects.get_or_create(
+                    user=instance,
+                    defaults={'professional_title': '', 'primary_skill': ''}
+                )
+                talent_profile.bio = bio
+                talent_profile.save()
+            elif instance.role == 'creator':
+                creator_profile, _ = CreatorProfile.objects.get_or_create(user=instance)
+                creator_profile.bio = bio
+                creator_profile.save()
+        
+        return instance

@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
-import { ChevronLeft, ChevronRight, Clock, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, AlertCircle, Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   format,
@@ -31,6 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { GoogleCalendarSync } from "@/components/calendar/GoogleCalendarSync";
 
 interface Task {
   id: string;
@@ -210,6 +211,7 @@ function CountdownTimer({ targetDate }: { targetDate: Date }) {
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showGoogleSync, setShowGoogleSync] = useState(false);
   const navigate = useNavigate();
 
   const monthStart = startOfMonth(currentDate);
@@ -280,6 +282,15 @@ export default function Calendar() {
                 {format(currentDate, "MMMM yyyy")}
               </h2>
               <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowGoogleSync(true)} 
+                  className="font-semibold gap-2"
+                >
+                  <CalendarIcon className="h-4 w-4" />
+                  <span className="hidden sm:inline">Google Sync</span>
+                </Button>
                 <Button variant="outline" size="sm" onClick={handleToday} className="font-semibold">
                   Today
                 </Button>
@@ -511,6 +522,12 @@ export default function Calendar() {
           animation: pulse-border 2s ease-in-out infinite;
         }
       `}</style>
+
+      {/* Google Calendar Sync Modal */}
+      <GoogleCalendarSync 
+        open={showGoogleSync} 
+        onClose={() => setShowGoogleSync(false)} 
+      />
     </MainLayout>
   );
 }

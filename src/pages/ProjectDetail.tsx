@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   ArrowLeft,
-  Calendar,
+  Calendar as CalendarIcon,
   Users,
   Plus,
   MoreVertical,
@@ -17,6 +17,8 @@ import {
   Edit,
   Loader2,
 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -47,7 +49,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProjects, type Task } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -182,7 +184,7 @@ export default function ProjectDetail() {
   // Available team members for assignment (if creator)
   const availableAssignees = isCreator ? [
     { id: user.id, name: user.full_name },
-    ...teamMembers.map((m) => ({ id: m.id, name: m.name }))
+    ...teamMembers.map((m) => ({ id: m.user_id, name: m.name }))
   ] : [];
 
   return (
@@ -248,7 +250,7 @@ export default function ProjectDetail() {
             <div>
               <p className="text-sm text-muted-foreground mb-1">Due Date</p>
               <div className="flex items-center gap-2 text-sm">
-                <Calendar className="h-4 w-4" />
+                
                 {project.due_date}
               </div>
             </div>
@@ -360,18 +362,34 @@ export default function ProjectDetail() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="task-deadline">Deadline</Label>
-                    <Input
-                      id="task-deadline"
-                      type="date"
-                      value={taskFormData.deadline}
-                      onChange={(e) =>
-                        setTaskFormData((prev) => ({
-                          ...prev,
-                          deadline: e.target.value,
-                        }))
-                      }
-                    />
+                    <Label>Deadline</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !taskFormData.deadline && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {taskFormData.deadline ? format(new Date(taskFormData.deadline), "PPP") : "Pick a deadline"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={taskFormData.deadline ? new Date(taskFormData.deadline) : undefined}
+                          onSelect={(date) =>
+                            setTaskFormData((prev) => ({
+                              ...prev,
+                              deadline: date ? format(date, "yyyy-MM-dd") : "",
+                            }))
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
                 <div className="flex justify-end gap-3">
@@ -545,7 +563,7 @@ function TaskCard({ task, isCreator, onStatusChange, onDelete }: TaskCardProps) 
 
         {task.deadline && (
           <div className="flex items-center gap-1 text-muted-foreground">
-            <Calendar className="h-3 w-3" />
+            {/* <Calendar className="h-3 w-3" /> */}
             {task.deadline}
           </div>
         )}

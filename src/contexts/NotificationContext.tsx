@@ -28,6 +28,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
+    // Check if user is authenticated before fetching
+    const token = localStorage.getItem("onswift_access");
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+    
     try {
       setIsLoading(true);
       const response = await secureFetch("/api/v3/notifications/");

@@ -16,8 +16,9 @@ import { DeliverableDetailModal } from "@/components/team/DeliverableDetailModal
 import { secureFetch } from "@/api/apiClient";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { MessagingProvider } from "@/contexts/MessagingContext";
 
-export default function Deliverables() {
+function Deliverables() {
   const { user } = useAuth();
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,9 +81,13 @@ export default function Deliverables() {
       formData.append("title", data.title);
       formData.append("description", data.description);
 
-      data.files.forEach((file) => {
-        formData.append("files", file);
-      });
+      // Safely handle files property if it exists
+      const files = (data as any).files as File[] | undefined;
+      if (Array.isArray(files)) {
+        files.forEach((file) => {
+          formData.append("files", file);
+        });
+      }
 
       const response = await secureFetch('/api/v2/deliverables/', {
         method: "POST",
@@ -125,6 +130,8 @@ export default function Deliverables() {
   };
 
   const filteredDeliverables = deliverables.filter((d) => {
+    // For talents, hide their own deliverables that are in 'revision' status
+    if (!isCreator && d.status === 'revision' && d.submittedBy.id === user?.id) return false;
     const matchesSearch =
       d.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       d.projectName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -140,128 +147,141 @@ export default function Deliverables() {
     revision: deliverables.filter(d => d.status === "revision").length,
   };
 
+  // Show upload button for talents if:
+  // - No deliverables (existing logic), or
+  // - Any deliverable is in 'revision' status and assigned to them
+  const canReupload = !isCreator && (
+    deliverables.length === 0 ||
+    deliverables.some(d => d.status === "revision" && d.submittedBy.id === user?.id)
+  );
+
   return (
-    <MainLayout>
-      <div className="animate-fade-in space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">
-              {isCreator ? "Team Deliverables" : "My Deliverables"}
-            </h1>
-            <p className="mt-1 text-muted-foreground">
-              {isCreator ? "Review and manage work submissions from your team" : "Upload and track your work submissions"}
-            </p>
-          </div>
-          {!isCreator && (
-            <Button onClick={() => setUploadModalOpen(true)} className="gap-2">
-              <Upload className="h-4 w-4" />
-              Upload Deliverable
-            </Button>
-          )}
-        </div>
-
-        {/* Stats */}
-        <div className="grid gap-4 sm:grid-cols-4">
-          <div className="glass-card p-4">
-            <p className="text-sm text-muted-foreground">Total</p>
-            <p className="text-2xl font-bold text-foreground">{stats.total}</p>
-          </div>
-          <div className="glass-card p-4">
-            <p className="text-sm text-muted-foreground">Pending Review</p>
-            <p className="text-2xl font-bold text-warning">{stats.pending}</p>
-          </div>
-          <div className="glass-card p-4">
-            <p className="text-sm text-muted-foreground">Approved</p>
-            <p className="text-2xl font-bold text-success">{stats.approved}</p>
-          </div>
-          <div className="glass-card p-4">
-            <p className="text-sm text-muted-foreground">Needs Revision</p>
-            <p className="text-2xl font-bold text-destructive">{stats.revision}</p>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="glass-card p-4">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search deliverables by title, project, or description..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+    <MessagingProvider>
+      <MainLayout>
+        <div className="animate-fade-in space-y-6">
+          {/* Header */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">
+                {isCreator ? "Team Deliverables" : "My Deliverables"}
+              </h1>
+              <p className="mt-1 text-muted-foreground">
+                {isCreator ? "Review and manage work submissions from your team" : "Upload and track your work submissions"}
+              </p>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-48">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending Review</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="revision">Needs Revision</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Deliverables Grid */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : filteredDeliverables.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredDeliverables.map((deliverable) => (
-              <DeliverableCard
-                key={deliverable.id}
-                deliverable={deliverable}
-                onClick={() => setSelectedDeliverable(deliverable)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="glass-card py-16 text-center">
-            <Upload className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">
-              {searchQuery || statusFilter !== "all" ? "No deliverables found" : "No deliverables yet"}
-            </h3>
-            <p className="text-muted-foreground mb-6">
-              {searchQuery || statusFilter !== "all"
-                ? "Try adjusting your search or filters"
-                : isCreator
-                  ? "Your team hasn't submitted any deliverables yet"
-                  : "Upload your first deliverable to get started"}
-            </p>
-            {!searchQuery && statusFilter === "all" && !isCreator && (
+            {canReupload && (
               <Button onClick={() => setUploadModalOpen(true)} className="gap-2">
                 <Upload className="h-4 w-4" />
                 Upload Deliverable
               </Button>
             )}
           </div>
-        )}
 
-        {/* Upload Modal */}
-        <UploadDeliverableModal
-          open={uploadModalOpen}
-          onOpenChange={setUploadModalOpen}
-          onSubmit={handleUploadDeliverable}
-        />
+          {/* Stats */}
+          <div className="grid gap-4 sm:grid-cols-4">
+            <div className="glass-card p-4">
+              <p className="text-sm text-muted-foreground">Total</p>
+              <p className="text-2xl font-bold text-foreground">{stats.total}</p>
+            </div>
+            <div className="glass-card p-4">
+              <p className="text-sm text-muted-foreground">Pending Review</p>
+              <p className="text-2xl font-bold text-warning">{stats.pending}</p>
+            </div>
+            <div className="glass-card p-4">
+              <p className="text-sm text-muted-foreground">Approved</p>
+              <p className="text-2xl font-bold text-success">{stats.approved}</p>
+            </div>
+            <div className="glass-card p-4">
+              <p className="text-sm text-muted-foreground">Needs Revision</p>
+              <p className="text-2xl font-bold text-destructive">{stats.revision}</p>
+            </div>
+          </div>
 
-        {/* Detail Modal */}
-        <DeliverableDetailModal
-          deliverable={selectedDeliverable}
-          open={!!selectedDeliverable}
-          onOpenChange={() => setSelectedDeliverable(null)}
-          isCreator={isCreator}
-          onApprove={isCreator ? (id) => handleReviewDeliverable(id, "approved") : undefined}
-          onRequestRevision={isCreator ? (id, feedback) => handleReviewDeliverable(id, "revision", feedback) : undefined}
-        />
-      </div>
-    </MainLayout>
+          {/* Filters */}
+          <div className="glass-card p-4">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search deliverables by title, project, or description..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-48">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending Review</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="revision">Needs Revision</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Deliverables Grid */}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : filteredDeliverables.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredDeliverables.map((deliverable) => (
+                <DeliverableCard
+                  key={deliverable.id}
+                  deliverable={deliverable}
+                  onClick={() => setSelectedDeliverable(deliverable)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="glass-card py-16 text-center">
+              <Upload className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                {searchQuery || statusFilter !== "all" ? "No deliverables found" : "No deliverables yet"}
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                {searchQuery || statusFilter !== "all"
+                  ? "Try adjusting your search or filters"
+                  : isCreator
+                    ? "Your team hasn't submitted any deliverables yet"
+                    : "Upload your first deliverable to get started"}
+              </p>
+              {canReupload && !searchQuery && statusFilter === "all" && (
+                <Button onClick={() => setUploadModalOpen(true)} className="gap-2">
+                  <Upload className="h-4 w-4" />
+                  Upload Deliverable
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Upload Modal */}
+          <UploadDeliverableModal
+            open={uploadModalOpen}
+            onOpenChange={setUploadModalOpen}
+            onSubmit={handleUploadDeliverable}
+            revisionDeliverables={deliverables}
+          />
+
+          {/* Detail Modal */}
+          <DeliverableDetailModal
+            deliverable={selectedDeliverable}
+            open={!!selectedDeliverable}
+            onOpenChange={() => setSelectedDeliverable(null)}
+            isCreator={isCreator}
+            onApprove={isCreator ? (id) => handleReviewDeliverable(id, "approved") : undefined}
+            onRequestRevision={isCreator ? (id, feedback) => handleReviewDeliverable(id, "revision", feedback) : undefined}
+          />
+        </div>
+      </MainLayout>
+    </MessagingProvider>
   );
 }
+
+export default Deliverables;

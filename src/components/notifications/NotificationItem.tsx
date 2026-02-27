@@ -8,6 +8,8 @@ import { secureFetch } from "@/api/apiClient";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/contexts/TeamContext";
+import { useProjects } from "@/contexts/ProjectContext";
+import { useNavigate } from "react-router-dom";
 
 interface NotificationItemProps {
   notification: Notification;
@@ -22,8 +24,10 @@ export function NotificationItem({
 }: NotificationItemProps) {
   const { user } = useAuth();
   const { fetchTeam } = useTeam();
+  const { updateTask } = useProjects();
   const [isResponding, setIsResponding] = useState(false);
   const [hasResponded, setHasResponded] = useState(false);
+  const navigate = useNavigate();
 
   const handleHireResponse = async (accept: boolean) => {
     if (!notification.hire_request) return;
@@ -72,9 +76,65 @@ export function NotificationItem({
   };
 
   const handleClick = () => {
+    // Mark as read if not already
     if (!notification.is_read) {
       onMarkAsRead(notification.id);
+
+      // If this notification references a task URL or id, auto-start the task
+      if (user?.role === "talent") {
+        try {
+          // Try to extract task id from common URL patterns in the message
+          const urlTaskMatch = notification.message.match(/projects\/[\w-]+\/tasks\/([a-zA-Z0-9-]+)/);
+          const shortTaskMatch = notification.message.match(/tasks\/([a-zA-Z0-9-]+)/);
+          const taskId = urlTaskMatch?.[1] || shortTaskMatch?.[1];
+
+          if (taskId) {
+            // Fire and forget: update task to in-progress
+            updateTask(taskId, { status: "in-progress" }).then(() => {
+              toast.success("Task marked In Progress");
+            }).catch((err) => {
+              console.error("Failed to auto-start task from notification:", err);
+            });
+          }
+        } catch (err) {
+          console.error("Error parsing notification for task id:", err);
+        }
+      }
     }
+    // Navigate based on notification type/content
+    if (notification.notification_type === "hire" && notification.hire_request) {
+      // Go to team page or hire request detail if exists
+      navigate("/team");
+      if (onClose) onClose();
+      return;
+    }
+    if (notification.notification_type === "system") {
+      // Example: If message contains 'project', go to projects
+      if (/project/i.test(notification.message)) {
+        navigate("/projects");
+        if (onClose) onClose();
+        return;
+      }
+      // If message contains 'message' or 'chat', go to messages
+      if (/message|chat/i.test(notification.message)) {
+        navigate("/messages");
+        if (onClose) onClose();
+        return;
+      }
+      // If message contains 'deadline' or 'calendar', go to calendar
+      if (/deadline|calendar/i.test(notification.message)) {
+        navigate("/calendar");
+        if (onClose) onClose();
+        return;
+      }
+      // If message contains 'team', go to team
+      if (/team/i.test(notification.message)) {
+        navigate("/team");
+        if (onClose) onClose();
+        return;
+      }
+    }
+    // Default: do nothing
   };
 
   const getIcon = () => {

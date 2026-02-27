@@ -4,7 +4,7 @@ from rest_framework import status
 from django.contrib.auth import login
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated
-from .serializers import ProfileUpdateSerializer
+from .serializers import ProfileUpdateSerializer, UserSettingsSerializer, AccountStatsSerializer, ProfileUpdateBasicSerializer
 from .serializers import SignupSerializer, LoginSerializer
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -12,7 +12,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import UserDetailSerializer
 
 
-from .models import User
+from .models import User, UserSettings
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.core.mail import send_mail
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
@@ -197,3 +197,118 @@ class PasswordResetConfirmView(APIView):
         user.save()
 
         return Response({"message": "Password reset successful"})
+
+
+class UserSettingsView(APIView):
+    """Get and update user settings"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_settings, _ = UserSettings.objects.get_or_create(user=request.user)
+        serializer = UserSettingsSerializer(user_settings)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        user_settings, _ = UserSettings.objects.get_or_create(user=request.user)
+        serializer = UserSettingsSerializer(user_settings, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+class AccountStatsView(APIView):
+    """Get account statistics"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        
+        # Get member since date
+        member_since = user.date_joined if hasattr(user, 'date_joined') else None
+        
+        # Calculate stats based on role
+        if user.role == 'creator':
+            from project.models import Project, Task
+            from notification.models import HireRequest
+            
+            projects_count = Project.objects.filter(creator=user).count()
+            team_members_count = HireRequest.objects.filter(
+                creator=user, 
+                status='accepted'
+            ).count()
+            completed_tasks_count = Task.objects.filter(
+                project__creator=user,
+                status='completed'
+            ).count()
+        else:
+            # Talent
+            from project.models import Task
+            from notification.models import HireRequest
+            
+            # Count projects where talent is assigned tasks
+            projects_count = Task.objects.filter(
+                assignee=user
+            ).values('project').distinct().count()
+            
+            # Count creators the talent works with
+            team_members_count = HireRequest.objects.filter(
+                talent=user,
+                status='accepted'
+            ).count()
+            
+            completed_tasks_count = Task.objects.filter(
+                assignee=user,
+                status='completed'
+            ).count()
+
+        return Response({
+            'member_since': member_since,
+            'projects_count': projects_count,
+            'team_members_count': team_members_count,
+            'completed_tasks_count': completed_tasks_count,
+        })
+
+
+class UpdateBasicProfileView(APIView):
+    """Update basic profile info (full name, email, bio)"""
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request):
+        serializer = ProfileUpdateBasicSerializer(
+            instance=request.user, 
+            data=request.data, 
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({
+            'message': 'Profile updated successfully',
+            'user': {
+                'full_name': request.user.full_name,
+                'email': request.user.email,
+            }
+        })
+
+
+class DeleteAccountView(APIView):
+    """Delete user account"""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        user = request.user
+        
+        # Optional: require password confirmation
+        password = request.data.get('password')
+        if password and not user.check_password(password):
+            return Response(
+                {'error': 'Incorrect password'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Delete the user (cascades to related objects)
+        user.delete()
+        
+        return Response(
+            {'message': 'Account deleted successfully'},
+            status=status.HTTP_200_OK
+        )

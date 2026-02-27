@@ -1,7 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FreelancerCardProps {
@@ -11,7 +10,6 @@ interface FreelancerCardProps {
   avatar: string;
   skills: string[];
   bio: string;
-  portfolioUrl?: string;
   className?: string;
   onHire?: () => void;
   onClick?: () => void;
@@ -23,7 +21,6 @@ export function FreelancerCard({
   avatar,
   skills,
   bio,
-  portfolioUrl,
   className,
   onHire,
   onClick,
@@ -68,17 +65,6 @@ export function FreelancerCard({
 
       {/* Actions */}
       <div className="mt-4 flex gap-3">
-        {portfolioUrl && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 gap-2"
-            onClick={() => window.open(portfolioUrl, "_blank")}
-          >
-            <ExternalLink className="h-4 w-4" />
-            Portfolio
-          </Button>
-        )}
         <Button
           variant="glow"
           size="sm"
