@@ -135,12 +135,20 @@
 
 @layer utilities {
   .glass-card {
-    @apply bg-card/80 backdrop-blur-xl border border-border/50 rounded-xl;
+    background-color: hsl(var(--card) / 0.8);
+    backdrop-filter: blur(24px);
+    border: 1px solid hsl(var(--border) / 0.5);
+    border-radius: 0.75rem;
     box-shadow: var(--card-glow);
   }
 
   .glass-card-hover {
-    @apply glass-card transition-all duration-300;
+    background-color: hsl(var(--card) / 0.8);
+    backdrop-filter: blur(24px);
+    border: 1px solid hsl(var(--border) / 0.5);
+    border-radius: 0.75rem;
+    transition: transform 300ms ease, border-color 300ms ease, box-shadow 300ms ease;
+    box-shadow: var(--card-glow);
   }
 
   .glass-card-hover:hover {
@@ -148,16 +156,84 @@
     border-color: hsl(250 76% 63% / 0.4);
   }
 
+  /* Landing page specific components */
+  .gradient-text,
+  .text-gradient {
+    background-image: linear-gradient(to right, hsl(var(--primary)), hsl(var(--accent)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
   .glow-button {
-    @apply transition-all duration-300;
+    background-image: linear-gradient(to right, hsl(var(--primary)), hsl(var(--accent)));
+    color: hsl(var(--primary-foreground));
+    font-weight: 600;
+    border-radius: 0.75rem;
+    transition: transform 200ms ease, box-shadow 200ms ease, opacity 200ms ease;
+    box-shadow: 0 0 20px hsl(250 76% 63% / 0.4);
   }
 
   .glow-button:hover {
-    box-shadow: var(--button-glow);
+    transform: translateY(-0.125rem);
+    box-shadow: 0 0 40px hsl(250 76% 63% / 0.6);
   }
 
-  .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent;
+  .outline-button {
+    background: transparent;
+    color: hsl(var(--foreground));
+    font-weight: 600;
+    border: 2px solid hsl(var(--foreground) / 0.2);
+    border-radius: 0.75rem;
+    transition: border-color 200ms ease, background-color 200ms ease, transform 200ms ease;
+  }
+
+  .outline-button:hover {
+    border-color: hsl(var(--primary) / 0.6);
+    background-color: hsl(var(--primary) / 0.1);
+  }
+
+  .announcement-badge {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 9999px;
+    background-color: hsl(var(--primary) / 0.1);
+    border: 1px solid hsl(var(--primary) / 0.3);
+    color: hsl(270 95% 75%);
+  }
+
+  .glass-card-feature {
+    background-color: hsl(var(--background) / 0.4);
+    border: 1px solid rgb(255 255 255 / 0.1);
+    backdrop-filter: blur(4px);
+    border-radius: 1rem;
+    transition: transform 300ms ease, box-shadow 300ms ease, border-color 300ms ease;
+    box-shadow: 0 0 40px hsl(250 76% 63% / 0.15);
+  }
+
+  .glass-card-feature:hover {
+    border-color: hsl(var(--primary) / 0.5);
+    transform: translateY(-0.5rem);
+    box-shadow: 0 0 60px hsl(250 76% 63% / 0.3);
+  }
+
+  .glass-card-usecase {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.5rem;
+    border: 1px solid rgb(255 255 255 / 0.1);
+    background-color: rgb(255 255 255 / 0.05);
+    backdrop-filter: blur(4px);
+    transition: transform 500ms ease, box-shadow 500ms ease, border-color 500ms ease;
+    box-shadow: 0 0 40px hsl(250 76% 63% / 0.15);
+  }
+
+  .glass-card-usecase:hover {
+    border-color: hsl(var(--primary) / 0.5);
+    transform: translateY(-0.25rem);
+    box-shadow: 0 0 60px hsl(250 76% 63% / 0.3);
   }
 
   .bg-gradient-radial {
@@ -176,6 +252,7 @@
   .animate-glow-pulse {
     animation: glowPulse 2s ease-in-out infinite;
   }
+
 }
 
 @keyframes fadeIn {

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { publicFetch, secureFetch } from '@/api/apiClient'; // Import both
 
-export type UserRole = 'creator' | 'talent';
+export type UserRole = 'creator' | 'talent' | 'client';
 
 export interface User {
   id: string;

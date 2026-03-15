@@ -10,10 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Mail, Users, Copy, Send } from "lucide-react";
+import { Mail, Users, Copy, Send, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { secureFetch } from "@/api/apiClient";
+import { FIXED_PROCESSING_MESSAGE, runWithFixedProcessingDelay } from "@/lib/loadingGate";
 
 interface InviteMemberModalProps {
   open: boolean;
@@ -33,6 +34,7 @@ export function InviteMemberModal({
   const [message, setMessage] = useState("");
   const [inviteLink, setInviteLink] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingMessage, setGeneratingMessage] = useState("");
 
   const handleClose = () => {
     setStep("choice");
@@ -43,14 +45,19 @@ export function InviteMemberModal({
   };
 
   const generateInviteLink = async () => {
+    if (isGenerating) return null;
+
     setIsGenerating(true);
+    setGeneratingMessage(FIXED_PROCESSING_MESSAGE);
     try {
-      const response = await secureFetch("/api/v3/invites/generate/", {
-        method: "POST",
-        body: JSON.stringify({
-          invited_email: email || undefined,
-        }),
-      });
+      const response = await runWithFixedProcessingDelay(
+        secureFetch("/api/v3/invites/generate/", {
+          method: "POST",
+          body: JSON.stringify({
+            invited_email: email || undefined,
+          }),
+        })
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -66,6 +73,7 @@ export function InviteMemberModal({
       return null;
     } finally {
       setIsGenerating(false);
+      setGeneratingMessage("");
     }
   };
 
@@ -204,18 +212,29 @@ export function InviteMemberModal({
                   onClick={handleCopyLink}
                   disabled={isGenerating}
                 >
-                  <Copy className="h-4 w-4" />
-                  {isGenerating ? "Generating..." : "Copy Link"}
+                  {isGenerating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                  {isGenerating ? "Generating link..." : "Copy Link"}
                 </Button>
                 <Button
                   className="flex-1 gap-2"
                   onClick={handleSendEmail}
                   disabled={isGenerating}
                 >
-                  <Send className="h-4 w-4" />
-                  {isGenerating ? "Generating..." : "Send Email"}
+                  {isGenerating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  {isGenerating ? "Generating link..." : "Send Email"}
                 </Button>
               </div>
+              {isGenerating && (
+                <p className="text-xs text-muted-foreground">{generatingMessage}</p>
+              )}
               <Button
                 variant="ghost"
                 onClick={() => setStep("choice")}

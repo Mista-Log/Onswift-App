@@ -1,4 +1,4 @@
-import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, Upload } from "lucide-react";
+import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, Upload, ClipboardList, FileArchive } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,6 +20,8 @@ const creatorNavItems = [
   { label: "Deliverables", icon: Upload, route: "/deliverables" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
+  { label: "Onboarding", icon: ClipboardList, route: "/onboarding" },
+  { label: "Library", icon: FileArchive, route: "/library" },
   { label: "Deadlines", icon: Calendar, route: "/calendar" },
 ];
 
