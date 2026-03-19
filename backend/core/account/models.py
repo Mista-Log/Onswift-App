@@ -31,6 +31,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = (
         ('creator', 'Creator'),
         ('talent', 'Talent'),
+        ('client', 'Client'),
     )
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)

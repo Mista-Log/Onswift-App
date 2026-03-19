@@ -25,6 +25,9 @@ urlpatterns = [
     path('api/v1/', include("account.urls")),
     path('api/v2/', include("project.urls")),
     path('api/v3/', include("notification.urls")),
+    path('api/v4/', include("onboarding.urls")),
+    path('api/v5/', include("portal.urls")),
+    path('api/v6/', include("library.urls")),
 
 ]
 

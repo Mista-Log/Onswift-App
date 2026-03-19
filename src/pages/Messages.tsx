@@ -3,10 +3,12 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageCircle, Send, Search, Loader2, ChevronLeft, Plus, Users } from "lucide-react";
+import { MessageCircle, Send, Search, Loader2, ChevronLeft, Plus, Users, Info } from "lucide-react";
 import { CreateGroupModal } from "@/components/messaging/CreateGroupModal";
 import { MentionDropdown, MentionMember } from "@/components/messaging/MentionDropdown";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/contexts/TeamContext";
@@ -100,6 +102,7 @@ export default function Messages() {
   const [isSending, setIsSending] = useState(false);
   const [myCreators, setMyCreators] = useState<Contact[]>([]);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showGroupInfo, setShowGroupInfo] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Mention state
@@ -550,7 +553,7 @@ export default function Messages() {
           {/* Contact List */}
           <div
             className={cn(
-              "border-r border-border/50 flex flex-col",
+              "border-r border-border/50 flex flex-col min-h-0",
               (selectedConversation || selectedGroup) ? "hidden md:flex" : "flex"
             )}
           >
@@ -649,7 +652,10 @@ export default function Messages() {
                     filteredGroups.map((group) => (
                       <button
                         key={group.id}
-                        onClick={() => setSelectedGroup(group)}
+                        onClick={() => {
+                          setSelectedGroup(group);
+                          setShowGroupInfo(false);
+                        }}
                         className={cn(
                           "w-full border-b border-border/30 p-4 text-left transition-colors hover:bg-secondary/50",
                           selectedGroup?.id === group.id && "bg-secondary/50"
@@ -740,7 +746,7 @@ export default function Messages() {
             {/* Chat Area */}
             <div
               className={cn(
-                "flex flex-col h-full",
+                "flex flex-col h-full min-h-0",
                 (selectedConversation || selectedGroup) ? "flex" : "hidden md:flex"
               )}
             >
@@ -773,7 +779,7 @@ export default function Messages() {
                   </div>
 
                   {/* Messages */}
-                  <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
+                  <div className="flex-1 space-y-4 overflow-y-auto p-3 sm:p-5 md:p-6">
                     {isLoadingMessages && messages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
                         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -790,13 +796,13 @@ export default function Messages() {
                           >
                             <div
                               className={cn(
-                                "max-w-[70%] rounded-2xl px-4 py-2",
+                                "max-w-[85%] sm:max-w-[75%] md:max-w-[70%] rounded-2xl px-3 py-2 sm:px-4",
                                 msg.sender === user?.id
                                   ? "bg-primary text-primary-foreground"
                                   : "bg-secondary text-foreground"
                               )}
                             >
-                              <p className="text-sm">{msg.content}</p>
+                              <p className="text-sm break-words">{msg.content}</p>
                               <p
                                 className={cn(
                                   "mt-1 text-xs",
@@ -822,8 +828,8 @@ export default function Messages() {
                   </div>
 
                   {/* Message Input - Direct Message */}
-                  <div className="border-t border-border/50 p-4 sm:p-5">
-                    <div className="flex gap-3">
+                  <div className="border-t border-border/50 p-3 sm:p-4 md:p-5">
+                    <div className="flex gap-2 sm:gap-3">
                       <Input
                         placeholder="Type a message..."
                         value={message}
@@ -837,13 +843,15 @@ export default function Messages() {
                         className="flex-1"
                         disabled={isSending}
                       />
-                      <Button onClick={handleSend} className="gap-2" disabled={isSending || !message.trim()}>
+                      <Button onClick={handleSend} size="icon" className="sm:w-auto sm:px-4 shrink-0" disabled={isSending || !message.trim()}>
                         {isSending ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          <Send className="h-4 w-4" />
+                          <>
+                            <Send className="h-4 w-4" />
+                            <span className="hidden sm:inline sm:ml-2">Send</span>
+                          </>
                         )}
-                        Send
                       </Button>
                     </div>
                   </div>
@@ -851,31 +859,45 @@ export default function Messages() {
               ) : selectedGroup ? (
                 <>
                   {/* Chat Header - Group */}
-                  <div className="flex items-center gap-2 border-b border-border/50 p-4 sm:p-5">
-                    <button
-                      onClick={() => setSelectedGroup(null)}
-                      className="md:hidden p-1 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
-                      aria-label="Back to groups"
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                    </button>
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage
-                        src={selectedGroup.avatar_url || undefined}
-                        alt={selectedGroup.name}
-                      />
-                      <AvatarFallback className="bg-primary/20 text-primary">
-                        <Users className="h-5 w-5" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium text-foreground">{selectedGroup.name}</p>
-                      <p className="text-sm text-muted-foreground">{selectedGroup.member_count} members</p>
+                  <div className="flex items-center justify-between gap-2 border-b border-border/50 p-4 sm:p-5">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setSelectedGroup(null);
+                          setShowGroupInfo(false);
+                        }}
+                        className="md:hidden p-1 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
+                        aria-label="Back to groups"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage
+                          src={selectedGroup.avatar_url || undefined}
+                          alt={selectedGroup.name}
+                        />
+                        <AvatarFallback className="bg-primary/20 text-primary">
+                          <Users className="h-5 w-5" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium text-foreground">{selectedGroup.name}</p>
+                        <p className="text-sm text-muted-foreground">{selectedGroup.member_count} members</p>
+                      </div>
                     </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setShowGroupInfo(true)}
+                      aria-label="Open group info"
+                      title="Group info"
+                    >
+                      <Info className="h-5 w-5" />
+                    </Button>
                   </div>
 
                   {/* Group Messages */}
-                  <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
+                  <div className="flex-1 space-y-4 overflow-y-auto p-3 sm:p-5 md:p-6">
                     {isLoadingMessages && groupMessages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
                         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -891,7 +913,7 @@ export default function Messages() {
                             )}
                           >
                             {!msg.is_mine && (
-                              <Avatar className="h-8 w-8 mr-2">
+                              <Avatar className="h-8 w-8 mr-2 shrink-0">
                                 <AvatarImage src={msg.sender_avatar || undefined} alt={msg.sender_name} />
                                 <AvatarFallback className="bg-primary/20 text-primary text-xs">
                                   {msg.sender_name.charAt(0)}
@@ -904,13 +926,13 @@ export default function Messages() {
                               )}
                               <div
                                 className={cn(
-                                  "max-w-[70%] rounded-2xl px-4 py-2",
+                                  "max-w-[85%] sm:max-w-[75%] md:max-w-[70%] rounded-2xl px-3 py-2 sm:px-4",
                                   msg.is_mine
                                     ? "bg-primary text-primary-foreground"
                                     : "bg-secondary text-foreground"
                                 )}
                               >
-                                <p className="text-sm">{msg.content}</p>
+                                <p className="text-sm break-words">{msg.content}</p>
                                 <p
                                   className={cn(
                                     "mt-1 text-xs",
@@ -937,8 +959,8 @@ export default function Messages() {
                   </div>
 
                   {/* Message Input - Group */}
-                  <div className="border-t border-border/50 p-4 sm:p-5">
-                    <div className="flex gap-3 relative">
+                  <div className="border-t border-border/50 p-3 sm:p-4 md:p-5">
+                    <div className="flex gap-2 sm:gap-3 relative">
                       <div className="flex-1 relative">
                         <Input
                           ref={inputRef}
@@ -957,13 +979,15 @@ export default function Messages() {
                           visible={showMentionDropdown}
                         />
                       </div>
-                      <Button onClick={handleSend} className="gap-2" disabled={isSending || !message.trim()}>
+                      <Button onClick={handleSend} size="icon" className="sm:w-auto sm:px-4 shrink-0" disabled={isSending || !message.trim()}>
                         {isSending ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          <Send className="h-4 w-4" />
+                          <>
+                            <Send className="h-4 w-4" />
+                            <span className="hidden sm:inline sm:ml-2">Send</span>
+                          </>
                         )}
-                        Send
                       </Button>
                     </div>
                     {mentions.length > 0 && (
@@ -996,6 +1020,42 @@ export default function Messages() {
         onClose={() => setShowCreateGroup(false)}
         onGroupCreated={fetchGroups}
       />
+
+      <Dialog open={showGroupInfo} onOpenChange={setShowGroupInfo}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedGroup?.name}</DialogTitle>
+            <DialogDescription>
+              {selectedGroup?.description?.trim() || "No group description yet."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <span className="text-sm text-muted-foreground">Members</span>
+              <Badge variant="secondary">{selectedGroup?.member_count ?? 0}</Badge>
+            </div>
+
+            <div className="max-h-64 space-y-2 overflow-y-auto">
+              {groupMembers.length > 0 ? (
+                groupMembers.map((member) => (
+                  <div key={member.id} className="flex items-center justify-between rounded-md border p-2">
+                    <div>
+                      <p className="text-sm font-medium">{member.name}</p>
+                      <p className="text-xs text-muted-foreground">{member.email}</p>
+                    </div>
+                    <Badge variant={member.is_admin ? "default" : "outline"}>
+                      {member.is_admin ? "Admin" : "Member"}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No member details available.</p>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

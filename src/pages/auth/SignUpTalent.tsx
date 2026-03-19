@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { secureFetch } from '@/api/apiClient';
+import { FIXED_PROCESSING_MESSAGE, runWithFixedProcessingDelay } from '@/lib/loadingGate';
 
 const SKILL_OPTIONS = [
   'UI/UX Design', 'Web Development', 'Mobile Development',
@@ -43,24 +43,15 @@ export default function SignUpTalent() {
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [inviteInfo, setInviteInfo] = useState<{ creator_name: string; creator_company?: string } | null>(null);
   const [isValidatingInvite, setIsValidatingInvite] = useState(false);
-
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  // Validate invite token on mount
-  useEffect(() => {
-    const token = searchParams.get('invite');
-    if (token) {
-      setInviteToken(token);
-      validateInviteToken(token);
-    }
-  }, [searchParams]);
+  const [processingMessage, setProcessingMessage] = useState('');
 
   const validateInviteToken = async (token: string) => {
     setIsValidatingInvite(true);
+    setProcessingMessage(FIXED_PROCESSING_MESSAGE);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v3/invites/validate/${token}/`);
+      const response = await runWithFixedProcessingDelay(
+        fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v3/invites/validate/${token}/`)
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -99,8 +90,23 @@ export default function SignUpTalent() {
       setInviteToken(null);
     } finally {
       setIsValidatingInvite(false);
+      setProcessingMessage('');
     }
   };
+
+  // Validate invite token on mount — must be above the conditional return
+  // to satisfy React's Rules of Hooks (same number of hooks every render).
+  useEffect(() => {
+    const token = searchParams.get('invite');
+    if (token) {
+      setInviteToken(token);
+      validateInviteToken(token);
+    }
+  }, [searchParams]);
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -148,30 +154,44 @@ export default function SignUpTalent() {
     if (!validateForm()) return;
 
     setIsLoading(true);
-    const result = await signup({
-      full_name: formData.full_name,
-      email: formData.email,
-      professional_title: formData.professional_title,
-      primary_skill: formData.primary_skill,
-      skills: formData.skills,
-      role: 'talent',
-      password: formData.password,
-      invite_token: inviteToken || undefined, // Include invite token if present
-    });
-    setIsLoading(false);
+    if (inviteToken) {
+      setProcessingMessage(FIXED_PROCESSING_MESSAGE);
+    }
 
-    if (result.success) {
-      if (inviteToken && inviteInfo) {
-        toast({
-          title: 'Account created!',
-          description: `Welcome to ${inviteInfo.creator_company || `${inviteInfo.creator_name}'s`} team!`
-        });
+    try {
+      const signupRequest = signup({
+        full_name: formData.full_name,
+        email: formData.email,
+        professional_title: formData.professional_title,
+        primary_skill: formData.primary_skill,
+        skills: formData.skills,
+        role: 'talent',
+        password: formData.password,
+        invite_token: inviteToken || undefined,
+      });
+
+      const result = inviteToken
+        ? await runWithFixedProcessingDelay(signupRequest)
+        : await signupRequest;
+
+      if (result.success) {
+        if (inviteToken && inviteInfo) {
+          toast({
+            title: 'Account created!',
+            description: `Welcome to ${inviteInfo.creator_company || `${inviteInfo.creator_name}'s`} team!`
+          });
+        } else {
+          toast({ title: 'Account created!', description: 'Welcome to OnSwift.' });
+        }
+        navigate('/dashboard');
       } else {
-        toast({ title: 'Account created!', description: 'Welcome to OnSwift.' });
+        toast({ title: 'Error', description: result.error, variant: 'destructive' });
       }
-      navigate('/dashboard');
-    } else {
-      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+    } catch {
+      toast({ title: 'Error', description: 'Something went wrong. Please try again.', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+      setProcessingMessage('');
     }
   };
 
@@ -219,6 +239,15 @@ export default function SignUpTalent() {
             <p className="text-muted-foreground mt-2">
               {inviteInfo ? 'Complete your profile to join the team' : 'Set up your profile to start working'}
             </p>
+            {isValidatingInvite && (
+              <div className="mt-4 rounded-lg border border-primary/30 bg-primary/10 p-3">
+                <div className="flex items-center justify-center gap-2 text-primary">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm font-medium">Validating invite link...</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{processingMessage}</p>
+              </div>
+            )}
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -461,16 +490,19 @@ export default function SignUpTalent() {
             </div>
             {errors.terms && <p className="text-destructive text-sm">{errors.terms}</p>}
 
-            <Button type="submit" variant="glow" className="w-full" disabled={isLoading}>
+            <Button type="submit" variant="glow" className="w-full" disabled={isLoading || isValidatingInvite}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating account...
+                  {inviteToken ? 'Processing invite signup...' : 'Creating account...'}
                 </>
               ) : (
                 'Create Talent Account'
               )}
             </Button>
+            {inviteToken && (isLoading || isValidatingInvite) && (
+              <p className="text-center text-xs text-muted-foreground">{processingMessage || FIXED_PROCESSING_MESSAGE}</p>
+            )}
           </form>
 
           <p className="text-center text-muted-foreground mt-6">
