@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Check, Menu, Minus, Plus, X } from 'lucide-react';
 
@@ -13,6 +13,7 @@ interface Testimonial {
   quote: string;
   author: string;
   role: string;
+  avatar: string;
 }
 
 interface CreatorCard {
@@ -27,6 +28,8 @@ interface FeatureCard {
   description: string;
   image: string;
   large?: boolean;
+  imageClassName?: string;
+  imageWrapClassName?: string;
 }
 
 interface HowItWorksStep {
@@ -73,10 +76,12 @@ const Navigation = () => {
   const navigate = useNavigate();
 
   const navLinks = [
-    { label: 'About', href: '#about' },
-    { label: 'Product', href: '#features' },
-    { label: 'Blog', href: '#blog' },
-    { label: 'Contact', href: '#contact' },
+    { label: 'Home', href: '#top' },
+    { label: 'Features', href: '#features' },
+    { label: 'How It Works', href: '#how-it-works' },
+    { label: 'Creator Tools', href: '#creator-tools' },
+    { label: 'Testimonials', href: '#testimonials' },
+    { label: 'FAQ', href: '#faq' },
   ];
 
   return (
@@ -163,7 +168,10 @@ const HeroSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden pt-28 pb-16 text-center"
+    <section
+      id="top"
+      className="reveal relative flex min-h-screen flex-col items-center justify-center overflow-hidden pt-28 pb-16 text-center"
+      data-reveal
       style={{ background: 'hsl(270 50% 5%)' }}
     >
       {/* Background radial glow */}
@@ -174,9 +182,9 @@ const HeroSection = () => {
         }}
       />
 
-      <div className="relative z-10 mx-auto max-w-4xl px-6">
+      <div className="relative z-10 mx-auto mt-50 max-w-4xl px-6 md:mt-56">
         <h1
-          className="animate-fade-in-up mb-6 text-4xl font-black leading-[1.05] text-white opacity-0 md:text-6xl lg:text-7xl"
+          className="animate-fade-in-up mb-6 text-5xl font-black leading-[1.05] text-white opacity-0 md:text-7xl lg:text-8xl"
           style={{ animationDelay: '0.1s' }}
         >
           Run Your Agency<br />Without Chaos
@@ -223,7 +231,7 @@ const HeroSection = () => {
 // ─── Trusted By ───────────────────────────────────────────────────────────────
 
 const TrustedBySection = () => (
-  <section className="py-12" style={{ background: 'hsl(270 50% 5%)' }}>
+  <section className="reveal py-12" data-reveal style={{ background: 'hsl(270 50% 5%)' }}>
     <div className="mx-auto max-w-5xl px-6">
       <p className="mb-8 text-center text-sm font-medium tracking-widest text-white/40 uppercase">
         Trusted By
@@ -245,17 +253,13 @@ const TrustedBySection = () => (
 // ─── Problem Section ──────────────────────────────────────────────────────────
 
 const ProblemSection = () => (
-  <section className="py-20 lg:py-28" style={{ background: 'hsl(268 48% 4%)' }}>
+  <section className="reveal py-20 lg:py-28" data-reveal style={{ background: 'hsl(268 48% 4%)' }}>
     <div className="mx-auto max-w-6xl px-6 lg:px-10">
       <div className="flex flex-col items-center gap-12 lg:flex-row lg:items-start lg:gap-16">
-        {/* Image placeholder */}
-        <div
-          className="w-full max-w-xs shrink-0 overflow-hidden rounded-3xl lg:w-72"
-          style={{
-            background: 'linear-gradient(135deg, hsl(270 40% 12%), hsl(260 35% 18%))',
-            border: '1px solid rgba(255,255,255,0.08)',
-            minHeight: '380px',
-          }}
+        <img
+          src="/assets/onswift_customer.png"
+          alt="OnSwift Customer"
+          className="w-full max-w-xs shrink-0 rounded-3xl border border-white/10 lg:w-72"
         />
 
         {/* Content */}
@@ -289,7 +293,7 @@ const ProblemSection = () => (
 // ─── Bridge Statement ─────────────────────────────────────────────────────────
 
 const BridgeStatement = () => (
-  <section className="py-20 lg:py-28" style={{ background: 'hsl(268 48% 4%)' }}>
+  <section className="reveal py-20 lg:py-28" data-reveal style={{ background: 'hsl(268 48% 4%)' }}>
     <div className="mx-auto max-w-4xl px-6 text-center">
       <p className="text-2xl font-black leading-snug text-white md:text-3xl lg:text-4xl">
         But that is over now. OnSwift brings hiring, operations, and Client Delivery into one simple AI-led system.
@@ -328,52 +332,54 @@ const FeaturesSection = () => {
       description: 'Every task has clear ownership.',
       image: '/assets/feature-communication.png',
       large: true,
+      // imageClassName: 'object-contain object-center',
+      // imageWrapClassName: 'flex items-center justify-center',
     },
   ];
 
   return (
-    <section id="features" className="py-20 lg:py-28" style={{ background: 'hsl(270 50% 5%)' }}>
-      <div className="mx-auto max-w-6xl px-6 lg:px-10">
+    <section id="features" className="reveal py-20 lg:py-28" data-reveal style={{ background: 'hsl(270 50% 5%)' }}>
+      <div className="mx-auto max-w-7xl px-6 lg:px-10">
         <div className="mb-12 text-center">
           <SectionBadge>Features</SectionBadge>
           <h2 className="mt-5 text-3xl font-black md:text-4xl lg:text-5xl" style={{ color: TEAL }}>
-            Everything Your Agency Needs, In One Place.
+            Everything Your Agency Needs, <br />In One Place.
           </h2>
         </div>
 
         {/* Top row: 3 cards */}
-        <div className="mb-5 grid grid-cols-1 gap-5 md:grid-cols-3">
+        <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
           {features.slice(0, 3).map((f) => (
             <div
               key={f.title}
               className="glass-card-feature flex flex-col overflow-hidden rounded-2xl p-0"
               style={{ border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)' }}
             >
-              <div className="h-44 overflow-hidden">
-                <img src={f.image} alt={f.title} className="h-full w-full object-cover" />
+              <div className={`overflow-hidden bg-white/5 p-4 ${f.imageWrapClassName ?? ''}`}>
+                <img src={f.image} alt={f.title} className={`h-auto w-full ${f.imageClassName ?? ''}`} />
               </div>
-              <div className="p-5">
-                <h3 className="mb-1.5 text-base font-bold text-white">{f.title}</h3>
-                <p className="text-sm leading-relaxed text-white/55">{f.description}</p>
+              <div className="p-6">
+                <h3 className="mb-2 text-lg font-bold text-white">{f.title}</h3>
+                <p className="text-base leading-relaxed text-white/55">{f.description}</p>
               </div>
             </div>
           ))}
         </div>
 
         {/* Bottom row: 2 larger cards */}
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {features.slice(3).map((f) => (
             <div
               key={f.title}
               className="glass-card-feature flex flex-col overflow-hidden rounded-2xl p-0"
               style={{ border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)' }}
             >
-              <div className="h-52 overflow-hidden">
-                <img src={f.image} alt={f.title} className="h-full w-full object-cover" />
+              <div className={`overflow-hidden bg-white/5 p-4 ${f.imageWrapClassName ?? ''}`}>
+                <img src={f.image} alt={f.title} className={`h-auto w-full ${f.imageClassName ?? ''}`} />
               </div>
-              <div className="p-5">
-                <h3 className="mb-1.5 text-base font-bold text-white">{f.title}</h3>
-                <p className="text-sm leading-relaxed text-white/55">{f.description}</p>
+              <div className="p-6">
+                <h3 className="mb-2 text-lg font-bold text-white">{f.title}</h3>
+                <p className="text-base leading-relaxed text-white/55">{f.description}</p>
               </div>
             </div>
           ))}
@@ -391,32 +397,32 @@ const HowItWorksSection = () => {
       title: 'Set Up Your Agency',
       description: 'Connect your projects, team, and workflows in minutes.',
       bullets: ['Import clients', 'Add your team', 'Create projects', 'Set deadlines'],
-      image: '/assets/dashboard-preview.png',
+      image: '/assets/feature-invite.png',
       imageLeft: false,
     },
     {
       title: 'Organize & Automate',
       description: 'Let OnSwift structure your operations.',
       bullets: ['Smart task breakdown', 'Clear timelines', 'Automated follow-ups', 'Central dashboard'],
-      image: '/assets/feature-auto-pm.png',
+      image: '/assets/feature-project-dashboard.png',
       imageLeft: true,
     },
     {
       title: 'Deliver & Scale',
       description: 'Run projects with confidence.',
       bullets: ['Track progress live', 'Catch delays early', 'Maintain quality', 'Impress clients'],
-      image: '/assets/feature-scale.png',
+      image: '/assets/feature-deadliner.png',
       imageLeft: false,
     },
   ];
 
   return (
-    <section id="how-it-works" className="py-20 lg:py-28" style={{ background: 'hsl(268 48% 4%)' }}>
+    <section id="how-it-works" className="reveal py-20 lg:py-28" data-reveal style={{ background: 'hsl(268 48% 4%)' }}>
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
         <div className="mb-14 text-center">
           <SectionBadge>How it Works</SectionBadge>
           <h2 className="mt-5 text-3xl font-black md:text-4xl lg:text-5xl" style={{ color: TEAL }}>
-            All-in-One Operating System for Agencies.
+            All-in-One Operating <br />System for Agencies.
           </h2>
         </div>
 
@@ -465,30 +471,30 @@ const CreatorToolsSection = () => {
       id: "agency",
       title: 'Agency Founders',
       description: 'Creators Scaling into Agencies, Small Agencies (3–10 People), Growing Agencies (10–50 People) can now manage teams and clients with clarity.',
-      image: '/assets/feature-quality-control.png',
+      image: '/assets/feature-blur.png',
     },
     {
-      id: "course",
-      title: "Course Creators",
-      description: "Run backend operations professionally.",
-      image: "/assets/feature-communication.png",
+      id: "freelance",
+      title: "Freelancers & Solopreneurs",
+      description: "Manage clients, projects, and income streams without the chaos of scaling alone.",
+      image: "/assets/feature-client-portal.png",
     },
     {
       id: "remote",
       title: "Remote Teams",
       description: "Work smoothly across locations.",
-      image: '/assets/feature-talent-matching.png',
+      image: '/assets/feature-soup.png',
     },
     {
       id: "coaches",
       title: "Coaches & Consultants",
       description: "Coaches & Consultants can now run backend operations professionally, deliver premium services without overwhelm.",
-      image: '/assets/feature-auto-pm.png',
+      image: '/assets/feature-coaching-d.png',
     },
   ];
 
   return (
-    <section id="creator-tools" className="py-20 lg:py-28" style={{ background: 'hsl(270 50% 5%)' }}>
+    <section id="creator-tools" className="reveal py-20 lg:py-28" data-reveal style={{ background: 'hsl(270 50% 5%)' }}>
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
         <div className="mb-12 text-center">
           <SectionBadge>Social &amp; Creator Tools</SectionBadge>
@@ -499,7 +505,7 @@ const CreatorToolsSection = () => {
             OnSwift supports how modern founders actually work.
           </p>
         </div>
-
+          {/* {Card Section} */}
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {cards.map((card) => (
             <div
@@ -514,8 +520,8 @@ const CreatorToolsSection = () => {
                 <h3 className="mb-2 text-lg font-bold text-white">{card.title}</h3>
                 <p className="mb-4 text-sm leading-relaxed text-white/55">{card.description}</p>
               </div>
-              <div className="h-44 overflow-hidden">
-                <img src={card.image} alt={card.title} className="h-full w-full object-cover" />
+              <div className="overflow-hidden bg-white/5 p-4">
+                <img src={card.image} alt={card.title} className="h-auto w-full object-contain" />
               </div>
             </div>
           ))}
@@ -530,29 +536,32 @@ const CreatorToolsSection = () => {
 const TestimonialsSection = () => {
   const testimonials: Testimonial[] = [
     {
-      quote: 'From Struggling to manage what is going at the agency to Scaling to 6 figures. Creators Scaling into Agencies, Small Agencies (3–10 People), Growing Agencies (10–50 People) can now manage teams and clients with clarity.',
-      author: 'Daniel Araromi',
-      role: 'CEO, Overbooked',
-    },
-    {
-      quote: 'From Struggling to manage what is going at the agency to Scaling to 6 figures. Creators Scaling into Agencies, Small Agencies (3–10 People), Growing Agencies (10–50 People) can now manage teams and clients with clarity.',
-      author: 'Clinkton Okhai',
-      role: 'CEO, Mathetes Capital',
-    },
-    {
-      quote: 'From Struggling to manage what is going at the agency to Scaling to 6 figures. Creators Scaling into Agencies, Small Agencies (3–10 People), Growing Agencies (10–50 People) can now manage teams and clients with clarity.',
-      author: 'Caleb Benson',
-      role: 'CEO, Aency E',
-    },
+  quote: 'Before this, I was constantly putting out fires. Now I have full visibility into every client and project we crossed 6 figures and I finally feel in control of the agency.',
+  author: 'Daniel Araromi',
+  role: 'CEO, Overbooked',
+  avatar: '/assets/testimony-auth/daniel-araromi.png',
+},
+{
+  quote: 'Managing capital and client relationships at the same time was overwhelming. This gave us the structure to scale without dropping the ball on either side.',
+  author: 'Clinkton Okhai',
+  role: 'CEO, Mathetes Capital',
+  avatar: '/assets/testimony-auth/clinkton-okhai.png',
+},
+{
+  quote: 'I used to run everything in my head. Now the whole team knows what to do, when to do it, and nothing slips through the cracks. Game changer for a growing agency.',
+  author: 'Caleb Benson',
+  role: 'CEO, Aency E',
+  avatar: '/assets/testimony-auth/caleb-benson.png',
+},
   ];
 
   return (
-    <section className="py-20 lg:py-28" style={{ background: 'hsl(268 48% 4%)' }}>
+    <section id="testimonials" className="reveal py-20 lg:py-28" data-reveal style={{ background: 'hsl(268 48% 4%)' }}>
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
         <div className="mb-12 text-center">
           <SectionBadge>Testimonials</SectionBadge>
           <h2 className="mt-5 text-3xl font-black md:text-4xl lg:text-5xl" style={{ color: TEAL }}>
-            What Founders Who Uses Onswift Says
+            What Founders Who Uses <br />Onswift Says Says
           </h2>
         </div>
 
@@ -568,12 +577,11 @@ const TestimonialsSection = () => {
             >
               <p className="mb-6 text-sm leading-relaxed text-white/75">{t.quote}</p>
               <div className="flex items-center gap-3 border-t border-white/10 pt-5">
-                <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-                  style={{ background: 'hsl(262,83%,46%)' }}
-                >
-                  {t.author[0]}
-                </div>
+                <img
+                  src={t.avatar}
+                  alt={t.author}
+                  className="h-10 w-10 shrink-0 rounded-full object-cover"
+                />
                 <div>
                   <p className="text-sm font-semibold text-white">{t.author}</p>
                   <p className="text-xs text-white/45">{t.role}</p>
@@ -601,7 +609,7 @@ const FAQSection = () => {
   ];
 
   return (
-    <section id="faq" className="py-20 lg:py-28" style={{ background: 'hsl(270 50% 5%)' }}>
+    <section id="faq" className="reveal py-20 lg:py-28" data-reveal style={{ background: 'hsl(270 50% 5%)' }}>
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
         <div className="flex flex-col gap-12 lg:flex-row lg:gap-16">
           {/* Left: title */}
@@ -654,12 +662,12 @@ const FinalCTA = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="py-20 lg:py-28" style={{ background: 'hsl(268 48% 4%)' }}>
+    <section className="reveal py-20 lg:py-28" data-reveal style={{ background: 'hsl(268 48% 4%)' }}>
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
         <div
           className="mx-auto max-w-4xl overflow-hidden rounded-3xl p-10 text-center md:p-16"
           style={{
-            background: 'linear-gradient(135deg, hsl(262,70%,30%) 0%, hsl(250,76%,45%) 50%, hsl(270,80%,35%) 100%)',
+            background: 'linear-gradient(140deg, #0b0f1e 0%, #2a144f 45%, #6e2ccf 85%, #8a4ae8 100%)',
           }}
         >
           <h2 className="mb-5 text-3xl font-black leading-tight text-white md:text-5xl lg:text-6xl">
@@ -686,7 +694,11 @@ const FinalCTA = () => {
 // ─── Footer ───────────────────────────────────────────────────────────────────
 
 const Footer = () => (
-  <footer className="py-16" style={{ background: 'hsl(270 50% 5%)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+  <footer
+    className="reveal py-16"
+    data-reveal
+    style={{ background: 'hsl(270 50% 5%)', borderTop: '1px solid rgba(255,255,255,0.06)' }}
+  >
     <div className="mx-auto max-w-6xl px-6 lg:px-10">
       <div className="grid grid-cols-1 gap-12 md:grid-cols-3">
         {/* Col 1: Logo + tagline */}
@@ -733,20 +745,94 @@ const Footer = () => (
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Landing() {
+  const [showLoader, setShowLoader] = useState(true);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    const hasSeenLoader = sessionStorage.getItem('landingLoaderSeen') === '1';
+    if (hasSeenLoader) {
+      setShowLoader(false);
+      setIsLoaded(true);
+      return undefined;
+    }
+
+    sessionStorage.setItem('landingLoaderSeen', '1');
+
+    let hideTimer: number | undefined;
+    const loaderTimer = window.setTimeout(() => {
+      setIsLoaded(true);
+      hideTimer = window.setTimeout(() => setShowLoader(false), 300);
+    }, 5000);
+
+    return () => {
+      window.clearTimeout(loaderTimer);
+      if (hideTimer) {
+        window.clearTimeout(hideTimer);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    document.body.style.overflow = showLoader ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showLoader]);
+
+  useEffect(() => {
+    const elements = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'));
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReduced) {
+      elements.forEach((el) => el.classList.add('is-visible'));
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      {
+        threshold: 0.2,
+        rootMargin: '0px 0px -10% 0px',
+      }
+    );
+
+    elements.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="dark min-h-screen" style={{ background: 'hsl(270 50% 5%)' }}>
-      <Navigation />
-      <HeroSection />
-      <TrustedBySection />
-      <ProblemSection />
-      <BridgeStatement />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <CreatorToolsSection />
-      <TestimonialsSection />
-      <FAQSection />
-      <FinalCTA />
-      <Footer />
+      {showLoader && (
+        <div className={`loader-screen ${isLoaded ? 'is-fading' : ''}`} aria-hidden="true">
+          <div className="loader-center">
+            <span className="loader-ring loader-ring--a" />
+            <span className="loader-ring loader-ring--b" />
+            <img src="/onswift logo.png" alt="OnSwift" className="loader-logo" />
+          </div>
+        </div>
+      )}
+
+      <div className={`page-shell ${isLoaded ? 'page-shell--visible' : ''}`}>
+        <Navigation />
+        <HeroSection />
+        <TrustedBySection />
+        <ProblemSection />
+        <BridgeStatement />
+        <FeaturesSection />
+        <HowItWorksSection />
+        <CreatorToolsSection />
+        <TestimonialsSection />
+        <FAQSection />
+        <FinalCTA />
+        <Footer />
+      </div>
     </div>
   );
 }
