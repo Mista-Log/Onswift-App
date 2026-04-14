@@ -23,6 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.vercel
 
 # Python
 __pycache__/
