@@ -27,7 +27,7 @@ export const secureFetch = async (endpoint: string, options: RequestInit = {}) =
     console.warn("No access token found");
     
     // Don't redirect if on public pages
-    const publicPaths = ['/login', '/signup', '/signup/talent', '/signup/creator', '/forgot-password', '/reset-password'];
+    const publicPaths = ['/', '/login', '/signup', '/signup/talent', '/signup/creator', '/forgot-password', '/reset-password'];
     const currentPath = window.location.pathname;
     const isPublicPage = publicPaths.some(path => currentPath.includes(path));
     
@@ -77,7 +77,7 @@ export const secureFetch = async (endpoint: string, options: RequestInit = {}) =
           localStorage.clear();
           
           // Don't redirect if on public pages
-          const publicPaths = ['/login', '/signup', '/signup/talent', '/signup/creator'];
+          const publicPaths = ['/', '/login', '/signup', '/signup/talent', '/signup/creator'];
           const currentPath = window.location.pathname;
           const isPublicPage = publicPaths.some(path => currentPath.includes(path));
           
@@ -90,7 +90,7 @@ export const secureFetch = async (endpoint: string, options: RequestInit = {}) =
         localStorage.clear();
         
         // Don't redirect if on public pages
-        const publicPaths = ['/login', '/signup', '/signup/talent', '/signup/creator'];
+        const publicPaths = ['/', '/login', '/signup', '/signup/talent', '/signup/creator'];
         const currentPath = window.location.pathname;
         const isPublicPage = publicPaths.some(path => currentPath.includes(path));
         
@@ -104,7 +104,7 @@ export const secureFetch = async (endpoint: string, options: RequestInit = {}) =
       localStorage.clear();
       
       // Don't redirect if on public pages
-      const publicPaths = ['/login', '/signup', '/signup/talent', '/signup/creator'];
+      const publicPaths = ['/', '/login', '/signup', '/signup/talent', '/signup/creator'];
       const currentPath = window.location.pathname;
       const isPublicPage = publicPaths.some(path => currentPath.includes(path));
       

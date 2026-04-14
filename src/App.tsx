@@ -35,6 +35,21 @@ import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/auth/ResetPassword";
 import GoogleOAuthCallback from "./pages/auth/GoogleOAuthCallback";
 
+// Onboarding (creator)
+import OnboardingTemplates from "./pages/onboarding/OnboardingTemplates";
+import OnboardingBuilder from "./pages/onboarding/OnboardingBuilder";
+// Onboarding (public client-facing)
+import ClientOnboard from "./pages/onboarding/ClientOnboard";
+
+// Portal (client)
+import { PortalRouteGuard } from "@/components/portal/PortalRouteGuard";
+import PortalProjectSelector from "./pages/portal/PortalProjectSelector";
+import PortalDashboard from "./pages/portal/PortalDashboard";
+import PortalMessages from "./pages/portal/PortalMessages";
+
+// Library (creator)
+import DocumentLibrary from "./pages/library/DocumentLibrary";
+
 
 const queryClient = new QueryClient();
 
@@ -45,7 +60,7 @@ const App = () => (
         <ProjectProvider>
           <TeamProvider>
             <NotificationProvider>
-              <ThemeProvider attribute="class" defaultTheme="system">
+              <ThemeProvider attribute="class" defaultTheme="light">
                 <Toaster />
                 <Sonner />
                 <BrowserRouter>
@@ -74,6 +89,21 @@ const App = () => (
               <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
               <Route path="/auth/google/callback" element={<GoogleOAuthCallback />} />
 
+              {/* Onboarding — creator (protected) */}
+              <Route path="/onboarding" element={<ProtectedRoute><OnboardingTemplates /></ProtectedRoute>} />
+              <Route path="/onboarding/new" element={<ProtectedRoute><OnboardingBuilder /></ProtectedRoute>} />
+              <Route path="/onboarding/:id" element={<ProtectedRoute><OnboardingBuilder /></ProtectedRoute>} />
+
+              {/* Onboarding — public client page */}
+              <Route path="/onboard/:slug" element={<ClientOnboard />} />
+
+              {/* Portal — client only */}
+              <Route path="/portal" element={<PortalRouteGuard><PortalProjectSelector /></PortalRouteGuard>} />
+              <Route path="/portal/:projectId" element={<PortalRouteGuard><PortalDashboard /></PortalRouteGuard>} />
+              <Route path="/portal/:projectId/messages" element={<PortalRouteGuard><PortalMessages /></PortalRouteGuard>} />
+
+              {/* Document Library — creator (protected) */}
+              <Route path="/library" element={<ProtectedRoute><DocumentLibrary /></ProtectedRoute>} />
 
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />

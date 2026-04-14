@@ -157,7 +157,7 @@ export default function Settings() {
       if (response.ok) {
         toast.success("Account deleted successfully");
         logout();
-        navigate('/login');
+        navigate('/');
       } else {
         const error = await response.json();
         toast.error(error.detail || "Failed to delete account");

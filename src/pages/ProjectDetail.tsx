@@ -23,6 +23,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -60,6 +61,9 @@ export default function ProjectDetail() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [taskFormData, setTaskFormData] = useState({
     name: "",
@@ -162,6 +166,26 @@ export default function ProjectDetail() {
     }
   };
 
+  const handleRenameProject = async () => {
+    if (!id) return;
+    const nextName = renameValue.trim();
+    if (!nextName) {
+      toast.error("Project name cannot be empty");
+      return;
+    }
+
+    try {
+      setIsRenaming(true);
+      await updateProject(id, { name: nextName });
+      toast.success("Project renamed successfully!");
+      setIsRenameDialogOpen(false);
+    } catch (error) {
+      toast.error("Failed to rename project");
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
   if (!project) {
     return (
       <MainLayout>
@@ -229,6 +253,16 @@ export default function ProjectDetail() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                  onClick={() => {
+                    setRenameValue(project.name);
+                    setIsRenameDialogOpen(true);
+                  }}
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Rename Project
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
                   onClick={handleDeleteProject}
                   className="text-destructive focus:text-destructive"
                 >
@@ -239,6 +273,40 @@ export default function ProjectDetail() {
             </DropdownMenu>
           )}
         </div>
+
+        <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Rename Project</DialogTitle>
+              <DialogDescription>
+                Update the project name to fix mistakes or improve clarity.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="project-rename">Project Name</Label>
+              <Input
+                id="project-rename"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleRenameProject();
+                  }
+                }}
+                placeholder="Enter project name"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsRenameDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleRenameProject} disabled={isRenaming || !renameValue.trim()}>
+                {isRenaming ? "Saving..." : "Save"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Project Info */}
         <div className="glass-card p-6 rounded-lg border border-border/50">
