@@ -200,7 +200,7 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = [
     "https://onswift-app.vercel.app",
     "https://onswift.org/",
-    "https://onswift-app.onrender.com",
+    "https://onswift-app-7zrf.onrender.com/",
     "https://www.onswift.org",
 ]
 
