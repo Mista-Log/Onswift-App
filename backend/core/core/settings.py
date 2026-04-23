@@ -192,7 +192,6 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "https://onswift-app.vercel.app",
     "https://www.onswift.org",
-    "https://onswift-app-7zrf.onrender.com/",
     "http://localhost:8080",
 ]
 
