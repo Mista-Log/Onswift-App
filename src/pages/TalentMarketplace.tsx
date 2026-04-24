@@ -13,68 +13,91 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { publicFetch } from "@/api/apiClient";
+import { useEffect } from "react";
 
-const freelancers = [
-  {
-    id: "1",
-    name: "Maya Chen",
-    role: "3D Artist",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya",
-    skills: ["Blender", "Maya", "ZBrush"],
-    bio: "Creating stunning 3D visuals and character designs for games and media. 5+ years of experience in the industry.",
-    portfolioUrl: "https://example.com",
-  },
-  {
-    id: "2",
-    name: "James Wilson",
-    role: "Motion Designer",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=James",
-    skills: ["After Effects", "Cinema 4D", "Premiere"],
-    bio: "Bringing ideas to life through motion. Specializing in kinetic typography and dynamic transitions.",
-    portfolioUrl: "https://example.com",
-  },
-  {
-    id: "3",
-    name: "Sofia Rodriguez",
-    role: "UI/UX Designer",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sofia",
-    skills: ["Figma", "Prototyping", "User Research"],
-    bio: "Crafting intuitive digital experiences that users love. Focus on accessibility and clean design.",
-    portfolioUrl: "https://example.com",
-  },
-  {
-    id: "4",
-    name: "Kai Tanaka",
-    role: "Video Editor",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Kai",
-    skills: ["Premiere Pro", "DaVinci", "Color Grading"],
-    bio: "Professional video editing with a cinematic touch. Music videos, commercials, and social content.",
-  },
-  {
-    id: "5",
-    name: "Luna Park",
-    role: "Illustrator",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Luna",
-    skills: ["Procreate", "Photoshop", "Character Design"],
-    bio: "Digital illustrator specializing in fantasy art and character design. Available for commissions.",
-    portfolioUrl: "https://example.com",
-  },
-  {
-    id: "6",
-    name: "Marcus Brown",
-    role: "Sound Designer",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Marcus",
-    skills: ["Pro Tools", "Ableton", "Sound FX"],
-    bio: "Creating immersive audio landscapes for games, films, and interactive media.",
-  },
-];
+
+// const freelancers = [
+//   {
+//     id: "1",
+//     name: "Maya Chen",
+//     role: "3D Artist",
+//     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya",
+//     skills: ["Blender", "Maya", "ZBrush"],
+//     bio: "Creating stunning 3D visuals and character designs for games and media. 5+ years of experience in the industry.",
+//     portfolioUrl: "https://example.com",
+//   },
+//   {
+//     id: "2",
+//     name: "James Wilson",
+//     role: "Motion Designer",
+//     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=James",
+//     skills: ["After Effects", "Cinema 4D", "Premiere"],
+//     bio: "Bringing ideas to life through motion. Specializing in kinetic typography and dynamic transitions.",
+//     portfolioUrl: "https://example.com",
+//   },
+//   {
+//     id: "3",
+//     name: "Sofia Rodriguez",
+//     role: "UI/UX Designer",
+//     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sofia",
+//     skills: ["Figma", "Prototyping", "User Research"],
+//     bio: "Crafting intuitive digital experiences that users love. Focus on accessibility and clean design.",
+//     portfolioUrl: "https://example.com",
+//   },
+//   {
+//     id: "4",
+//     name: "Kai Tanaka",
+//     role: "Video Editor",
+//     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Kai",
+//     skills: ["Premiere Pro", "DaVinci", "Color Grading"],
+//     bio: "Professional video editing with a cinematic touch. Music videos, commercials, and social content.",
+//   },
+//   {
+//     id: "5",
+//     name: "Luna Park",
+//     role: "Illustrator",
+//     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Luna",
+//     skills: ["Procreate", "Photoshop", "Character Design"],
+//     bio: "Digital illustrator specializing in fantasy art and character design. Available for commissions.",
+//     portfolioUrl: "https://example.com",
+//   },
+//   {
+//     id: "6",
+//     name: "Marcus Brown",
+//     role: "Sound Designer",
+//     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Marcus",
+//     skills: ["Pro Tools", "Ableton", "Sound FX"],
+//     bio: "Creating immersive audio landscapes for games, films, and interactive media.",
+//   },
+// ];
 
 export default function TalentMarketplace() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [experienceFilter, setExperienceFilter] = useState("");
+  const [freelancers, setFreelancers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [hireModalOpen, setHireModalOpen] = useState(false);
   const [selectedTalent, setSelectedTalent] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTalents = async () => {
+      try {
+        const response = await publicFetch("/api/v1/user/talentprofile/");
+        if (!response.ok) throw new Error("Failed to fetch talents");
+
+        const data = await response.json();
+        setFreelancers(data);
+      } catch (error) {
+        console.error("Error fetching talents:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTalents();
+  }, []);
 
   const filteredFreelancers = freelancers.filter((freelancer) =>
     freelancer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -88,6 +111,16 @@ export default function TalentMarketplace() {
     setSelectedTalent(freelancerName);
     setHireModalOpen(true);
   };
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="flex justify-center items-center h-64">
+          <p>Loading talents...</p>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>

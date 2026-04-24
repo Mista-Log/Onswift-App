@@ -109,8 +109,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         full_name: data.full_name,
         email: data.email,
         role: data.role,
-        ...data.profile,
+
+        // 🔥 normalize profile fields
+        professional_title: data.profile?.professional_title,
+        bio: data.profile?.bio,
+        skills: data.profile?.skills,
+        availability: data.profile?.availability,
+
+        // rename fields properly
+        hourlyRate: data.profile?.hourly_rate,
         profilePicture: data.profile?.profile_picture || "",
+
         social_links: data.profile?.social_links ?? {},
       };
 
@@ -222,6 +231,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!response.ok) throw new Error(result?.detail || "Profile update failed");
 
       await getUser();
+
+      // 🔥 force re-render safety
+      setUser((prev) => ({
+        ...prev!,
+      }));
       
       return { success: true };
     } catch (error: any) {

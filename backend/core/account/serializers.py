@@ -180,7 +180,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         # Talent profile
         if user.role == "talent":
             profile, _ = TalentProfile.objects.get_or_create(user=user)
-            for field in ["professional_title", "skills", "primary_skill", "hourly_rate"]:
+            for field in ["professional_title", "skills", "primary_skill", "hourly_rate", "bio"]:
                 if field in validated_data:
                     setattr(profile, field, validated_data[field])
             profile.save()
@@ -297,3 +297,43 @@ class ProfileUpdateBasicSerializer(serializers.ModelSerializer):
                 creator_profile.save()
         
         return instance
+
+
+class TalentProfileListSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source="full_name")
+    role = serializers.CharField(source="talentprofile.professional_title")
+    avatar = serializers.SerializerMethodField()
+    skills = serializers.SerializerMethodField()
+    bio = serializers.SerializerMethodField()
+    portfolioUrl = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "name",
+            "role",
+            "avatar",
+            "skills",
+            "bio",
+            "portfolioUrl",
+        ]
+
+    def get_avatar(self, obj):
+        if obj.profile_picture:
+            return obj.profile_picture.url
+        return f"https://api.dicebear.com/7.x/avataaars/svg?seed={obj.full_name}"
+
+    def get_skills(self, obj):
+        profile = getattr(obj, "talentprofile", None)
+        return profile.skills if profile else []
+
+    def get_bio(self, obj):
+        profile = getattr(obj, "talentprofile", None)
+        return profile.bio if profile else ""
+
+    def get_portfolioUrl(self, obj):
+        profile = getattr(obj, "talentprofile", None)
+        if profile and profile.portfolio_links:
+            return profile.portfolio_links[0]
+        return None
