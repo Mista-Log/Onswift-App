@@ -423,7 +423,7 @@ export default function ProjectDetail() {
                         <SelectItem value="unassigned">Unassigned</SelectItem>
                         {availableAssignees.map((member) => (
                           <SelectItem key={member.id} value={member.id}>
-                            {member.name}
+                            {member.id === user?.id ? "Self" : member.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
