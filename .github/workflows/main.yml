@@ -24,6 +24,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Run Migrations
+        run: |
+          cd backend/core
+          python manage.py migrate
+
       - name: Run Django Tests
         run: |
           cd backend/core
@@ -31,6 +36,7 @@ jobs:
         env:
           SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
           DEBUG: "False"
+          DATABASE_URL: sqlite:///db.sqlite3
 
   # --- Frontend Job ---
   frontend-build-and-deploy:
