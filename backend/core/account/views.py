@@ -10,7 +10,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import UserDetailSerializer
-
+from .serializers import TalentProfileListSerializer
 
 from .models import User, UserSettings
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
@@ -312,3 +312,18 @@ class DeleteAccountView(APIView):
             {'message': 'Account deleted successfully'},
             status=status.HTTP_200_OK
         )
+
+
+
+class TalentProfileListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        talents = (
+            User.objects
+            .filter(role="talent")
+            .select_related("talentprofile")
+        )
+
+        serializer = TalentProfileListSerializer(talents, many=True)
+        return Response(serializer.data)

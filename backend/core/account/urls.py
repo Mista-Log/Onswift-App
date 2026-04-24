@@ -9,7 +9,8 @@ from django.conf.urls.static import static
 
 from .views import (
     PasswordResetRequestView,
-    PasswordResetConfirmView
+    PasswordResetConfirmView,
+    TalentProfileListView,
 )
 
 
@@ -19,6 +20,8 @@ urlpatterns = [
     path("auth/profile/", UpdateProfileView.as_view(), name="update-profile"),
     path("auth/user/", UserDetailView.as_view(), name="user-detail"),
     path("auth/token/refresh/", TokenRefreshView.as_view()),
+    path("user/talentprofile/", TalentProfileListView.as_view(), name="talent-profiles"),
+
 
     # Settings endpoints
     path("settings/", UserSettingsView.as_view(), name="user-settings"),
@@ -30,7 +33,5 @@ urlpatterns = [
     path("password-reset-confirm/", PasswordResetConfirmView.as_view()),
 
 ]
-
-
 
 
