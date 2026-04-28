@@ -46,57 +46,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
 const projectData = {
-  id: "1",
-  name: 'Brand Collab - "Future Funk"',
-  description: "Music video production and promotional materials for upcoming EP release.",
-  teamMembers: [
-    { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-    { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-    { id: "3", name: "Clara Dane", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Clara" },
-  ],
+  id: "",
+  name: "",
+  description: "",
+  teamMembers: [],
 };
 
-const initialTasks = [
-  {
-    id: "1",
-    name: "Create storyboard",
-    description: "Design initial storyboard for the music video",
-    assignee: { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-    status: "completed" as const,
-    deadline: "15 Oct 2023",
-    createdAt: "01 Oct 2023",
-  },
-  {
-    id: "2",
-    name: "Edit first draft",
-    description: "Compile and edit first draft of video footage",
-    assignee: { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-    status: "in-progress" as const,
-    deadline: "20 Oct 2023",
-    createdAt: "05 Oct 2023",
-  },
-  {
-    id: "3",
-    name: "Design cover art",
-    description: "Create album cover artwork variations",
-    assignee: { id: "3", name: "Clara Dane", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Clara" },
-    status: "in-progress" as const,
-    deadline: "18 Oct 2023",
-    createdAt: "08 Oct 2023",
-  },
-  {
-    id: "4",
-    name: "Color grading",
-    description: "Apply color grading to final video",
-    assignee: { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-    status: "planning" as const,
-    deadline: "24 Oct 2023",
-    createdAt: "10 Oct 2023",
-  },
-];
-
 type TaskStatus = "planning" | "in-progress" | "completed";
-type Task = typeof initialTasks[number];
+
+type Task = {
+  id: string;
+  name: string;
+  description: string;
+  assignee: { id: string; name: string; avatar: string };
+  status: TaskStatus;
+  deadline: string;
+  createdAt: string;
+};
+
+const initialTasks: Task[] = [];
 
 interface ProjectSample {
   id: string;

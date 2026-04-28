@@ -53,7 +53,7 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
   return (
     <aside
       className={cn(
-        "flex h-screen flex-col rounded-3xl border border-sidebar-border bg-sidebar py-6 overflow-hidden transition-all duration-300",
+        "flex h-screen flex-col rounded-b-3xl border border-sidebar-border bg-sidebar py-6 overflow-hidden transition-all duration-300",
         !onClose ? "fixed left-0 top-0 z-40" : "relative",
         isCollapsed ? "w-20 items-center" : "w-64 px-4"
       )}

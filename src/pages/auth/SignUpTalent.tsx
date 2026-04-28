@@ -10,11 +10,46 @@ import { useToast } from '@/hooks/use-toast';
 import { FIXED_PROCESSING_MESSAGE, runWithFixedProcessingDelay } from '@/lib/loadingGate';
 
 const SKILL_OPTIONS = [
-  'UI/UX Design', 'Web Development', 'Mobile Development',
-  'Graphic Design', 'Video Editing', 'Content Writing',
-  'Social Media', 'SEO/SEM', 'Project Management',
-  'Brand Strategy', 'Copywriting', '3D Design',
-  'Animation', 'Photography', 'Illustration'
+  // Core Creative
+  'UI/UX Design', 'Graphic Design', 'Illustration',
+  'Photography', 'Video Editing', 'Animation', '3D Design',
+  'Motion Graphics', 'Visual Storytelling',
+
+  // Development & Technical
+  'Web Development', 'Mobile Development', 'No-Code/Low-Code',
+  'Webflow Development', 'Shopify Development',
+  'Automation (Zapier/Make/N8N)', 'AI Prompt Engineering',
+
+  // Content Creation
+  'Content Writing', 'Copywriting', 'Scriptwriting',
+  'Blogging', 'Newsletter Writing', 'Ghostwriting',
+  'Podcast Production', 'YouTube Production',
+  'Short-form Content (Reels/TikTok)',
+
+  // Growth & Marketing
+  'Social Media Management', 'Content Strategy',
+  'SEO', 'SEM/Paid Ads', 'Email Marketing',
+  'Influencer Marketing', 'Community Growth',
+  'Audience Development', 'Growth Hacking',
+
+  // Creator Economy Specific
+  'Personal Branding', 'Creator Management',
+  'Talent Management', 'Brand Partnerships',
+  'Sponsorship Negotiation', 'Affiliate Marketing',
+  'Digital Product Creation', 'Course Creation',
+  'Membership & Community Monetization',
+
+  // Business & Operations
+  'Project Management', 'Product Management',
+  'Operations Management', 'Creator Operations',
+  'Analytics & Insights', 'Data Analysis',
+  'Market Research', 'Business Strategy',
+
+  // E-commerce & Monetization
+  'E-commerce Management', 'Dropshipping',
+  'Merchandising', 'Funnel Building',
+  'Conversion Rate Optimization (CRO)',
+
 ];
 
 export default function SignUpTalent() {

@@ -182,10 +182,10 @@ const HeroSection = () => {
         }}
       />
 
-      <div className="relative z-10 mx-auto mt-50 max-w-4xl px-6 md:mt-56">
+      <div className="relative z-10 mx-auto mt-3 max-w-4xl px-6 md:mt-40">
         <h1
-          className="animate-fade-in-up mb-6 text-5xl font-black leading-[1.05] text-white opacity-0 md:text-7xl lg:text-8xl"
-          style={{ animationDelay: '0.1s' }}
+          className="animate-fade-in-up mb-6 text-5xl font-black leading-[1.05] tracking-[-0.01em] text-white opacity-0 md:text-7xl lg:text-8xl"
+          style={{ animationDelay: '0.1s', wordSpacing: '-0.1em' }}
         >
           Run Your Agency<br />Without Chaos
         </h1>
@@ -264,7 +264,7 @@ const ProblemSection = () => (
 
         {/* Content */}
         <div className="flex-1">
-          <h2 className="mb-4 text-3xl font-black leading-tight md:text-4xl lg:text-5xl" style={{ color: TEAL }}>
+          <h2 className="mb-4 text-1xl font-bold leading-tight md:text-4xl lg:text-5xl" style={{ color: TEAL }}>
             You Didn&apos;t Start an Agency to Become a Project Manager.
           </h2>
           <p className="mb-8 text-base text-white/55 md:text-lg">
@@ -295,7 +295,7 @@ const ProblemSection = () => (
 const BridgeStatement = () => (
   <section className="reveal py-20 lg:py-28" data-reveal style={{ background: 'hsl(268 48% 4%)' }}>
     <div className="mx-auto max-w-4xl px-6 text-center">
-      <p className="text-2xl font-black leading-snug text-white md:text-3xl lg:text-4xl">
+      <p className="text-2xl leading-snug text-white md:text-3xl lg:text-4xl">
         But that is over now. OnSwift brings hiring, operations, and Client Delivery into one simple AI-led system.
       </p>
     </div>
@@ -342,7 +342,7 @@ const FeaturesSection = () => {
       <div className="mx-auto max-w-7xl px-6 lg:px-10">
         <div className="mb-12 text-center">
           <SectionBadge>Features</SectionBadge>
-          <h2 className="mt-5 text-3xl font-black md:text-4xl lg:text-5xl" style={{ color: TEAL }}>
+          <h2 className="mt-5 text-3xl font-bold md:text-4xl lg:text-5xl" style={{ color: TEAL }}>
             Everything Your Agency Needs, <br />In One Place.
           </h2>
         </div>
@@ -421,7 +421,7 @@ const HowItWorksSection = () => {
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
         <div className="mb-14 text-center">
           <SectionBadge>How it Works</SectionBadge>
-          <h2 className="mt-5 text-3xl font-black md:text-4xl lg:text-5xl" style={{ color: TEAL }}>
+          <h2 className="mt-5 text-3xl font-bold md:text-4xl lg:text-5xl" style={{ color: TEAL }}>
             All-in-One Operating <br />System for Agencies.
           </h2>
         </div>
@@ -498,7 +498,7 @@ const CreatorToolsSection = () => {
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
         <div className="mb-12 text-center">
           <SectionBadge>Social &amp; Creator Tools</SectionBadge>
-          <h2 className="mt-5 text-3xl font-black text-white md:text-4xl lg:text-5xl">
+          <h2 className="mt-5 text-3xl font-bold text-white md:text-4xl lg:text-5xl">
             Built for Agencies &amp; Creators<br />Who Are Scaling into Agencies
           </h2>
           <p className="mt-4 text-base text-white/55">
@@ -560,7 +560,7 @@ const TestimonialsSection = () => {
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
         <div className="mb-12 text-center">
           <SectionBadge>Testimonials</SectionBadge>
-          <h2 className="mt-5 text-3xl font-black md:text-4xl lg:text-5xl" style={{ color: TEAL }}>
+          <h2 className="mt-5 text-3xl font-bold md:text-4xl lg:text-5xl" style={{ color: TEAL }}>
             What Founders Who Uses <br />Onswift Says Says
           </h2>
         </div>
@@ -615,7 +615,7 @@ const FAQSection = () => {
           {/* Left: title */}
           <div className="lg:w-80 lg:shrink-0">
             <SectionBadge>FAQ</SectionBadge>
-            <h2 className="mt-5 text-3xl font-black leading-tight md:text-4xl" style={{ color: TEAL }}>
+            <h2 className="mt-5 text-3xl font-bold leading-tight md:text-4xl" style={{ color: TEAL }}>
               Everything You Want to Know
             </h2>
             <p className="mt-4 text-base text-white/50">Still unsure? We&apos;ve got you.</p>
@@ -670,7 +670,7 @@ const FinalCTA = () => {
             background: 'linear-gradient(140deg, #0b0f1e 0%, #2a144f 45%, #6e2ccf 85%, #8a4ae8 100%)',
           }}
         >
-          <h2 className="mb-5 text-3xl font-black leading-tight text-white md:text-5xl lg:text-6xl">
+          <h2 className="mb-5 text-3xl font-bold leading-tight text-white md:text-5xl lg:text-6xl">
             Run Your Agency<br />Without Chaos
           </h2>
           <p className="mx-auto mb-8 max-w-xl text-base leading-relaxed text-white/70">

@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
-import { ChevronLeft, ChevronRight, Clock, AlertCircle, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Clock, AlertCircle, Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   format,
@@ -25,6 +25,8 @@ import {
   differenceInSeconds,
 } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { useProjects, type Task as ProjectTask } from "@/contexts/ProjectContext";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -46,55 +48,6 @@ interface Task {
     avatar: string;
   };
 }
-
-// Mock tasks data
-const mockTasks: Task[] = [
-  {
-    id: "1",
-    name: "Design mockups",
-    projectId: "1",
-    projectName: "Brand Collaboration",
-    dueDate: new Date(2024, 11, 15),
-    status: "in-progress",
-    assignedTo: { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-  },
-  {
-    id: "2",
-    name: "Final video edit",
-    projectId: "2",
-    projectName: "Content Series",
-    dueDate: new Date(2024, 11, 18),
-    status: "todo",
-    assignedTo: { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-  },
-  {
-    id: "3",
-    name: "Logo concepts",
-    projectId: "1",
-    projectName: "Brand Collaboration",
-    dueDate: new Date(2024, 11, 10),
-    status: "done",
-    assignedTo: { id: "3", name: "Clara Dane", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Clara" },
-  },
-  {
-    id: "6",
-    name: "Promo video",
-    projectId: "3",
-    projectName: "Product Launch",
-    dueDate: addDays(new Date(), 1),
-    status: "in-progress",
-    assignedTo: { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-  },
-  {
-    id: "7",
-    name: "URGENT: Brand Guidelines",
-    projectId: "1",
-    projectName: "Brand Collaboration",
-    dueDate: addDays(new Date(), 0),
-    status: "in-progress",
-    assignedTo: { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-  },
-];
 
 type TaskStatus = "completed" | "overdue" | "urgent" | "due";
 
@@ -208,11 +161,95 @@ function CountdownTimer({ targetDate }: { targetDate: Date }) {
   );
 }
 
+type ExpandedBranches = {
+  [key: string]: boolean;
+};
+
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showGoogleSync, setShowGoogleSync] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [expandedBranches, setExpandedBranches] = useState<ExpandedBranches>({
+    urgent: true,
+    due: true,
+    completed: true,
+  });
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
   const navigate = useNavigate();
+  const { projects, fetchProjects, fetchProjectTasks } = useProjects();
+  const { user } = useAuth();
+
+  // Fetch all tasks from all projects - interval-based (30 seconds)
+  useEffect(() => {
+    const loadAllTasks = async () => {
+      try {
+        await fetchProjects();
+      } catch (error) {
+        console.error("Error fetching projects:", error);
+      }
+    };
+
+    // Initial fetch
+    loadAllTasks();
+
+    // Set up interval-based polling (30 seconds instead of continuous)
+    const intervalId = setInterval(loadAllTasks, 30000);
+
+    // Cleanup interval on unmount
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Fetch tasks for each project when projects change
+  useEffect(() => {
+    const loadProjectTasks = async () => {
+      setIsLoading(true);
+      try {
+        const allTasks: Task[] = [];
+        
+        for (const project of projects) {
+          try {
+            const projectTasks = await fetchProjectTasks(project.id);
+            
+            // Transform ProjectTask to Calendar Task
+            const transformedTasks = projectTasks
+              .filter(task => task.deadline) // Only include tasks with deadlines
+              .map((task): Task => ({
+                id: task.id,
+                name: task.name,
+                projectId: project.id,
+                projectName: project.name,
+                dueDate: new Date(task.deadline!),
+                status: task.status === "completed" ? "done" : task.status === "in-progress" ? "in-progress" : "todo",
+                assignedTo: {
+                  id: task.assignee || "unknown",
+                  name: task.assignee_name || "Unassigned",
+                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${task.assignee_name || "default"}`,
+                },
+              }));
+            
+            allTasks.push(...transformedTasks);
+          } catch (error) {
+            console.error(`Error fetching tasks for project ${project.id}:`, error);
+          }
+        }
+        
+        setTasks(allTasks);
+      } catch (error) {
+        console.error("Error loading project tasks:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (projects.length > 0) {
+      loadProjectTasks();
+    } else {
+      setIsLoading(false);
+    }
+  }, [projects, fetchProjectTasks]);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -221,11 +258,60 @@ export default function Calendar() {
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
   const getTasksForDate = (date: Date): Task[] => {
-    return mockTasks.filter((task) => isSameDay(task.dueDate, date));
+    return tasks.filter((task) => isSameDay(task.dueDate, date));
+  };
+
+  // Group tasks by status, then by project - memoized to prevent unnecessary recalculation
+  const groupedTasks = useMemo(() => {
+    const grouped: Record<string, Record<string, Task[]>> = {
+      urgent: {},
+      due: {},
+      completed: {},
+    };
+
+    tasks.forEach((task) => {
+      const status = getTaskStatus(task);
+      const statusKey =
+        status === "urgent" || status === "overdue"
+          ? "urgent"
+          : status === "due"
+          ? "due"
+          : "completed";
+
+      if (!grouped[statusKey][task.projectName]) {
+        grouped[statusKey][task.projectName] = [];
+      }
+      grouped[statusKey][task.projectName].push(task);
+    });
+
+    // Sort projects within each status and sort tasks within each project
+    Object.keys(grouped).forEach((statusKey) => {
+      Object.keys(grouped[statusKey]).forEach((projectName) => {
+        grouped[statusKey][projectName].sort(
+          (a, b) => a.dueDate.getTime() - b.dueDate.getTime()
+        );
+      });
+    });
+
+    return grouped;
+  }, [tasks]);
+
+  const toggleBranch = (branchKey: string) => {
+    setExpandedBranches((prev) => ({
+      ...prev,
+      [branchKey]: !prev[branchKey],
+    }));
+  };
+
+  const toggleProjectBranch = (projectKey: string) => {
+    setExpandedBranches((prev) => ({
+      ...prev,
+      [projectKey]: !prev[projectKey],
+    }));
   };
 
   // Get next deadline
-  const nextDeadline = mockTasks
+  const nextDeadline = tasks
     .filter(task => task.status !== "done" && task.dueDate >= new Date())
     .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
 
@@ -242,6 +328,86 @@ export default function Calendar() {
 
   const selectedDateTasks = selectedDate ? getTasksForDate(selectedDate) : [];
 
+  // Tree Node Component
+  const TreeNode = ({
+    label,
+    branchKey,
+    isExpanded,
+    onToggle,
+    children,
+    icon,
+    count,
+  }: {
+    label: string;
+    branchKey: string;
+    isExpanded: boolean;
+    onToggle: () => void;
+    children: React.ReactNode;
+    icon?: React.ReactNode;
+    count?: number;
+  }) => (
+    <div className="mb-4">
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center gap-3 rounded-lg p-3 hover:bg-secondary/50 transition-colors"
+      >
+        {isExpanded ? (
+          <ChevronDown className="h-5 w-5 text-primary flex-shrink-0" />
+        ) : (
+          <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+        )}
+        {icon}
+        <span className="font-semibold text-foreground flex-1 text-left">{label}</span>
+        {count !== undefined && (
+          <span className="text-xs px-2 py-1 bg-primary/20 text-primary rounded-full font-medium">
+            {count}
+          </span>
+        )}
+      </button>
+      {isExpanded && <div className="ml-4 space-y-2">{children}</div>}
+    </div>
+  );
+
+  // Task Item Component
+  const TaskItem = ({ task }: { task: Task }) => {
+    const status = getTaskStatus(task);
+    const daysLeft = differenceInDays(task.dueDate, new Date());
+    return (
+      <div
+        onClick={() => navigate(`/projects/${task.projectId}`)}
+        className={cn(
+          "p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-lg hover:scale-102 group",
+          status === "urgent" || status === "overdue"
+            ? "border-destructive bg-destructive/10"
+            : "border-border/50 bg-secondary/30"
+        )}
+      >
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+              {task.name}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {daysLeft === 0
+                ? "Due today!"
+                : daysLeft === 1
+                ? "Due tomorrow"
+                : daysLeft < 0
+                ? `${Math.abs(daysLeft)} days overdue`
+                : `Due in ${daysLeft} days`}
+            </p>
+          </div>
+          <Avatar className="h-6 w-6 flex-shrink-0">
+            <AvatarImage src={task.assignedTo.avatar} />
+            <AvatarFallback className="text-[10px]">
+              {task.assignedTo.name.charAt(0)}
+            </AvatarFallback>
+          </Avatar>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <MainLayout>
       <div className="animate-fade-in space-y-6 sm:space-y-8">
@@ -256,188 +422,272 @@ export default function Calendar() {
             </p>
           </div>
 
-          {/* Legend */}
-          <div className="hidden items-center gap-6 md:flex">
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-warning shadow-glow" />
-              <span className="text-sm text-muted-foreground">Due Date</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-success shadow-glow" />
-              <span className="text-sm text-muted-foreground">Completed</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-destructive animate-pulse shadow-glow" />
-              <span className="text-sm text-muted-foreground">Urgent/Overdue</span>
-            </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={showCalendar ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowCalendar(!showCalendar)}
+              className="font-semibold gap-2"
+            >
+              <CalendarIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                {showCalendar ? "Hide" : "Show"} Calendar
+              </span>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowGoogleSync(true)} 
+              className="font-semibold gap-2"
+            >
+              <CalendarIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">Google Sync</span>
+            </Button>
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
-          {/* Calendar */}
-          <div className="glass-card p-6">
-            {/* Calendar Header */}
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-foreground">
-                {format(currentDate, "MMMM yyyy")}
-              </h2>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setShowGoogleSync(true)} 
-                  className="font-semibold gap-2"
-                >
-                  <CalendarIcon className="h-4 w-4" />
-                  <span className="hidden sm:inline">Google Sync</span>
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleToday} className="font-semibold">
-                  Today
-                </Button>
-                <Button variant="outline" size="icon" onClick={handlePrevMonth}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="icon" onClick={handleNextMonth}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+        {/* Main Content Grid */}
+        <div className="grid gap-6 lg:grid-cols-[1fr_350px]">
+          {/* Left: Tree View */}
+          <div className="space-y-6">
+            {/* Next Deadline Countdown */}
+            {nextDeadline && <CountdownTimer targetDate={nextDeadline.dueDate} />}
 
-            {/* Weekday Headers */}
-            <div className="grid grid-cols-7 gap-2 mb-2">
-              {WEEKDAYS.map((day) => (
-                <div
-                  key={day}
-                  className="py-3 text-center text-sm font-bold text-primary uppercase tracking-wider"
-                >
-                  {day}
-                </div>
-              ))}
-            </div>
+            {/* Task Tree */}
+            <div className="glass-card p-6 rounded-lg border border-border/50">
+              <h2 className="text-2xl font-bold text-foreground mb-6">Tasks by Priority</h2>
 
-            {/* Calendar Grid */}
-            <div className="grid grid-cols-7 gap-2">
-              {calendarDays.map((day) => {
-                const tasksForDay = getTasksForDate(day);
-                const isCurrentMonth = isSameMonth(day, currentDate);
-                const isCurrentDay = isToday(day);
-                const hasEvents = tasksForDay.length > 0;
-
-                // Check if any urgent tasks
-                const hasUrgent = tasksForDay.some(task => getTaskStatus(task) === "urgent" || getTaskStatus(task) === "overdue");
-
-                // Group tasks by status
-                const statusCounts = tasksForDay.reduce((acc, task) => {
-                  const status = getTaskStatus(task);
-                  acc[status] = (acc[status] || 0) + 1;
-                  return acc;
-                }, {} as Record<TaskStatus, number>);
-
-                return (
-                  <div
-                    key={day.toISOString()}
-                    onClick={() => handleDateClick(day)}
-                    className={cn(
-                      "group relative flex min-h-[100px] flex-col rounded-xl border-2 p-3 transition-all duration-300",
-                      isCurrentMonth
-                        ? "bg-secondary/50 hover:bg-secondary/70 border-border/50"
-                        : "bg-secondary/10 text-muted-foreground/50 border-transparent",
-                      isCurrentDay && "border-primary ring-2 ring-primary/30 shadow-glow",
-                      hasUrgent && "animate-pulse-border border-destructive",
-                      hasEvents && "cursor-pointer hover:shadow-xl hover:scale-105"
-                    )}
-                  >
-                    {/* Date Number */}
-                    <span
-                      className={cn(
-                        "mb-2 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition-all",
-                        isCurrentDay && "bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-glow scale-110",
-                        !isCurrentDay && isCurrentMonth && "group-hover:bg-primary/20"
+              {/* Urgent Section */}
+              <TreeNode
+                label="Urgent / Overdue"
+                branchKey="urgent"
+                isExpanded={expandedBranches.urgent}
+                onToggle={() => toggleBranch("urgent")}
+                count={
+                  Object.values(groupedTasks.urgent).reduce(
+                    (sum, tasks) => sum + tasks.length,
+                    0
+                  ) || 0
+                }
+                icon={
+                  <div className="h-3 w-3 rounded-full bg-destructive shadow-glow" />
+                }
+              >
+                {Object.entries(groupedTasks.urgent).map(
+                  ([projectName, tasks]) => (
+                    <div key={projectName} className="mb-3">
+                      <button
+                        onClick={() =>
+                          toggleProjectBranch(`urgent-${projectName}`)
+                        }
+                        className="flex w-full items-center gap-2 p-2 hover:bg-secondary/30 rounded transition-colors"
+                      >
+                        {expandedBranches[`urgent-${projectName}`] !== false ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <span className="font-medium text-sm text-foreground">
+                          {projectName}
+                        </span>
+                        <span className="text-xs px-1.5 py-0.5 bg-destructive/20 text-destructive rounded font-medium ml-auto">
+                          {tasks.length}
+                        </span>
+                      </button>
+                      {expandedBranches[`urgent-${projectName}`] !== false && (
+                        <div className="ml-4 space-y-2 mt-2">
+                          {tasks.map((task) => (
+                            <TaskItem key={task.id} task={task} />
+                          ))}
+                        </div>
                       )}
-                    >
-                      {format(day, "d")}
-                    </span>
+                    </div>
+                  )
+                )}
+              </TreeNode>
 
-                    {/* Task Indicators */}
-                    {hasEvents && (
-                      <div className="mt-auto flex flex-wrap gap-1">
-                        {Object.entries(statusCounts).map(([status, count]) => (
-                          <div
-                            key={status}
-                            className={cn(
-                              "flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white shadow-lg",
-                              getStatusColor(status as TaskStatus)
-                            )}
-                          >
-                            {count > 1 ? count : "•"}
-                          </div>
+              {/* Due Soon Section */}
+              <TreeNode
+                label="Due Soon"
+                branchKey="due"
+                isExpanded={expandedBranches.due}
+                onToggle={() => toggleBranch("due")}
+                count={
+                  Object.values(groupedTasks.due).reduce(
+                    (sum, tasks) => sum + tasks.length,
+                    0
+                  ) || 0
+                }
+                icon={
+                  <div className="h-3 w-3 rounded-full bg-warning shadow-glow" />
+                }
+              >
+                {Object.entries(groupedTasks.due).map(([projectName, tasks]) => (
+                  <div key={projectName} className="mb-3">
+                    <button
+                      onClick={() =>
+                        toggleProjectBranch(`due-${projectName}`)
+                      }
+                      className="flex w-full items-center gap-2 p-2 hover:bg-secondary/30 rounded transition-colors"
+                    >
+                      {expandedBranches[`due-${projectName}`] !== false ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className="font-medium text-sm text-foreground">
+                        {projectName}
+                      </span>
+                      <span className="text-xs px-1.5 py-0.5 bg-warning/20 text-warning rounded font-medium ml-auto">
+                        {tasks.length}
+                      </span>
+                    </button>
+                    {expandedBranches[`due-${projectName}`] !== false && (
+                      <div className="ml-4 space-y-2 mt-2">
+                        {tasks.map((task) => (
+                          <TaskItem key={task.id} task={task} />
                         ))}
                       </div>
                     )}
                   </div>
-                );
-              })}
+                ))}
+              </TreeNode>
+
+              {/* Completed Section */}
+              <TreeNode
+                label="Completed"
+                branchKey="completed"
+                isExpanded={expandedBranches.completed}
+                onToggle={() => toggleBranch("completed")}
+                count={
+                  Object.values(groupedTasks.completed).reduce(
+                    (sum, tasks) => sum + tasks.length,
+                    0
+                  ) || 0
+                }
+                icon={
+                  <div className="h-3 w-3 rounded-full bg-success shadow-glow" />
+                }
+              >
+                {Object.entries(groupedTasks.completed).map(
+                  ([projectName, tasks]) => (
+                    <div key={projectName} className="mb-3">
+                      <button
+                        onClick={() =>
+                          toggleProjectBranch(`completed-${projectName}`)
+                        }
+                        className="flex w-full items-center gap-2 p-2 hover:bg-secondary/30 rounded transition-colors"
+                      >
+                        {expandedBranches[`completed-${projectName}`] !== false ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <span className="font-medium text-sm text-foreground">
+                          {projectName}
+                        </span>
+                        <span className="text-xs px-1.5 py-0.5 bg-success/20 text-success rounded font-medium ml-auto">
+                          {tasks.length}
+                        </span>
+                      </button>
+                      {expandedBranches[`completed-${projectName}`] !== false && (
+                        <div className="ml-4 space-y-2 mt-2">
+                          {tasks.map((task) => (
+                            <TaskItem key={task.id} task={task} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                )}
+              </TreeNode>
             </div>
           </div>
 
-          {/* Countdown Timer Sidebar */}
-          <div className="space-y-6">
-            {nextDeadline && <CountdownTimer targetDate={nextDeadline.dueDate} />}
+          {/* Right: Optional Calendar Panel */}
+          {showCalendar && (
+            <div className="space-y-6 h-fit sticky top-6">
+              {/* Calendar */}
+              <div className="glass-card p-4 rounded-lg border border-border/50">
+                {/* Calendar Header */}
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="font-bold text-foreground">
+                    {format(currentDate, "MMM yyyy")}
+                  </h3>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={handlePrevMonth}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={handleNextMonth}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
 
-            {/* Upcoming Deadlines */}
-            <div className="glass-card p-6">
-              <h3 className="font-semibold text-foreground mb-4">Upcoming Deadlines</h3>
-              <div className="space-y-3">
-                {mockTasks
-                  .filter(task => task.status !== "done")
-                  .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
-                  .slice(0, 5)
-                  .map((task) => {
-                    const status = getTaskStatus(task);
-                    const daysLeft = differenceInDays(task.dueDate, new Date());
+                {/* Weekday Headers */}
+                <div className="grid grid-cols-7 gap-1 mb-2">
+                  {WEEKDAYS.map((day) => (
+                    <div
+                      key={day}
+                      className="text-center text-xs font-bold text-primary uppercase"
+                    >
+                      {day.charAt(0)}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Calendar Grid */}
+                <div className="grid grid-cols-7 gap-1">
+                  {calendarDays.map((day) => {
+                    const tasksForDay = getTasksForDate(day);
+                    const isCurrentMonth = isSameMonth(day, currentDate);
+                    const isCurrentDay = isToday(day);
+                    const hasEvents = tasksForDay.length > 0;
+                    const hasUrgent = tasksForDay.some(
+                      (task) =>
+                        getTaskStatus(task) === "urgent" ||
+                        getTaskStatus(task) === "overdue"
+                    );
+
                     return (
-                      <div
-                        key={task.id}
+                      <button
+                        key={day.toISOString()}
+                        onClick={() => handleDateClick(day)}
                         className={cn(
-                          "p-3 rounded-lg border-2 cursor-pointer transition-all hover:scale-105",
-                          status === "urgent" || status === "overdue"
-                            ? "border-destructive bg-destructive/10 animate-pulse-border"
-                            : "border-border/50 bg-secondary/30"
+                          "relative aspect-square rounded-md flex items-center justify-center text-xs font-semibold transition-all border",
+                          isCurrentMonth
+                            ? "bg-secondary/50 border-border/50 hover:bg-secondary/70"
+                            : "bg-secondary/10 text-muted-foreground/50 border-transparent",
+                          isCurrentDay &&
+                            "border-primary ring-2 ring-primary/30 shadow-glow",
+                          hasUrgent && "animate-pulse-border border-destructive",
+                          hasEvents && "hover:shadow-lg"
                         )}
-                        onClick={() => navigate(`/projects/${task.projectId}/tasks/${task.id}`)}
                       >
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className={cn(
-                            "h-2 w-2 rounded-full",
-                            getStatusColor(status)
-                          )} />
-                          <p className="text-xs font-medium text-muted-foreground">
-                            {task.projectName}
-                          </p>
-                        </div>
-                        <p className="text-sm font-semibold text-foreground mb-2">
-                          {task.name}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span className={cn(
-                            "text-xs font-bold",
-                            daysLeft <= 1 ? "text-destructive" : "text-muted-foreground"
-                          )}>
-                            {daysLeft === 0 ? "Today!" : daysLeft === 1 ? "Tomorrow" : `${daysLeft} days`}
-                          </span>
-                          <Avatar className="h-5 w-5">
-                            <AvatarImage src={task.assignedTo.avatar} />
-                            <AvatarFallback className="text-[10px]">
-                              {task.assignedTo.name.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                        </div>
-                      </div>
+                        <span
+                          className={cn(
+                            isCurrentDay && "text-primary font-bold"
+                          )}
+                        >
+                          {format(day, "d")}
+                        </span>
+                      </button>
                     );
                   })}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Date Details Dialog */}
@@ -461,7 +711,7 @@ export default function Calendar() {
                         ? "border-destructive animate-pulse-border"
                         : "border-border/50"
                     )}
-                    onClick={() => navigate(`/projects/${task.projectId}/tasks/${task.id}`)}
+                    onClick={() => navigate(`/projects/${task.projectId}`)}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
