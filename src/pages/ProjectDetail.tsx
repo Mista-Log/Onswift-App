@@ -16,6 +16,7 @@ import {
   Trash2,
   Edit,
   Loader2,
+  ArrowUpDown,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -72,6 +73,7 @@ export default function ProjectDetail() {
     status: "planning" as "planning" | "in-progress" | "completed",
     deadline: "",
   });
+  const [sortMethod, setSortMethod] = useState<"deadline-asc" | "deadline-desc" | "alphabetical-asc" | "alphabetical-desc">("deadline-asc");
 
   const project = projects.find((p) => p.id === id);
   const isCreator = user?.role === "creator";
@@ -88,6 +90,31 @@ export default function ProjectDetail() {
       setTasks(data);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const sortTasks = (tasksToSort: Task[]): Task[] => {
+    const sortedTasks = [...tasksToSort];
+
+    switch (sortMethod) {
+      case "deadline-asc":
+        return sortedTasks.sort((a, b) => {
+          if (!a.deadline) return 1;
+          if (!b.deadline) return -1;
+          return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+        });
+      case "deadline-desc":
+        return sortedTasks.sort((a, b) => {
+          if (!a.deadline) return 1;
+          if (!b.deadline) return -1;
+          return new Date(b.deadline).getTime() - new Date(a.deadline).getTime();
+        });
+      case "alphabetical-asc":
+        return sortedTasks.sort((a, b) => a.name.localeCompare(b.name));
+      case "alphabetical-desc":
+        return sortedTasks.sort((a, b) => b.name.localeCompare(a.name));
+      default:
+        return sortedTasks;
     }
   };
 
@@ -201,9 +228,9 @@ export default function ProjectDetail() {
 
   const progress = project.task_count === 0 ? 0 : (project.completed_tasks / project.task_count) * 100;
 
-  const planningTasks = tasks.filter((t) => t.status === "planning");
-  const inProgressTasks = tasks.filter((t) => t.status === "in-progress");
-  const completedTasks = tasks.filter((t) => t.status === "completed");
+  const planningTasks = sortTasks(tasks.filter((t) => t.status === "planning"));
+  const inProgressTasks = sortTasks(tasks.filter((t) => t.status === "in-progress"));
+  const completedTasks = sortTasks(tasks.filter((t) => t.status === "completed"));
 
   // Available team members for assignment (if creator)
   const availableAssignees = isCreator ? [
@@ -359,8 +386,24 @@ export default function ProjectDetail() {
         </div>
 
         {/* Tasks Section */}
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">Tasks</h2>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold">Tasks</h2>
+            <Select value={sortMethod} onValueChange={(value: any) => setSortMethod(value)}>
+              <SelectTrigger className="w-48">
+                <div className="flex items-center gap-2">
+                  <ArrowUpDown className="h-4 w-4" />
+                  <SelectValue />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="deadline-asc">Filter (Soonest)</SelectItem>
+                <SelectItem value="deadline-desc">Due Date (Latest)</SelectItem>
+                <SelectItem value="alphabetical-asc">Name (A-Z)</SelectItem>
+                <SelectItem value="alphabetical-desc">Name (Z-A)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {isCreator && (
             <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
               <DialogTrigger asChild>
@@ -581,9 +624,15 @@ interface TaskCardProps {
   onDelete: () => void;
 }
 
+const STATUS_COLORS: Record<string, string> = {
+  planning: "!bg-orange-100 border-orange-400",
+  "in-progress": "!bg-yellow-100 border-yellow-400",
+  completed: "!bg-green-100 border-green-400",
+};
+
 function TaskCard({ task, isCreator, onStatusChange, onDelete }: TaskCardProps) {
   return (
-    <div className="glass-card p-4 rounded-lg border border-border/50 space-y-3">
+    <div className={`glass-card p-4 rounded-lg border space-y-3 ${STATUS_COLORS[task.status] || "border-border/50"}`}>
       <div className="flex items-start justify-between gap-2">
         <h4 className="font-medium text-sm flex-1">{task.name}</h4>
         {isCreator && (
@@ -621,20 +670,10 @@ function TaskCard({ task, isCreator, onStatusChange, onDelete }: TaskCardProps) 
       )}
 
       <div className="flex items-center justify-between text-xs">
-        {task.assignee_name ? (
-          <span className="text-muted-foreground">
-            Assigned to {task.assignee_name}
-          </span>
-        ) : (
-          <span className="text-muted-foreground/50">Unassigned</span>
-        )}
-
-        {task.deadline && (
-          <div className="flex items-center gap-1 text-muted-foreground">
-            {/* <Calendar className="h-3 w-3" /> */}
-            {task.deadline}
-          </div>
-        )}
+        <span className={task.assignee_name ? "text-muted-foreground" : "text-muted-foreground/50"}>
+          {task.assignee_name ? `Assigned to ${task.assignee_name}` : "Unassigned"}
+        </span>
+        {task.deadline && <span className="text-muted-foreground">{task.deadline}</span>}
       </div>
     </div>
   );

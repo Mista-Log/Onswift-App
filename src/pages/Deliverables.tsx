@@ -68,7 +68,7 @@ function Deliverables() {
       }
     } catch (error) {
       console.error("Error fetching deliverables:", error);
-      toast.error("Failed to load deliverables");
+      toast.error("Hmm, I'm having trouble uploading your deliverable. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -101,11 +101,11 @@ function Deliverables() {
         fetchDeliverables();
       } else {
         const error = await response.json();
-        toast.error(error.detail || "Failed to upload deliverable");
+        toast.error(error.detail || "Hmm, I'm having trouble uploading your deliverable. Please try again.");
       }
     } catch (error) {
       console.error("Error uploading deliverable:", error);
-      toast.error("Failed to upload deliverable");
+      toast.error("Hmm, I'm having trouble uploading your deliverable. Please try again.");
     }
   };
 
@@ -121,11 +121,11 @@ function Deliverables() {
         setSelectedDeliverable(null);
         fetchDeliverables();
       } else {
-        toast.error("Failed to review deliverable");
+        toast.error("Hmm, I'm having trouble uploading your deliverable. Please try again.");
       }
     } catch (error) {
       console.error("Error reviewing deliverable:", error);
-      toast.error("Failed to review deliverable");
+      toast.error("Hmm, I'm having trouble uploading your deliverable. Please try again.");
     }
   };
 
