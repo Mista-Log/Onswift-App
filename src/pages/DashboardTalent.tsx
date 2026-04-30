@@ -120,7 +120,6 @@ export default function DashboardTalent() {
     (user.bio ? 15 : 0) +
     (user.skills?.length ? 15 : 0) +
     (user.portfolioLink ? 15 : 0) +
-    (user.avatarUrl ? 10 : 0) +
     (user.hourlyRate ? 10 : 0) +
     (user.availability ? 10 : 0)
     : 0;
@@ -270,7 +269,7 @@ export default function DashboardTalent() {
             <ProfileStrengthCard
               percentage={profileCompletion}
               tips={[
-                { text: "Add profile photo", completed: !!user?.avatarUrl },
+                // { text: "Add profile photo", completed: !!user?.avatarUrl },
                 { text: "Upload portfolio samples", completed: !!user?.portfolioLink },
                 { text: "Get 3+ client reviews", completed: false },
                 { text: "Complete your bio", completed: !!user?.bio },
