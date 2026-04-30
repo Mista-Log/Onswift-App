@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate, Navigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, Navigate, useSearchParams, useLocation } from 'react-router-dom';
 import { User, Mail, Briefcase, Lock, Eye, EyeOff, Loader2, X, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,13 +54,15 @@ const SKILL_OPTIONS = [
 
 export default function SignUpTalent() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signup, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
+  const locationState = location.state as { prefilledEmail?: string; prefilledName?: string } | undefined;
 
   const [formData, setFormData] = useState({
-    full_name: '',
-    email: '',
+    full_name: locationState?.prefilledName || '',
+    email: locationState?.prefilledEmail || '',
     professional_title: '',
     skills: [] as string[],
     primary_skill: '',
@@ -240,7 +242,7 @@ export default function SignUpTalent() {
           <div className="text-center mb-8">
             <Link to="/" className="inline-flex flex-col items-center gap-3 mb-6">
               <img
-                src="/onswift%20logo.png"
+                src="/onswift-purple-logo.png"
                 alt="OnSwift logo"
                 className="h-14 w-14 object-contain"
               />
@@ -302,7 +304,12 @@ export default function SignUpTalent() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">Email Address</label>
+              <label className="text-sm font-medium text-foreground mb-2 block">
+                Email Address
+                {locationState?.prefilledEmail && (
+                  <span className="text-xs text-muted-foreground ml-2">(from survey)</span>
+                )}
+              </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
@@ -416,9 +423,9 @@ export default function SignUpTalent() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">
+              {/* <label className="text-sm font-medium text-foreground mb-2 block">
                 Additional Skills <span className="text-muted-foreground">(Select up to 5)</span>
-              </label>
+              </label> */}
 
               {/* Selected Skills */}
               {formData.skills.length > 0 && (
@@ -435,7 +442,7 @@ export default function SignUpTalent() {
               )}
 
               {/* Skill Selector Dropdown */}
-              <div className="relative">
+              {/* <div className="relative">
                 <select
                   className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-foreground hover:border-primary/50 transition-colors"
                   onChange={(e) => {
@@ -455,7 +462,7 @@ export default function SignUpTalent() {
                     </option>
                   ))}
                 </select>
-              </div>
+              </div> */}
               {errors.skills && <p className="text-destructive text-sm mt-1">{errors.skills}</p>}
             </div>
 

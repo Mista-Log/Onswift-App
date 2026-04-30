@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { publicFetch, secureFetch } from '@/api/apiClient'; // Import both
+import posthog from 'posthog-js';
 
 export type UserRole = 'creator' | 'talent' | 'client';
 
@@ -125,6 +126,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(fetchedUser);
       localStorage.setItem("onswift_user", JSON.stringify(fetchedUser));
+      
+      // Identify user in PostHog when fetching user data
+      posthog.identify(fetchedUser.id, {
+        email: fetchedUser.email,
+        full_name: fetchedUser.full_name,
+        role: fetchedUser.role,
+      });
     } catch (error) {
       console.error("Error fetching user:", error);
     }
@@ -146,8 +154,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("onswift_user", JSON.stringify(data.user));
 
       await getUser();
-      return { success: true };
-
+      
+      // Identify user in PostHog
+      if (data.user) {
+        posthog.identify(data.user.id, {
+          email: data.user.email,
+          full_name: data.user.full_name,
+          role: data.user.role,
+          login_method: 'email',
+        });
+      }
       
       return { success: true };
     } catch (error: any) {
@@ -177,8 +193,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("onswift_user", JSON.stringify(data.user));
 
       await getUser();
-      return { success: true };
-
+      
+      // Identify user in PostHog and track signup
+      if (data.user) {
+        posthog.identify(data.user.id, {
+          email: data.user.email,
+          full_name: data.user.full_name,
+          role: data.user.role,
+          signup_method: 'email',
+        });
+        posthog.capture('user_signup', {
+          role: formData.role,
+          email: data.user.email,
+        });
+      }
       
       return { success: true };
     } catch (error: any) {
@@ -188,6 +216,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // LOGOUT
   const logout = () => {
+    // Track logout in PostHog
+    posthog.capture('user_logout');
+    posthog.reset();
+    
     setUser(null);
     localStorage.removeItem("onswift_user");
     localStorage.removeItem("onswift_access");

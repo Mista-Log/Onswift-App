@@ -51,6 +51,9 @@ import PortalMessages from "./pages/portal/PortalMessages";
 // Library (creator)
 import DocumentLibrary from "./pages/library/DocumentLibrary";
 
+// Analytics
+import { PageTracker } from "./components/analytics/PageTracker";
+
 
 const queryClient = new QueryClient();
 
@@ -66,7 +69,8 @@ const App = () => (
                 <Sonner />
                 <Analytics />
                 <BrowserRouter>
-            <Routes>
+                  <PageTracker />
+                  <Routes>
               {/* Public routes */}
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />

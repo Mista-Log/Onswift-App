@@ -57,9 +57,9 @@ export default function Login() {
           <div className="text-center mb-8">
             <Link to="/" className="inline-flex flex-col items-center gap-3 mb-6">
               <img
-                src="/onswift%20logo.png"
+                src="/onswift-purple-logo.png"
                 alt="OnSwift logo"
-                className="h-14 w-14 object-contain"
+                className="h-20 w-20 object-contain"
               />
                 
             </Link>

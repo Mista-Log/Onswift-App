@@ -112,7 +112,7 @@ const Navigation = () => {
 
         <button
           className="hidden rounded-full bg-white px-5 py-2 text-sm font-semibold text-gray-900 transition-all hover:bg-white/90 md:block"
-          onClick={() => navigate('/signup')}
+          onClick={() => navigate('/login')}
           type="button"
         >
           Get Started
@@ -150,7 +150,7 @@ const Navigation = () => {
             ))}
             <button
               className="mt-2 rounded-full bg-white py-2.5 text-sm font-semibold text-gray-900"
-              onClick={() => { navigate('/signup'); setIsOpen(false); }}
+              onClick={() => { navigate('/login'); setIsOpen(false); }}
               type="button"
             >
               Get Started
@@ -201,7 +201,7 @@ const HeroSection = () => {
         <div className="animate-fade-in-up opacity-0" style={{ animationDelay: '0.4s' }}>
           <button
             className="rounded-full bg-white px-8 py-3.5 text-base font-semibold text-gray-900 transition-all hover:bg-white/90 hover:shadow-lg"
-            onClick={() => navigate('/signup')}
+            onClick={() => navigate('/login')}
             type="button"
           >
             Get Started, It&apos;s Free!
@@ -679,7 +679,7 @@ const FinalCTA = () => {
           </p>
           <button
             className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-base font-semibold text-gray-900 transition-all hover:bg-white/90"
-            onClick={() => navigate('/signup')}
+            onClick={() => navigate('/login')}
             type="button"
           >
             Get Started, It&apos;s Free!

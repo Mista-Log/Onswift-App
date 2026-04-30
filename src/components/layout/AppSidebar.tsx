@@ -76,7 +76,7 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
               <img
                 src={resolvedTheme === "light" ? "/onswift-purple-logo.png" : "/onswift%20logo.png"}
                 alt="OnSwift logo"
-                className="h-full w-full object-contain"
+                className="h-24 w-24 object-contain"
               />
             </div>
           </div>
@@ -86,7 +86,7 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
               <img
                 src={resolvedTheme === "light" ? "/onswift-purple-logo.png" : "/onswift%20logo.png"}
                 alt="OnSwift logo"
-                className="h-full w-full object-contain"
+                className="h-24 w-24 object-contain"
               />
             </div>
             <span className="text-xl font-bold text-foreground">
