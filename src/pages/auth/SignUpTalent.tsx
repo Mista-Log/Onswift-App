@@ -423,9 +423,9 @@ export default function SignUpTalent() {
             </div>
 
             <div>
-              {/* <label className="text-sm font-medium text-foreground mb-2 block">
+              <label className="text-sm font-medium text-foreground mb-2 block">
                 Additional Skills <span className="text-muted-foreground">(Select up to 5)</span>
-              </label> */}
+              </label>
 
               {/* Selected Skills */}
               {formData.skills.length > 0 && (
@@ -442,7 +442,7 @@ export default function SignUpTalent() {
               )}
 
               {/* Skill Selector Dropdown */}
-              {/* <div className="relative">
+              <div className="relative">
                 <select
                   className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-foreground hover:border-primary/50 transition-colors"
                   onChange={(e) => {
@@ -462,7 +462,7 @@ export default function SignUpTalent() {
                     </option>
                   ))}
                 </select>
-              </div> */}
+              </div>
               {errors.skills && <p className="text-destructive text-sm mt-1">{errors.skills}</p>}
             </div>
 
