@@ -417,13 +417,13 @@ export default function Messages() {
 
   // Filter conversations based on search
   const filteredConversations = conversations.filter(conv =>
-    conv.other_user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conv.other_user.company?.toLowerCase().includes(searchQuery.toLowerCase())
+    (conv.other_user?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
+    (conv.other_user?.company?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
   );
 
   // Filter groups based on search
   const filteredGroups = groups.filter(group =>
-    group.name.toLowerCase().includes(searchQuery.toLowerCase())
+    group.name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false
   );
 
   // Handle tab change
@@ -446,9 +446,9 @@ export default function Messages() {
   // Creators can message their team members, talents can message their creators
   const availableContacts: Contact[] = isCreator
     ? teamMembers
-        .filter(m => !conversations.some(c => c.other_user.id === m.user_id))
+        .filter(m => !conversations.some(c => c.other_user?.id === m.user_id))
         .map(m => ({ id: m.id, user_id: m.user_id, name: m.name, avatar: m.avatar }))
-    : myCreators.filter(c => !conversations.some(conv => conv.other_user.id === c.user_id));
+    : myCreators.filter(c => !conversations.some(conv => conv.other_user?.id === c.user_id));
 
   // Convert group members to mention members format (exclude current user)
   const mentionMembers: MentionMember[] = groupMembers
@@ -610,15 +610,15 @@ export default function Messages() {
                     >
                       <div className="flex items-center gap-3">
                         <Avatar className="h-11 w-11 sm:h-12 sm:w-12">
-                          <AvatarImage src={conv.other_user.avatar || undefined} alt={conv.other_user.name} />
+                          <AvatarImage src={conv.other_user?.avatar || undefined} alt={conv.other_user?.name || "User"} />
                           <AvatarFallback className="bg-primary/20 text-primary">
-                            {conv.other_user.name.charAt(0)}
+                            {conv.other_user?.name?.charAt(0) || "?"}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-sm font-medium text-foreground truncate sm:text-base">
-                              {conv.other_user.name}
+                              {conv.other_user?.name || "Unknown"}
                             </p>
                             <span className="hidden text-[10px] text-muted-foreground sm:inline sm:text-xs">
                               {formatDate(conv.last_message_time)}
@@ -763,16 +763,16 @@ export default function Messages() {
                     </button>
                     <Avatar className="h-10 w-10">
                       <AvatarImage
-                        src={selectedConversation.other_user.avatar || undefined}
-                        alt={selectedConversation.other_user.name}
+                        src={selectedConversation.other_user?.avatar || undefined}
+                        alt={selectedConversation.other_user?.name || "User"}
                       />
                       <AvatarFallback className="bg-primary/20 text-primary">
-                        {selectedConversation.other_user.name.charAt(0)}
+                        {selectedConversation.other_user?.name?.charAt(0) || "?"}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium text-foreground">{selectedConversation.other_user.name}</p>
-                      {selectedConversation.other_user.company && (
+                      <p className="font-medium text-foreground">{selectedConversation.other_user?.name || "Unknown"}</p>
+                      {selectedConversation.other_user?.company && (
                         <p className="text-sm text-muted-foreground">{selectedConversation.other_user.company}</p>
                       )}
                     </div>

@@ -243,6 +243,7 @@ class ClientOnboardingSubmitView(APIView):
             with transaction.atomic():
                 # 1. Create CLIENT user
                 from account.models import User
+                from project.models import ProjectClientMembership
                 client_user = User.objects.create_user(
                     email=data["email"],
                     full_name=data["full_name"],
@@ -258,6 +259,19 @@ class ClientOnboardingSubmitView(APIView):
                 instance.save(update_fields=[
                     "client", "status", "completed_at", "responses"
                 ])
+
+                if instance.project:
+                    membership, membership_created = ProjectClientMembership.objects.get_or_create(
+                        client=client_user,
+                        project=instance.project,
+                        defaults={"status": "active"},
+                    )
+
+                    if not membership_created and membership.status in ["archived", "completed"]:
+                        membership.status = "active"
+                        membership.archived_at = None
+                        membership.completed_at = None
+                        membership.save(update_fields=["status", "archived_at", "completed_at"])
 
                 # 3. Auto-file responses into Document Library
                 self._auto_file_responses(creator, client_user, instance)

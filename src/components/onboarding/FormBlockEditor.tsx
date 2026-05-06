@@ -44,7 +44,7 @@ export function FormBlockEditor({ blocks, onChange }: FormBlockEditorProps) {
     const newBlock: FormBlock = {
       type,
       label: type === "welcome" ? "" : "",
-      content: type === "welcome" ? "<p>Welcome!</p>" : undefined,
+      content: type === "welcome" ? "Type your welcome message here..." : undefined,
       required: type !== "welcome",
       options: type === "multiple_choice" ? ["Option 1", "Option 2"] : undefined,
       placeholder: "",
@@ -150,13 +150,13 @@ export function FormBlockEditor({ blocks, onChange }: FormBlockEditorProps) {
             {/* Block label preview */}
             {block.type !== "welcome" && (
               <p className="text-sm font-medium">
-                {block.label || "(No label set)"}
+                {block.label || "(This field is missing a question)"}
                 {block.required && <span className="text-destructive ml-1">*</span>}
               </p>
             )}
             {block.type === "welcome" && (
               <p className="text-sm text-muted-foreground">
-                {block.content ? "Welcome block configured" : "(No content set)"}
+                {block.content ? "Welcome block configured" : "(Empty Field)"}
               </p>
             )}
 
@@ -176,7 +176,7 @@ export function FormBlockEditor({ blocks, onChange }: FormBlockEditorProps) {
                 ) : (
                   <>
                     <div>
-                      <Label>Label / Question</Label>
+                      <Label>Question</Label>
                       <Input
                         value={block.label || ""}
                         onChange={(e) => updateBlock(index, { label: e.target.value })}

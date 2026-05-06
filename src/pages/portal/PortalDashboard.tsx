@@ -46,7 +46,9 @@ export default function PortalDashboard() {
       const response = await secureFetch(`/api/v5/projects/${projectId}/`);
       if (response.ok) {
         const data = await response.json();
-        setProject(data);
+        // Backend returns { project: {...}, messages: [...] }, extract the project
+        const projectData = data.project || data;
+        setProject(projectData);
       } else if (response.status === 403) {
         toast.error("You don't have access to this project");
         navigate("/portal");
@@ -106,7 +108,7 @@ export default function PortalDashboard() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold truncate">{project.title}</h1>
+            <h1 className="text-2xl font-bold truncate">{project.name}</h1>
             {project.description && (
               <p className="text-muted-foreground mt-1 line-clamp-2">
                 {project.description}
@@ -116,9 +118,9 @@ export default function PortalDashboard() {
               <Badge variant="outline" className="capitalize">
                 {project.status.replace("_", " ")}
               </Badge>
-              {project.deadline && (
+              {project.due_date && (
                 <span className="text-sm text-muted-foreground">
-                  Due {format(new Date(project.deadline), "MMM d, yyyy")}
+                  Due {format(new Date(project.due_date), "MMM d, yyyy")}
                 </span>
               )}
               <span className="text-sm text-muted-foreground">
@@ -137,19 +139,16 @@ export default function PortalDashboard() {
           <CardContent className="pt-6">
             <div className="flex justify-between text-sm mb-2">
               <span className="font-medium">Overall Progress</span>
-              <span className="text-muted-foreground">{project.task_progress}%</span>
+              <span className="text-muted-foreground">{project.progress}%</span>
             </div>
             <div className="h-3 bg-secondary rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary rounded-full transition-all"
-                style={{ width: `${project.task_progress}%` }}
+                style={{ width: `${project.progress}%` }}
               />
             </div>
             <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
               <span>{project.completed_tasks} of {project.total_tasks} tasks done</span>
-              {project.deliverables && (
-                <span>{project.deliverables.length} deliverable{project.deliverables.length !== 1 ? "s" : ""}</span>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -161,7 +160,7 @@ export default function PortalDashboard() {
               Tasks ({project.tasks?.length || 0})
             </TabsTrigger>
             <TabsTrigger value="deliverables">
-              Deliverables ({project.deliverables?.length || 0})
+              Deliverables ({project.tasks?.flatMap(t => t.deliverables || []).length || 0})
             </TabsTrigger>
           </TabsList>
 
@@ -179,23 +178,21 @@ export default function PortalDashboard() {
                     <CardContent className="py-3 flex items-center gap-3">
                       {getTaskIcon(task.status)}
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{task.title}</p>
+                        <p className="font-medium truncate">{task.name}</p>
+                        {task.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-1">
+                            {task.description}
+                          </p>
+                        )}
                         {task.due_date && (
                           <p className="text-xs text-muted-foreground">
                             Due {format(new Date(task.due_date), "MMM d")}
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        {task.priority && (
-                          <Badge variant="outline" className={getPriorityColor(task.priority)}>
-                            {task.priority}
-                          </Badge>
-                        )}
-                        <Badge variant="outline" className="capitalize">
-                          {task.status.replace("_", " ")}
-                        </Badge>
-                      </div>
+                      <Badge variant="outline" className="capitalize">
+                        {task.status.replace("_", " ")}
+                      </Badge>
                     </CardContent>
                   </Card>
                 ))}
@@ -204,33 +201,62 @@ export default function PortalDashboard() {
           </TabsContent>
 
           <TabsContent value="deliverables" className="mt-4">
-            {!project.deliverables?.length ? (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  No deliverables yet
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-2">
-                {project.deliverables.map((deliverable) => (
-                  <Card key={deliverable.id}>
-                    <CardContent className="py-3 flex items-center gap-3">
-                      <FileText className="h-5 w-5 text-muted-foreground" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{deliverable.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {deliverable.file_count} file{deliverable.file_count !== 1 ? "s" : ""} ·{" "}
-                          Uploaded {format(new Date(deliverable.uploaded_at), "MMM d, yyyy")}
-                        </p>
-                      </div>
-                      <Badge variant="outline" className="capitalize">
-                        {deliverable.status.replace("_", " ")}
-                      </Badge>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+            {(() => {
+              // Extract all deliverables from tasks
+              const allDeliverables = project.tasks?.flatMap(t => t.deliverables || []) || [];
+              
+              return !allDeliverables.length ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    No deliverables yet
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {allDeliverables.map((deliverable) => (
+                    <Card key={deliverable.id}>
+                      <CardContent className="py-3 flex items-center gap-3">
+                        <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{deliverable.title}</p>
+                          {deliverable.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-1">
+                              {deliverable.description}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {deliverable.files?.length || 0} file{(deliverable.files?.length || 0) !== 1 ? "s" : ""} · 
+                            Submitted by {deliverable.submitted_by_name}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="capitalize flex-shrink-0">
+                          {deliverable.status.replace("_", " ")}
+                        </Badge>
+                      </CardContent>
+                      {deliverable.files && deliverable.files.length > 0 && (
+                        <CardContent className="py-2 border-t">
+                          <div className="space-y-1">
+                            {deliverable.files.map((file) => (
+                              <a
+                                key={file.id}
+                                href={file.file}
+                                download
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline flex items-center gap-1"
+                              >
+                                <Download className="h-3 w-3" />
+                                {file.name}
+                              </a>
+                            ))}
+                          </div>
+                        </CardContent>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              );
+            })()}
           </TabsContent>
         </Tabs>
       </div>

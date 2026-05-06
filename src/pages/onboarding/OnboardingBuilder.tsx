@@ -97,10 +97,10 @@ export default function OnboardingBuilder() {
         }
       } else {
         const error = await response.json();
-        toast.error(error?.detail || "Failed to save template");
+        toast.error(error?.detail || "Failed to save form");
       }
     } catch (error) {
-      toast.error("Failed to save template");
+      toast.error("Failed to save form");
     } finally {
       setSaving(false);
     }
@@ -152,7 +152,7 @@ export default function OnboardingBuilder() {
           </Button>
           <div className="flex-1">
             <h1 className="text-2xl font-bold">
-              {isEditing ? "Edit Template" : "New Onboarding Template"}
+              {isEditing ? "Edit Template" : "Build Onboarding Form"}
             </h1>
           </div>
         </div>
@@ -171,7 +171,7 @@ export default function OnboardingBuilder() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Template Details</CardTitle>
+                  <CardTitle>Form Details</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div>
@@ -202,7 +202,7 @@ export default function OnboardingBuilder() {
               <div className="flex justify-end gap-2">
                 <Button type="submit" disabled={saving} className="gap-1">
                   <Save className="h-4 w-4" />
-                  {saving ? "Saving..." : "Save Template"}
+                  {saving ? "Saving..." : "Save Form"}
                 </Button>
               </div>
             </form>

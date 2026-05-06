@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Plus, FileText, Link2, Trash2 } from "lucide-react";
+import { Plus, FileText, Link2, Trash2, Users } from "lucide-react";
 import { format } from "date-fns";
 import { OnboardingLinkTable } from "@/components/onboarding/OnboardingLinkTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -66,14 +66,23 @@ export default function OnboardingTemplates() {
               Build onboarding forms and manage client intake links.
             </p>
           </div>
-          <Button onClick={() => navigate("/onboarding/new")} className="gap-1">
-            <Plus className="h-4 w-4" /> New Template
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate("/onboarding/clients")}
+              className="gap-1"
+            >
+              <Users className="h-4 w-4" /> Client History
+            </Button>
+            <Button onClick={() => navigate("/onboarding/new")} className="gap-1">
+              <Plus className="h-4 w-4" /> New Form
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="templates">
           <TabsList>
-            <TabsTrigger value="templates">Templates</TabsTrigger>
+            <TabsTrigger value="templates">Forms</TabsTrigger>
             <TabsTrigger value="all-links">All Links</TabsTrigger>
           </TabsList>
 
@@ -86,12 +95,12 @@ export default function OnboardingTemplates() {
               <Card>
                 <CardContent className="py-12 text-center">
                   <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="font-semibold mb-1">No templates yet</h3>
+                  <h3 className="font-semibold mb-1">No forms yet</h3>
                   <p className="text-muted-foreground mb-4">
-                    Create your first onboarding form template to start generating client onboarding links.
+                    Create your first onboarding form to start generating client onboarding links.
                   </p>
                   <Button onClick={() => navigate("/onboarding/new")}>
-                    <Plus className="h-4 w-4 mr-1" /> Create Template
+                    <Plus className="h-4 w-4 mr-1" /> Create Form
                   </Button>
                 </CardContent>
               </Card>

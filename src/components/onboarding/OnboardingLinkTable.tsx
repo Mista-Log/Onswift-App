@@ -84,7 +84,7 @@ export function OnboardingLinkTable({ templateId, refreshTrigger }: OnboardingLi
   if (instances.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        <p>No onboarding links generated yet.</p>
+        <p>Generate link to start tracking.</p>
       </div>
     );
   }

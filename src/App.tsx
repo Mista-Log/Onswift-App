@@ -37,8 +37,9 @@ import ResetPassword from "./pages/auth/ResetPassword";
 import GoogleOAuthCallback from "./pages/auth/GoogleOAuthCallback";
 
 // Onboarding (creator)
-import OnboardingTemplates from "./pages/onboarding/OnboardingTemplates";
+import OnboardingTemplates from "./pages/onboarding/OnboardingFormPage";
 import OnboardingBuilder from "./pages/onboarding/OnboardingBuilder";
+import ClientHistoryPage from "./pages/onboarding/ClientHistoryPage";
 // Onboarding (public client-facing)
 import ClientOnboard from "./pages/onboarding/ClientOnboard";
 
@@ -47,6 +48,7 @@ import { PortalRouteGuard } from "@/components/portal/PortalRouteGuard";
 import PortalProjectSelector from "./pages/portal/PortalProjectSelector";
 import PortalDashboard from "./pages/portal/PortalDashboard";
 import PortalMessages from "./pages/portal/PortalMessages";
+import InviteAccept from "./pages/portal/InviteAccept";
 
 // Library (creator)
 import DocumentLibrary from "./pages/library/DocumentLibrary";
@@ -98,10 +100,14 @@ const App = () => (
               {/* Onboarding — creator (protected) */}
               <Route path="/onboarding" element={<ProtectedRoute><OnboardingTemplates /></ProtectedRoute>} />
               <Route path="/onboarding/new" element={<ProtectedRoute><OnboardingBuilder /></ProtectedRoute>} />
+              <Route path="/onboarding/clients" element={<ProtectedRoute><ClientHistoryPage /></ProtectedRoute>} />
               <Route path="/onboarding/:id" element={<ProtectedRoute><OnboardingBuilder /></ProtectedRoute>} />
 
               {/* Onboarding — public client page */}
               <Route path="/onboard/:slug" element={<ClientOnboard />} />
+
+              {/* Invite acceptance — public, token-based */}
+              <Route path="/invite/:token" element={<InviteAccept />} />
 
               {/* Portal — client only */}
               <Route path="/portal" element={<PortalRouteGuard><PortalProjectSelector /></PortalRouteGuard>} />

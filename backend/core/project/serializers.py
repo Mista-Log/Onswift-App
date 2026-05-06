@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import Project, Task, Deliverable, DeliverableFile, Message, Conversation
 from .models import ProjectSample, TeamMember, Group, GroupMembership, GroupMessage, GroupMessageReadStatus
-from .models import GoogleCalendarToken, CalendarSyncedTask
+from .models import GoogleCalendarToken, CalendarSyncedTask, ProjectClientMembership
 from django.conf import settings
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -642,4 +642,57 @@ class CalendarSyncedTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = CalendarSyncedTask
         fields = ['id', 'task_name', 'project_name', 'deadline', 'google_event_id', 'synced_at']
+
+
+# ProjectClientMembership Serializers
+class ProjectClientMembershipSerializer(serializers.ModelSerializer):
+    """Serializer for ProjectClientMembership - links clients to projects"""
+    client_name = serializers.CharField(source="client.full_name", read_only=True)
+    client_email = serializers.CharField(source="client.email", read_only=True)
+    project_name = serializers.CharField(source="project.name", read_only=True)
+    
+    class Meta:
+        model = ProjectClientMembership
+        fields = [
+            "id",
+            "project",
+            "project_name",
+            "client",
+            "client_name",
+            "client_email",
+            "status",
+            "added_at",
+            "completed_at",
+            "archived_at",
+        ]
+        read_only_fields = ["id", "added_at", "completed_at", "archived_at"]
+
+
+class ProjectClientMembershipCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating ProjectClientMembership"""
+    class Meta:
+        model = ProjectClientMembership
+        fields = ["project", "client"]
+
+    def validate(self, data):
+        # Ensure no duplicate membership
+        existing = ProjectClientMembership.objects.filter(
+            project=data["project"],
+            client=data["client"]
+        ).exists()
+        if existing:
+            raise serializers.ValidationError("This client is already added to this project.")
+        return data
+
+
+class ClientHistorySerializer(serializers.Serializer):
+    """Serializer for client history - aggregates client and project data"""
+    client_id = serializers.UUIDField()
+    client_name = serializers.CharField()
+    client_email = serializers.CharField()
+    total_projects = serializers.IntegerField()
+    active_projects = serializers.IntegerField()
+    completed_projects = serializers.IntegerField()
+    status = serializers.CharField()
+    last_activity = serializers.DateTimeField()
 
