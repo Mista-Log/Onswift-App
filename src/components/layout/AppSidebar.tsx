@@ -81,7 +81,7 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
             <div className="h-10 w-10 flex items-center justify-center rounded-xl overflow-hidden bg-transparent">
               <img
                 src={resolvedTheme === "light" ? "/onswift-purple-logo.png" : "/onswift%20logo.png"}
@@ -89,9 +89,12 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
                 className="h-24 w-24 object-contain"
               />
             </div>
-            <span className="text-xl font-bold text-foreground">
-              OnSwift
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-bold text-foreground">OnSwift</span>
+              <span className="inline-flex items-center rounded-full bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-0.5">
+                Beta 2.0
+              </span>
+            </div>
           </div>
         )}
       </div>
