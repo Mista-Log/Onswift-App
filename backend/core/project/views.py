@@ -2,8 +2,10 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.contrib.auth import get_user_model
+from django.utils import timezone
 from .models import Project, Task, ProjectSample, Deliverable, Message, Conversation, Group, GroupMembership, GroupMessage, GroupMessageReadStatus
-from .models import GoogleCalendarToken, CalendarSyncedTask
+from .models import GoogleCalendarToken, CalendarSyncedTask, ProjectClientMembership
 from .serializers import (
     ProjectSerializer, TaskSerializer, ProjectSampleSerializer,
     DeliverableSerializer, DeliverableCreateSerializer, DeliverableReviewSerializer,
@@ -58,6 +60,89 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
             if request.user.role != "creator":
                 from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied("Only creators can modify projects.")
+
+
+class ProjectCompleteView(APIView):
+    """
+    POST /api/v5/projects/<project_id>/complete/
+    Mark a project as completed.
+    Updates ProjectClientMembership status for all clients to "completed".
+    Only the project creator can complete a project.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, project_id):
+        try:
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Project not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Verify creator
+        if project.creator != request.user:
+            return Response(
+                {"error": "Only the project creator can complete a project"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Mark project as completed
+        project.status = "completed"
+        project.save()
+
+        # Signal will automatically update memberships, but ensure it here too
+        ProjectClientMembership.objects.filter(
+            project=project,
+            status__in=["active", "on_hold"]
+        ).update(status="completed")
+
+        return Response({
+            "message": "Project marked as completed",
+            "project_id": str(project.id),
+            "status": project.status,
+        }, status=status.HTTP_200_OK)
+
+
+class ProjectArchiveView(APIView):
+    """
+    POST /api/v5/projects/<project_id>/archive/
+    Mark a project as archived.
+    Updates ProjectClientMembership status for all clients to "archived".
+    Only the project creator can archive a project.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, project_id):
+        try:
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Project not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Verify creator
+        if project.creator != request.user:
+            return Response(
+                {"error": "Only the project creator can archive a project"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Mark project as archived
+        project.status = "archived"
+        project.save()
+
+        # Update memberships to archived
+        ProjectClientMembership.objects.filter(
+            project=project,
+        ).update(status="archived")
+
+        return Response({
+            "message": "Project archived",
+            "project_id": str(project.id),
+            "status": project.status,
+        }, status=status.HTTP_200_OK)
 
 
 # Task Views
@@ -728,3 +813,6 @@ class SyncedTasksListView(generics.ListAPIView):
 
     def get_queryset(self):
         return CalendarSyncedTask.objects.filter(user=self.request.user)
+
+
+

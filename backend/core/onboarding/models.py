@@ -61,6 +61,8 @@ class OnboardingInstance(models.Model):
         OnboardingTemplate,
         on_delete=models.CASCADE,
         related_name="instances",
+        null=True,
+        blank=True,
     )
     slug = models.CharField(
         max_length=20,

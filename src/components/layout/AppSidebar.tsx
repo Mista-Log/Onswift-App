@@ -16,11 +16,11 @@ import { useTheme } from "next-themes";
 const creatorNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
   { label: "Find Talent", icon: Users, route: "/talent" },
-  { label: "Team", icon: UsersRound, route: "/team" },
-  { label: "Deliverables", icon: Upload, route: "/deliverables" },
-  { label: "Chats", icon: MessageCircle, route: "/messages" },
+  { label: "My Team", icon: UsersRound, route: "/team" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
-  { label: "Onboarding", icon: ClipboardList, route: "/onboarding" },
+  { label: "Chats", icon: MessageCircle, route: "/messages" },
+  { label: "Deliverables", icon: Upload, route: "/deliverables" },
+  { label: "Forms", icon: ClipboardList, route: "/onboarding" },
   { label: "Library", icon: FileArchive, route: "/library" },
   { label: "Deadlines", icon: Calendar, route: "/calendar" },
 ];

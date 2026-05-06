@@ -29,6 +29,8 @@ export default function PortalProjectSelector() {
         const data = await response.json();
         const normalizedProjects = Array.isArray(data)
           ? data
+          : Array.isArray(data?.projects)
+          ? data.projects
           : Array.isArray(data?.results)
           ? data.results
           : [];
@@ -96,7 +98,7 @@ export default function PortalProjectSelector() {
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg">{project.title}</CardTitle>
+                    <CardTitle className="text-lg">{project.name}</CardTitle>
                     <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                   </div>
                   <CardDescription className="line-clamp-2">
@@ -117,12 +119,12 @@ export default function PortalProjectSelector() {
                   <div>
                     <div className="flex justify-between text-xs text-muted-foreground mb-1">
                       <span>Progress</span>
-                      <span>{project.task_progress}%</span>
+                      <span>{project.progress}%</span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
                       <div
                         className="h-full bg-primary rounded-full transition-all"
-                        style={{ width: `${project.task_progress}%` }}
+                        style={{ width: `${project.progress}%` }}
                       />
                     </div>
                   </div>
@@ -132,8 +134,8 @@ export default function PortalProjectSelector() {
                       {project.total_tasks} task{project.total_tasks !== 1 ? "s" : ""} ·{" "}
                       {project.completed_tasks} done
                     </span>
-                    {project.deadline && (
-                      <span>Due {format(new Date(project.deadline), "MMM d, yyyy")}</span>
+                    {project.due_date && (
+                      <span>Due {format(new Date(project.due_date), "MMM d, yyyy")}</span>
                     )}
                   </div>
                 </CardContent>

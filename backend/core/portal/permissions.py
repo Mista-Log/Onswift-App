@@ -25,7 +25,7 @@ class IsClientRole(BasePermission):
 class IsProjectClient(BasePermission):
     """
     Verify that the requested project belongs to this client.
-    Checks onboarding instances where client_id matches the authenticated user.
+    Checks ProjectClientMembership where client_id matches the authenticated user.
     """
     message = "You do not have access to this project."
 
@@ -37,25 +37,17 @@ class IsProjectClient(BasePermission):
         if not project_id:
             return True  # List endpoints handle filtering
 
-        from onboarding.models import OnboardingInstance
-        return OnboardingInstance.objects.filter(
+        from project.models import ProjectClientMembership
+        return ProjectClientMembership.objects.filter(
             client=request.user,
             project_id=project_id,
-            status="COMPLETED",
-        ).exists() or self._check_direct_assignment(request.user, project_id)
-
-    def _check_direct_assignment(self, user, project_id):
-        """Fallback: check if client has portal messages in this project."""
-        from portal.models import PortalMessage
-        return PortalMessage.objects.filter(
-            project_id=project_id,
-            sender=user,
+            status__in=["active", "on_hold"]  # Client can access active or on-hold projects
         ).exists()
 
 
 class IsCreatorOrProjectClient(BasePermission):
     """
-    Allow both Creator (project owner) and Client (onboarded to project).
+    Allow both Creator (project owner) and Client (with ProjectClientMembership).
     Used for messaging endpoints where both parties need access.
     """
     message = "You do not have access to this project."
@@ -75,11 +67,11 @@ class IsCreatorOrProjectClient(BasePermission):
             return Project.objects.filter(id=project_id, creator=user).exists()
 
         if user.role == "client":
-            from onboarding.models import OnboardingInstance
-            return OnboardingInstance.objects.filter(
+            from project.models import ProjectClientMembership
+            return ProjectClientMembership.objects.filter(
                 client=user,
                 project_id=project_id,
-                status="COMPLETED",
+                status__in=["active", "on_hold"]  # Client can access active or on-hold projects
             ).exists()
 
         return False

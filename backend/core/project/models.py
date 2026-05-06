@@ -26,6 +26,46 @@ class Project(models.Model):
         return self.name
 
 
+class ProjectClientMembership(models.Model):
+    """
+    Explicit link between a Project and a Client (User with role='client').
+    Ensures clients only see projects they've been explicitly added to.
+    """
+    STATUS_CHOICES = (
+        ("active", "Active"),
+        ("completed", "Completed"),
+        ("archived", "Archived"),
+        ("on_hold", "On Hold"),
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="client_memberships"
+    )
+    client = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="project_memberships"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="active"
+    )
+    added_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ("project", "client")
+        ordering = ["-added_at"]
+
+    def __str__(self):
+        return f"{self.client.email} -> {self.project.name}"
+
+
 class TeamMember(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(

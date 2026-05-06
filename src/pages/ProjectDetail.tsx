@@ -48,6 +48,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { ClientInviteModal } from "@/components/project/ClientInviteModal";
+import { ClientInvitesTable } from "@/components/project/ClientInvitesTable";
 import { useProjects, type Task } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { cn } from "@/lib/utils";
@@ -74,6 +76,8 @@ export default function ProjectDetail() {
     deadline: "",
   });
   const [sortMethod, setSortMethod] = useState<"deadline-asc" | "deadline-desc" | "alphabetical-asc" | "alphabetical-desc">("deadline-asc");
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [refreshInvitesTrigger, setRefreshInvitesTrigger] = useState(0);
 
   const project = projects.find((p) => p.id === id);
   const isCreator = user?.role === "creator";
@@ -405,13 +409,22 @@ export default function ProjectDetail() {
             </Select>
           </div>
           {isCreator && (
-            <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  New Task
-                </Button>
-              </DialogTrigger>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline"
+                className="gap-2"
+                onClick={() => setIsInviteModalOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                New Client
+              </Button>
+              <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    New Task
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="glass-card border-border/50 sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Create New Task</DialogTitle>
@@ -514,6 +527,7 @@ export default function ProjectDetail() {
                 </div>
               </DialogContent>
             </Dialog>
+            </div>
           )}
         </div>
 
@@ -611,6 +625,28 @@ export default function ProjectDetail() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Client Invites Section */}
+        {id && isCreator && (
+          <div className="mt-8 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Client Invites</h2>
+              <span className="text-sm text-muted-foreground">Manage invitations</span>
+            </div>
+            <ClientInvitesTable projectId={id} refreshTrigger={refreshInvitesTrigger} />
+          </div>
+        )}
+
+        {/* ClientInviteModal */}
+        {id && project && (
+          <ClientInviteModal
+            projectId={id}
+            projectName={project.name}
+            isOpen={isInviteModalOpen}
+            onClose={() => setIsInviteModalOpen(false)}
+            onSuccess={() => setRefreshInvitesTrigger(prev => prev + 1)}
+          />
         )}
       </div>
     </MainLayout>

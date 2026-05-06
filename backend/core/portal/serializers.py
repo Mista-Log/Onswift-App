@@ -3,7 +3,7 @@ Portal serializers — Response schemas for portal views.
 """
 from rest_framework import serializers
 from project.models import Project, Task, Deliverable, DeliverableFile
-from .models import PortalMessage
+from .models import PortalMessage, ClientInvite
 
 
 class PortalDeliverableFileSerializer(serializers.ModelSerializer):
@@ -75,10 +75,15 @@ class PortalProjectListSerializer(serializers.ModelSerializer):
     """Lightweight project info for project selector."""
     creator_name = serializers.CharField(source="creator.full_name", read_only=True)
     progress = serializers.SerializerMethodField()
+    total_tasks = serializers.SerializerMethodField()
+    completed_tasks = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
-        fields = ["id", "name", "status", "due_date", "creator_name", "progress"]
+        fields = [
+            "id", "name", "description", "status", "due_date", 
+            "creator_name", "progress", "total_tasks", "completed_tasks"
+        ]
 
     def get_progress(self, obj):
         total = obj.tasks.count()
@@ -86,6 +91,12 @@ class PortalProjectListSerializer(serializers.ModelSerializer):
             return 0
         completed = obj.tasks.filter(status="completed").count()
         return int((completed / total) * 100)
+
+    def get_total_tasks(self, obj):
+        return obj.tasks.count()
+
+    def get_completed_tasks(self, obj):
+        return obj.tasks.filter(status="completed").count()
 
 
 class PortalMessageSerializer(serializers.ModelSerializer):
@@ -109,3 +120,44 @@ class PortalMessageCreateSerializer(serializers.Serializer):
     content = serializers.CharField(max_length=5000)
     file = serializers.FileField(required=False, allow_null=True)
     file_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+
+
+class ClientInviteSerializer(serializers.ModelSerializer):
+    """Full invite details (for responses)."""
+    project_name = serializers.CharField(source="project.name", read_only=True)
+    creator_name = serializers.CharField(source="creator.full_name", read_only=True)
+
+    class Meta:
+        model = ClientInvite
+        fields = [
+            "id", "token", "project", "project_name", "creator_name",
+            "client_email", "onboarding_form", "responses",
+            "expires_at", "accepted_at", "created_at",
+        ]
+        read_only_fields = ["id", "token", "project", "creator", "created_at", "accepted_at"]
+
+
+class ClientInviteCreateSerializer(serializers.Serializer):
+    """Input schema for creating an invite."""
+    client_email = serializers.EmailField()
+    onboarding_form = serializers.JSONField(required=False, allow_null=True)
+    expires_in_days = serializers.IntegerField(default=30, min_value=1, max_value=365)
+
+
+class ClientInviteDetailSerializer(serializers.ModelSerializer):
+    """Minimal invite details for public display (when accepting)."""
+    project_name = serializers.CharField(source="project.name", read_only=True)
+    creator_name = serializers.CharField(source="creator.full_name", read_only=True)
+
+    class Meta:
+        model = ClientInvite
+        fields = [
+            "id", "project_name", "creator_name", "client_email",
+            "onboarding_form", "expires_at",
+        ]
+
+
+class ClientInviteAcceptSerializer(serializers.Serializer):
+    """Input schema for accepting an invite and submitting responses."""
+    responses = serializers.JSONField()
+
