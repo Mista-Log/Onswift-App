@@ -8,6 +8,32 @@ Every /api/v5/* route must verify:
 from rest_framework.permissions import BasePermission
 
 
+def get_client_project_ids(user):
+    """Return project IDs a client can access via membership or completed onboarding."""
+    if not user.is_authenticated or user.role != "client":
+        return set()
+
+    from onboarding.models import OnboardingInstance
+    from project.models import ProjectClientMembership
+
+    membership_project_ids = set(
+        ProjectClientMembership.objects.filter(
+            client=user,
+            status__in=["active", "on_hold"],
+        ).values_list("project_id", flat=True)
+    )
+
+    onboarding_project_ids = set(
+        OnboardingInstance.objects.filter(
+            client=user,
+            status="COMPLETED",
+            project__isnull=False,
+        ).values_list("project_id", flat=True)
+    )
+
+    return membership_project_ids | onboarding_project_ids
+
+
 class IsClientRole(BasePermission):
     """
     Only allow users with role='client'.
@@ -37,12 +63,7 @@ class IsProjectClient(BasePermission):
         if not project_id:
             return True  # List endpoints handle filtering
 
-        from project.models import ProjectClientMembership
-        return ProjectClientMembership.objects.filter(
-            client=request.user,
-            project_id=project_id,
-            status__in=["active", "on_hold"]  # Client can access active or on-hold projects
-        ).exists()
+        return project_id in get_client_project_ids(request.user)
 
 
 class IsCreatorOrProjectClient(BasePermission):
@@ -67,11 +88,6 @@ class IsCreatorOrProjectClient(BasePermission):
             return Project.objects.filter(id=project_id, creator=user).exists()
 
         if user.role == "client":
-            from project.models import ProjectClientMembership
-            return ProjectClientMembership.objects.filter(
-                client=user,
-                project_id=project_id,
-                status__in=["active", "on_hold"]  # Client can access active or on-hold projects
-            ).exists()
+            return project_id in get_client_project_ids(user)
 
         return False

@@ -45,7 +45,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { secureFetch } from "@/api/apiClient";
@@ -54,7 +54,7 @@ import { ClientInvitesTable } from "@/components/project/ClientInvitesTable";
 import { useProjects, type Task } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow, format } from "date-fns";
+import { format } from "date-fns";
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -86,7 +86,6 @@ export default function ProjectDetail() {
   const [messageFile, setMessageFile] = useState<File | null>(null);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [showMessages, setShowMessages] = useState(false);
 
   const project = projects.find((p) => p.id === id);
   const isCreator = user?.role === "creator";
@@ -720,104 +719,158 @@ export default function ProjectDetail() {
                 {isLoadingMessages ? "Loading..." : "Refresh"}
               </Button>
             </div>
-            
-            <Card className="glass-card border-border/50">
-              <CardContent className="pt-6">
-                {isLoadingMessages ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-5 w-5 animate-spin" />
+            <Card className="overflow-hidden border-border/50 bg-white shadow-sm">
+              <CardContent className="p-0">
+                <div className="border-b border-border/50 px-5 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Project Thread</p>
+                      <p className="text-xs text-muted-foreground">Messages from your client and your replies</p>
+                    </div>
+                    <div className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                      {messages.length} messages
+                    </div>
                   </div>
-                ) : messages.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No messages yet. Start a conversation with your clients!
-                  </p>
-                ) : (
-                  <div className="space-y-4 max-h-96 overflow-y-auto">
-                    {messages.map((msg: any) => (
-                      <div key={msg.id} className="p-3 bg-secondary/30 rounded-lg">
-                        <div className="flex items-start justify-between mb-1">
-                          <span className="font-medium text-sm">{msg.sender_name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {msg.created_at && format(new Date(msg.created_at), "MMM d, HH:mm")}
-                          </span>
-                        </div>
-                        <p className="text-sm text-foreground/90">{msg.content}</p>
-                        {msg.file_name && (
-                          <a
-                            href={msg.file}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 mt-2"
-                          >
-                            <FileIcon className="h-3 w-3" />
-                            {msg.file_name}
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                </div>
 
-                {/* Message Input */}
-                <div className="mt-4 pt-4 border-t border-border/50 space-y-2">
-                  <div className="flex gap-2">
-                    <Textarea
-                      placeholder="Type your message..."
-                      value={messageContent}
-                      onChange={(e) => setMessageContent(e.target.value)}
-                      className="resize-none"
-                      rows={2}
-                    />
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        disabled={isSendingMessage}
-                      >
-                        <label className="cursor-pointer">
-                          <input
-                            ref={
-                              (input) => {
-                                if (input) {
-                                  const fileInput = input as HTMLInputElement;
-                                  fileInput.onchange = (e) => {
-                                    const file = (e.target as HTMLInputElement).files?.[0];
-                                    if (file) setMessageFile(file);
-                                  };
-                                }
-                              }
-                            }
-                            type="file"
-                            className="hidden"
-                          />
-                          <Paperclip className="h-4 w-4" />
-                        </label>
-                      </Button>
-                      <Button
-                        onClick={sendMessage}
-                        disabled={(!messageContent.trim() && !messageFile) || isSendingMessage}
-                      >
-                        {isSendingMessage ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
-                      </Button>
+                <div className="max-h-[28rem] space-y-4 overflow-y-auto px-5 py-5 bg-[#f8f6ff]">
+                  {isLoadingMessages ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
                     </div>
-                  </div>
-                  {messageFile && (
-                    <div className="flex items-center gap-2 text-xs bg-secondary/30 p-2 rounded">
-                      <FileIcon className="h-3 w-3" />
-                      <span>{messageFile.name}</span>
-                      <button
-                        onClick={() => setMessageFile(null)}
-                        className="ml-auto"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                  ) : messages.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-border/70 bg-white px-4 py-6 text-center text-sm text-muted-foreground">
+                      No messages yet. Start a conversation with your clients!
                     </div>
+                  ) : (
+                    messages.map((msg: any) => {
+                      const isMine = msg.sender === user?.id;
+
+                      return (
+                        <div
+                          key={msg.id}
+                          className={cn(
+                            "flex items-end gap-2",
+                            isMine ? "justify-end" : "justify-start"
+                          )}
+                        >
+                          {!isMine && (
+                            <Avatar className="h-8 w-8 shrink-0 self-end">
+                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                                {(msg.sender_name || "?").charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+
+                          <div className={cn("max-w-[75%]", isMine && "text-right") }>
+                            {!isMine && (
+                              <p className="mb-1 text-xs font-medium text-muted-foreground">{msg.sender_name}</p>
+                            )}
+                            <div
+                              className={cn(
+                                "rounded-2xl px-4 py-3 shadow-sm",
+                                isMine
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-white text-foreground border border-border/40"
+                              )}
+                            >
+                              <p className="text-sm leading-relaxed">{msg.content}</p>
+                              {msg.file_name && (
+                                <a
+                                  href={msg.file}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={cn(
+                                    "mt-3 inline-flex items-center gap-1 text-xs font-medium underline-offset-4 hover:underline",
+                                    isMine ? "text-primary-foreground/90" : "text-primary"
+                                  )}
+                                >
+                                  <FileIcon className="h-3 w-3" />
+                                  {msg.file_name}
+                                </a>
+                              )}
+                            </div>
+                            <p className={cn("mt-1 text-[10px] text-muted-foreground", isMine && "text-right") }>
+                              {msg.created_at && format(new Date(msg.created_at), "hh:mm a")}
+                            </p>
+                          </div>
+
+                          {isMine && (
+                            <Avatar className="h-8 w-8 shrink-0 self-end">
+                              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                                {user?.full_name?.charAt(0) || "Y"}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+                        </div>
+                      );
+                    })
                   )}
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50 bg-white shadow-sm">
+              <CardContent className="space-y-4 p-4 sm:p-5">
+                <div className="flex items-end gap-2">
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    disabled={isSendingMessage}
+                    className="shrink-0"
+                  >
+                    <label className="cursor-pointer">
+                      <input
+                        ref={
+                          (input) => {
+                            if (input) {
+                              const fileInput = input as HTMLInputElement;
+                              fileInput.onchange = (e) => {
+                                const file = (e.target as HTMLInputElement).files?.[0];
+                                if (file) setMessageFile(file);
+                              };
+                            }
+                          }
+                        }
+                        type="file"
+                        className="hidden"
+                      />
+                      <Paperclip className="h-4 w-4" />
+                    </label>
+                  </Button>
+
+                  <Textarea
+                    placeholder="Type your message..."
+                    value={messageContent}
+                    onChange={(e) => setMessageContent(e.target.value)}
+                    className="min-h-[52px] flex-1 resize-none rounded-2xl"
+                  />
+
+                  <Button
+                    onClick={sendMessage}
+                    className="shrink-0 rounded-full px-4"
+                    disabled={(!messageContent.trim() && !messageFile) || isSendingMessage}
+                  >
+                    {isSendingMessage ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+
+                {messageFile && (
+                  <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-secondary/40 p-3 text-xs text-muted-foreground">
+                    <FileIcon className="h-3 w-3" />
+                    <span className="truncate">{messageFile.name}</span>
+                    <button
+                      onClick={() => setMessageFile(null)}
+                      className="ml-auto rounded-full p-1 hover:bg-secondary"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

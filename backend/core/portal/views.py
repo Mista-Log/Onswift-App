@@ -11,7 +11,7 @@ from django.contrib.auth import get_user_model
 
 from project.models import Project, ProjectClientMembership
 from .models import PortalMessage, ClientInvite
-from .permissions import IsClientRole, IsProjectClient, IsCreatorOrProjectClient
+from .permissions import IsClientRole, IsProjectClient, IsCreatorOrProjectClient, get_client_project_ids
 from .serializers import (
     PortalProjectSerializer,
     PortalProjectListSerializer,
@@ -108,13 +108,10 @@ class PortalProjectListView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsClientRole]
 
     def get(self, request):
-        # Get all projects this client has active membership to
-        memberships = ProjectClientMembership.objects.filter(
-            client=request.user,
-            status__in=["active", "on_hold"]  # Only show active or on-hold projects
-        ).select_related("project")
-
-        projects = [membership.project for membership in memberships]
+        project_ids = get_client_project_ids(request.user)
+        projects = list(
+            Project.objects.filter(id__in=project_ids).select_related("creator")
+        )
         serializer = PortalProjectListSerializer(projects, many=True)
 
         return Response({
@@ -159,7 +156,6 @@ class PortalProjectDetailView(APIView):
 
 
 # ── Messaging Endpoints ──────────────────────────────────────────────
-
 class PortalMessageListView(APIView):
     """
     GET /api/v5/projects/<project_id>/messages/
