@@ -17,6 +17,11 @@ import {
   Edit,
   Loader2,
   ArrowUpDown,
+  MessageCircle,
+  Send,
+  Paperclip,
+  X,
+  File as FileIcon,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -39,15 +44,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { secureFetch } from "@/api/apiClient";
 import { ClientInviteModal } from "@/components/project/ClientInviteModal";
 import { ClientInvitesTable } from "@/components/project/ClientInvitesTable";
 import { useProjects, type Task } from "@/contexts/ProjectContext";
@@ -78,12 +79,21 @@ export default function ProjectDetail() {
   const [sortMethod, setSortMethod] = useState<"deadline-asc" | "deadline-desc" | "alphabetical-asc" | "alphabetical-desc">("deadline-asc");
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [refreshInvitesTrigger, setRefreshInvitesTrigger] = useState(0);
+  
+  // Messages state
+  const [messages, setMessages] = useState<any[]>([]);
+  const [messageContent, setMessageContent] = useState("");
+  const [messageFile, setMessageFile] = useState<File | null>(null);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [showMessages, setShowMessages] = useState(false);
 
   const project = projects.find((p) => p.id === id);
   const isCreator = user?.role === "creator";
 
   useEffect(() => {
     loadTasks();
+    loadMessages();
   }, [id]);
 
   const loadTasks = async () => {
@@ -214,6 +224,61 @@ export default function ProjectDetail() {
       toast.error("Failed to rename project");
     } finally {
       setIsRenaming(false);
+    }
+  };
+
+  const loadMessages = async () => {
+    if (!id) return;
+    setIsLoadingMessages(true);
+    try {
+      const response = await secureFetch(`/api/v5/projects/${id}/messages/`);
+      console.log("Messages response status:", response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Messages data:", data);
+        setMessages(data.messages || []);
+      } else {
+        const errorText = await response.text();
+        console.error("Failed to load messages:", response.status, errorText);
+        toast.error(`Failed to load messages: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Error loading messages:", error);
+      toast.error("Failed to load messages");
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!id || (!messageContent.trim() && !messageFile)) return;
+
+    setIsSendingMessage(true);
+    try {
+      const formData = new FormData();
+      if (messageContent.trim()) formData.append("content", messageContent.trim());
+      if (messageFile) formData.append("file", messageFile);
+
+      const response = await secureFetch(`/api/v5/projects/${id}/messages/send/`, {
+        method: "POST",
+        body: formData,
+        headers: {},
+      });
+
+      if (response.ok) {
+        const newMessage = await response.json();
+        setMessages((prev) => [...prev, newMessage]);
+        setMessageContent("");
+        setMessageFile(null);
+        toast.success("Message sent!");
+      } else {
+        toast.error("Failed to send message");
+      }
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setIsSendingMessage(false);
     }
   };
 
@@ -627,14 +692,134 @@ export default function ProjectDetail() {
           </div>
         )}
 
-        {/* Client Invites Section */}
-        {id && isCreator && (
+        {/* Client Invites Section UNFINISHED BUSINESS HERE, WOULD BE REVISED LATER */} 
+        {/* {id && isCreator && (
           <div className="mt-8 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">Client Invites</h2>
               <span className="text-sm text-muted-foreground">Manage invitations</span>
             </div>
             <ClientInvitesTable projectId={id} refreshTrigger={refreshInvitesTrigger} />
+          </div>
+        )} */}
+
+        {/* Messages Section */}
+        {id && (
+          <div className="mt-8 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <MessageCircle className="h-5 w-5" />
+                Project Messages
+              </h2>
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={loadMessages}
+                disabled={isLoadingMessages}
+              >
+                {isLoadingMessages ? "Loading..." : "Refresh"}
+              </Button>
+            </div>
+            
+            <Card className="glass-card border-border/50">
+              <CardContent className="pt-6">
+                {isLoadingMessages ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  </div>
+                ) : messages.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No messages yet. Start a conversation with your clients!
+                  </p>
+                ) : (
+                  <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {messages.map((msg: any) => (
+                      <div key={msg.id} className="p-3 bg-secondary/30 rounded-lg">
+                        <div className="flex items-start justify-between mb-1">
+                          <span className="font-medium text-sm">{msg.sender_name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {msg.created_at && format(new Date(msg.created_at), "MMM d, HH:mm")}
+                          </span>
+                        </div>
+                        <p className="text-sm text-foreground/90">{msg.content}</p>
+                        {msg.file_name && (
+                          <a
+                            href={msg.file}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 mt-2"
+                          >
+                            <FileIcon className="h-3 w-3" />
+                            {msg.file_name}
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Message Input */}
+                <div className="mt-4 pt-4 border-t border-border/50 space-y-2">
+                  <div className="flex gap-2">
+                    <Textarea
+                      placeholder="Type your message..."
+                      value={messageContent}
+                      onChange={(e) => setMessageContent(e.target.value)}
+                      className="resize-none"
+                      rows={2}
+                    />
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        disabled={isSendingMessage}
+                      >
+                        <label className="cursor-pointer">
+                          <input
+                            ref={
+                              (input) => {
+                                if (input) {
+                                  const fileInput = input as HTMLInputElement;
+                                  fileInput.onchange = (e) => {
+                                    const file = (e.target as HTMLInputElement).files?.[0];
+                                    if (file) setMessageFile(file);
+                                  };
+                                }
+                              }
+                            }
+                            type="file"
+                            className="hidden"
+                          />
+                          <Paperclip className="h-4 w-4" />
+                        </label>
+                      </Button>
+                      <Button
+                        onClick={sendMessage}
+                        disabled={(!messageContent.trim() && !messageFile) || isSendingMessage}
+                      >
+                        {isSendingMessage ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  {messageFile && (
+                    <div className="flex items-center gap-2 text-xs bg-secondary/30 p-2 rounded">
+                      <FileIcon className="h-3 w-3" />
+                      <span>{messageFile.name}</span>
+                      <button
+                        onClick={() => setMessageFile(null)}
+                        className="ml-auto"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 

@@ -70,12 +70,8 @@ export default function PortalMessages() {
       const response = await secureFetch(`/api/v5/projects/${projectId}/messages/`);
       if (response.ok) {
         const data = await response.json();
-        setMessages(data.results || data);
-        setHasMore(!!data.next);
-        if (data.next) {
-          const url = new URL(data.next);
-          setCursor(url.searchParams.get("cursor"));
-        }
+        setMessages(data.messages || []);
+        setHasMore(!!data.has_more);
         // Mark as read
         markMessagesRead();
       } else if (response.status === 403) {
@@ -94,7 +90,7 @@ export default function PortalMessages() {
       const response = await secureFetch(`/api/v5/projects/${projectId}/messages/`);
       if (response.ok) {
         const data = await response.json();
-        const newMessages: PortalMessage[] = data.results || data;
+        const newMessages: PortalMessage[] = data.messages || [];
         if (newMessages.length > messages.length) {
           setMessages(newMessages);
           markMessagesRead();
@@ -116,21 +112,17 @@ export default function PortalMessages() {
   };
 
   const loadOlderMessages = async () => {
-    if (!cursor) return;
+    if (!hasMore || messages.length === 0) return;
     try {
+      const oldestMessage = messages[0];
       const response = await secureFetch(
-        `/api/v5/projects/${projectId}/messages/?cursor=${cursor}`
+        `/api/v5/projects/${projectId}/messages/?before=${oldestMessage.id}&limit=50`
       );
       if (response.ok) {
         const data = await response.json();
-        setMessages((prev) => [...(data.results || data), ...prev]);
-        setHasMore(!!data.next);
-        if (data.next) {
-          const url = new URL(data.next);
-          setCursor(url.searchParams.get("cursor"));
-        } else {
-          setCursor(null);
-        }
+        const olderMessages = data.messages || [];
+        setMessages((prev) => [...olderMessages, ...prev]);
+        setHasMore(!!data.has_more);
       }
     } catch {
       toast.error("Failed to load older messages");
@@ -146,7 +138,7 @@ export default function PortalMessages() {
       if (content.trim()) formData.append("content", content.trim());
       if (file) formData.append("file", file);
 
-      const response = await secureFetch(`/api/v5/projects/${projectId}/messages/`, {
+      const response = await secureFetch(`/api/v5/projects/${projectId}/messages/send/`, {
         method: "POST",
         body: formData,
         headers: {}, // Let browser set content-type for FormData

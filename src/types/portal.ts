@@ -69,6 +69,3 @@ export interface PortalMessage {
   read_at: string | null;
   created_at: string;
 }
-  thread_id: string | null;
-  created_at: string;
-}
