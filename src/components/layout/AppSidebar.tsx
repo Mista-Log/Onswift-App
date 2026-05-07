@@ -1,4 +1,4 @@
-import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, Upload } from "lucide-react";
+import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, Upload, ClipboardList, FileArchive } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,12 +12,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
-
+import { useTheme } from "next-themes";
 const creatorNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
-  { label: "Browse Talent", icon: Users, route: "/talent" },
-  { label: "Chats", icon: MessageCircle, route: "/messages" },
+  { label: "Find Talent", icon: Users, route: "/talent" },
+  { label: "My Team", icon: UsersRound, route: "/team" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
+  { label: "Chats", icon: MessageCircle, route: "/messages" },
+  { label: "Deliverables", icon: Upload, route: "/deliverables" },
+  { label: "Forms", icon: ClipboardList, route: "/onboarding" },
+  { label: "Library", icon: FileArchive, route: "/library" },
   { label: "Deadlines", icon: Calendar, route: "/calendar" },
 ];
 
@@ -42,13 +46,15 @@ interface AppSidebarProps {
 export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
   const location = useLocation();
   const { user } = useAuth();
+  const { resolvedTheme } = useTheme();
 
   const navItems = user?.role === 'talent' ? talentNavItems : creatorNavItems;
 
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-sidebar-border bg-sidebar py-6 transition-all duration-300",
+        "flex h-screen flex-col rounded-b-3xl border border-sidebar-border bg-sidebar py-6 overflow-hidden transition-all duration-300",
+        !onClose ? "fixed left-0 top-0 z-40" : "relative",
         isCollapsed ? "w-20 items-center" : "w-64 px-4"
       )}
     >
@@ -65,86 +71,101 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
       {/* Logo */}
       <div className={cn("mb-8", isCollapsed ? "px-0" : "px-2")}>
         {isCollapsed ? (
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg shadow-glow">
-            O
+          <div className="flex items-center justify-center">
+            <div className="h-10 w-10 flex items-center justify-center rounded-xl overflow-hidden bg-transparent">
+              <img
+                src={resolvedTheme === "light" ? "/onswift-purple-logo.png" : "/onswift%20logo.png"}
+                alt="OnSwift logo"
+                className="h-24 w-24 object-contain"
+              />
+            </div>
           </div>
         ) : (
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold shadow-glow">
-              O
+            <div className="flex items-center gap-3">
+            <div className="h-10 w-10 flex items-center justify-center rounded-xl overflow-hidden bg-transparent">
+              <img
+                src={resolvedTheme === "light" ? "/onswift-purple-logo.png" : "/onswift%20logo.png"}
+                alt="OnSwift logo"
+                className="h-24 w-24 object-contain"
+              />
             </div>
-            <span className="text-xl font-bold text-foreground">
-              OnSwift
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-bold text-foreground">OnSwift</span>
+              <span className="inline-flex items-center rounded-full bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-0.5">
+                Beta 2.0
+              </span>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Main Navigation */}
-      <nav className={cn("flex flex-1 flex-col gap-2", isCollapsed ? "items-center" : "")}>
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.route ||
-            (item.route !== "/dashboard" && location.pathname.startsWith(item.route));
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* Main Navigation */}
+        <nav className={cn("flex flex-1 flex-col gap-2 overflow-y-auto", isCollapsed ? "items-center" : "")}>
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.route ||
+              (item.route !== "/dashboard" && location.pathname.startsWith(item.route));
 
-          return (
-            <NavLink
-              key={item.route}
-              to={item.route}
-              className={cn(
-                "group relative flex items-center gap-3 rounded-xl transition-all duration-300",
-                isCollapsed ? "h-12 w-12 justify-center" : "h-12 px-4",
-                isActive
-                  ? "bg-primary text-primary-foreground shadow-glow"
-                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              )}
-            >
-              <item.icon className="h-5 w-5 flex-shrink-0" />
-              {!isCollapsed && (
-                <span className="font-medium">{item.label}</span>
-              )}
+            return (
+              <NavLink
+                key={item.route}
+                to={item.route}
+                className={cn(
+                  "group relative flex items-center gap-3 rounded-xl transition-all duration-300",
+                  isCollapsed ? "h-12 w-12 justify-center" : "h-12 px-4",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-glow"
+                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                )}
+              >
+                <item.icon className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && (
+                  <span className="font-medium">{item.label}</span>
+                )}
 
-              {/* Tooltip for collapsed state */}
-              {isCollapsed && (
-                <span className="absolute left-full ml-3 hidden rounded-lg bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground shadow-lg group-hover:block whitespace-nowrap">
-                  {item.label}
-                </span>
-              )}
-            </NavLink>
-          );
-        })}
-      </nav>
+                {/* Tooltip for collapsed state */}
+                {isCollapsed && (
+                  <span className="absolute left-full ml-3 hidden rounded-lg bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground shadow-lg group-hover:block whitespace-nowrap">
+                    {item.label}
+                  </span>
+                )}
+              </NavLink>
+            );
+          })}
+        </nav>
 
-      {/* Bottom Navigation */}
-      <nav className={cn("flex flex-col gap-2", isCollapsed ? "items-center" : "")}>
-        {bottomNavItems.map((item) => {
-          const isActive = location.pathname === item.route;
+        {/* Bottom Navigation */}
+        <nav className={cn("mt-6 flex flex-col gap-2", isCollapsed ? "items-center" : "")}>
+          {bottomNavItems.map((item) => {
+            const isActive = location.pathname === item.route;
 
-          return (
-            <NavLink
-              key={item.route}
-              to={item.route}
-              className={cn(
-                "group relative flex items-center gap-3 rounded-xl transition-all duration-300",
-                isCollapsed ? "h-12 w-12 justify-center" : "h-12 px-4",
-                isActive
-                  ? "bg-primary text-primary-foreground shadow-glow"
-                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              )}
-            >
-              <item.icon className="h-5 w-5 flex-shrink-0" />
-              {!isCollapsed && (
-                <span className="font-medium">{item.label}</span>
-              )}
+            return (
+              <NavLink
+                key={item.route}
+                to={item.route}
+                className={cn(
+                  "group relative flex items-center gap-3 rounded-xl transition-all duration-300",
+                  isCollapsed ? "h-12 w-12 justify-center" : "h-12 px-4",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-glow"
+                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                )}
+              >
+                <item.icon className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && (
+                  <span className="font-medium">{item.label}</span>
+                )}
 
-              {isCollapsed && (
-                <span className="absolute left-full ml-3 hidden rounded-lg bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground shadow-lg group-hover:block whitespace-nowrap">
-                  {item.label}
-                </span>
-              )}
-            </NavLink>
-          );
-        })}
-      </nav>
+                {isCollapsed && (
+                  <span className="absolute left-full ml-3 hidden rounded-lg bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground shadow-lg group-hover:block whitespace-nowrap">
+                    {item.label}
+                  </span>
+                )}
+              </NavLink>
+            );
+          })}
+        </nav>
+      </div>
     </aside>
   );
 }
@@ -160,8 +181,6 @@ export function TopBar({ onToggleSidebar, onToggleMobileSidebar, isCollapsed }: 
   const navigate = useNavigate();
 
   const profilePicture = user?.profilePicture;
-
-
 
   const handleLogout = () => {
     logout();

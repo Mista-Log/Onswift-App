@@ -50,7 +50,7 @@ export function MessageBubble({
             <img
               src={message.fileUrl}
               alt={message.fileName || 'Attached image'}
-              className="max-w-xs rounded-lg"
+              className="max-w-full sm:max-w-xs rounded-lg"
               onError={() => setImageError(true)}
             />
           ) : (
@@ -115,7 +115,7 @@ export function MessageBubble({
         </Avatar>
       )}
 
-      <div className={cn('flex max-w-md flex-col', isOwnMessage && 'items-end')}>
+      <div className={cn('flex max-w-[85%] sm:max-w-[75%] md:max-w-md flex-col', isOwnMessage && 'items-end')}>
         {!isOwnMessage && isGroupChat && (
           <p className="mb-1 text-xs font-medium text-foreground">{message.senderName}</p>
         )}

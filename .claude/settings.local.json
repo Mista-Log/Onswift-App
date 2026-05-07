@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python manage.py test:*)",
-      "Bash(timeout 120 python manage.py test:*)"
-    ]
-  }
-}

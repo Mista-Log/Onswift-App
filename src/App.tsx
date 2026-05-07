@@ -1,8 +1,10 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { TeamProvider } from "@/contexts/TeamContext";
@@ -32,6 +34,27 @@ import Messages from "./pages/Messages";
 import Deliverables from "./pages/Deliverables";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/auth/ResetPassword";
+import GoogleOAuthCallback from "./pages/auth/GoogleOAuthCallback";
+
+// Onboarding (creator)
+import OnboardingTemplates from "./pages/onboarding/OnboardingFormPage";
+import OnboardingBuilder from "./pages/onboarding/OnboardingBuilder";
+import ClientHistoryPage from "./pages/onboarding/ClientHistoryPage";
+// Onboarding (public client-facing)
+import ClientOnboard from "./pages/onboarding/ClientOnboard";
+
+// Portal (client)
+import { PortalRouteGuard } from "@/components/portal/PortalRouteGuard";
+import PortalProjectSelector from "./pages/portal/PortalProjectSelector";
+import PortalDashboard from "./pages/portal/PortalDashboard";
+import PortalMessages from "./pages/portal/PortalMessages";
+import InviteAccept from "./pages/portal/InviteAccept";
+
+// Library (creator)
+import DocumentLibrary from "./pages/library/DocumentLibrary";
+
+// Analytics
+import { PageTracker } from "./components/analytics/PageTracker";
 
 
 const queryClient = new QueryClient();
@@ -43,10 +66,13 @@ const App = () => (
         <ProjectProvider>
           <TeamProvider>
             <NotificationProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-            <Routes>
+              <ThemeProvider attribute="class" defaultTheme="light">
+                <Toaster />
+                <Sonner />
+                <Analytics />
+                <BrowserRouter>
+                  <PageTracker />
+                  <Routes>
               {/* Public routes */}
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
@@ -69,12 +95,33 @@ const App = () => (
               <Route path="/deliverables" element={<ProtectedRoute><Deliverables /></ProtectedRoute>} />
               <Route path="/talent/:userId" element={<ProtectedRoute><TalentPublicProfile /></ProtectedRoute>} />
               <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
+              <Route path="/auth/google/callback" element={<GoogleOAuthCallback />} />
 
+              {/* Onboarding — creator (protected) */}
+              <Route path="/onboarding" element={<ProtectedRoute><OnboardingTemplates /></ProtectedRoute>} />
+              <Route path="/onboarding/new" element={<ProtectedRoute><OnboardingBuilder /></ProtectedRoute>} />
+              <Route path="/onboarding/clients" element={<ProtectedRoute><ClientHistoryPage /></ProtectedRoute>} />
+              <Route path="/onboarding/:id" element={<ProtectedRoute><OnboardingBuilder /></ProtectedRoute>} />
+
+              {/* Onboarding — public client page */}
+              <Route path="/onboard/:slug" element={<ClientOnboard />} />
+
+              {/* Invite acceptance — public, token-based */}
+              <Route path="/invite/:token" element={<InviteAccept />} />
+
+              {/* Portal — client only */}
+              <Route path="/portal" element={<PortalRouteGuard><PortalProjectSelector /></PortalRouteGuard>} />
+              <Route path="/portal/:projectId" element={<PortalRouteGuard><PortalDashboard /></PortalRouteGuard>} />
+              <Route path="/portal/:projectId/messages" element={<PortalRouteGuard><PortalMessages /></PortalRouteGuard>} />
+
+              {/* Document Library — creator (protected) */}
+              <Route path="/library" element={<ProtectedRoute><DocumentLibrary /></ProtectedRoute>} />
 
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </BrowserRouter>
+                </BrowserRouter>
+              </ThemeProvider>
             </NotificationProvider>
           </TeamProvider>
         </ProjectProvider>

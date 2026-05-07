@@ -4,7 +4,11 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Calendar, Users, FolderKanban, MoreVertical, Trash2, ExternalLink } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Users, FolderKanban, MoreVertical, Trash2, ExternalLink } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -35,86 +39,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProjects } from "@/contexts/ProjectContext";
-
-// Creator's projects (projects they own)
-// const creatorProjects = [
-//   {
-//     id: "1",
-//     name: 'Brand Collab - "Future Funk"',
-//     description: "Music video production and promotional materials for upcoming EP release.",
-//     due_date: "24 Oct 2023",
-//     status: "in-progress" as const,
-//     teamMembers: [
-//       { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-//       { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-//       { id: "3", name: "Clara Dane", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Clara" },
-//     ],
-//     taskCount: 12,
-//     completedTasks: 7,
-//   },
-//   {
-//     id: "2",
-//     name: '"Cyber Dreams" EP Visuals',
-//     description: "Album artwork and visualizer animations for Cyber Dreams EP.",
-//     due_date: "15 Nov 2023",
-//     status: "planning" as const,
-//     teamMembers: [
-//       { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-//       { id: "2", name: "Ben Carter", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-//     ],
-//     taskCount: 8,
-//     completedTasks: 0,
-//   },
-//   {
-//     id: "3",
-//     name: "V-Tuber Model 2.0",
-//     description: "Updated VTuber model with new expressions and rigging.",
-//     due_date: "02 Oct 2023",
-//     status: "completed" as const,
-//     teamMembers: [
-//       { id: "1", name: "Alia Vance", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-//     ],
-//     taskCount: 6,
-//     completedTasks: 6,
-//   },
-// ];
-
-// Talent's assigned projects (projects they're working on)
-// const talentProjects = [
-//   {
-//     id: "1",
-//     name: 'Brand Collab - "Future Funk"',
-//     description: "Creating promotional materials and motion graphics.",
-//     due_date: "24 Oct 2023",
-//     status: "in-progress" as const,
-//     creatorName: "Alex Johnson",
-//     creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex",
-//     myTasks: 5,
-//     completedTasks: 3,
-//   },
-//   {
-//     id: "4",
-//     name: "Mobile App UI Redesign",
-//     description: "Designing new UI components and user flows.",
-//     due_date: "30 Nov 2023",
-//     status: "in-progress" as const,
-//     creatorName: "Jordan Smith",
-//     creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jordan",
-//     myTasks: 8,
-//     completedTasks: 2,
-//   },
-//   {
-//     id: "5",
-//     name: "Logo Design for StartupX",
-//     description: "Brand identity and logo variations.",
-//     due_date: "10 Oct 2023",
-//     status: "completed" as const,
-//     creatorName: "Taylor Chen",
-//     creatorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Taylor",
-//     myTasks: 4,
-//     completedTasks: 4,
-//   },
-// ];
 
 export default function Projects() {
   const navigate = useNavigate();
@@ -175,11 +99,11 @@ export default function Projects() {
 
   return (
     <MainLayout>
-      <div className="animate-fade-in space-y-6">
+      <div className="animate-fade-in space-y-6 sm:space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">
               {isTalent ? "My Projects" : "Projects"}
             </h1>
             <p className="mt-1 text-muted-foreground">
@@ -193,7 +117,7 @@ export default function Projects() {
           {!isTalent && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2">
+                <Button className="gap-2 w-full sm:w-auto">
                   <Plus className="h-4 w-4" />
                   New Project
                 </Button>
@@ -225,13 +149,29 @@ export default function Projects() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="due_date">Due Date</Label>
-                    <Input
-                      id="due_date"
-                      type="date"
-                      value={formData.due_date}
-                      onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                    />
+                    <Label>Due Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !formData.due_date && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {formData.due_date ? format(new Date(formData.due_date), "PPP") : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 z-50" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={formData.due_date ? new Date(formData.due_date) : undefined}
+                          onSelect={(date) => setFormData(prev => ({ ...prev, due_date: date ? format(date, "yyyy-MM-dd") : "" }))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
                 <div className="flex justify-end gap-3">
@@ -247,7 +187,7 @@ export default function Projects() {
 
         {/* Projects Grid */}
         {projects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-12 text-center min-h-[400px]">
+          <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center min-h-[360px]">
             <FolderKanban className="h-12 w-12 text-muted-foreground/50" />
             <p className="mt-3 text-sm font-medium text-foreground">
               {isTalent ? "No projects assigned yet" : "No projects yet"}
@@ -328,7 +268,7 @@ export default function Projects() {
                   </div>
 
                   {/* Meta */}
-                  <div className="flex justify-between items-center text-sm">
+                  {/* <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
                       {project.due_date}
@@ -344,7 +284,7 @@ export default function Projects() {
                         </Avatar>
                       ))}
                     </div>
-                  </div>
+                  </div> */}
                 </div>
               );
             })}

@@ -1,7 +1,7 @@
 from urllib import request
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import User, TalentProfile, CreatorProfile
+from .models import User, TalentProfile, CreatorProfile, UserSettings
 
 
 class SignupSerializer(serializers.ModelSerializer):
@@ -17,11 +17,11 @@ class SignupSerializer(serializers.ModelSerializer):
     )
 
     # Creator fields (optional)
-    company_name = serializers.CharField(required=False)
-    bio = serializers.CharField(required=False)
-    website = serializers.URLField(required=False)
-    industry = serializers.CharField(required=False)
-    location = serializers.CharField(required=False)
+    company_name = serializers.CharField(required=False, allow_blank=True)
+    bio = serializers.CharField(required=False, allow_blank=True)
+    website = serializers.URLField(required=False, allow_blank=True)
+    industry = serializers.CharField(required=False, allow_blank=True)
+    location = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = User
@@ -180,7 +180,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         # Talent profile
         if user.role == "talent":
             profile, _ = TalentProfile.objects.get_or_create(user=user)
-            for field in ["professional_title", "skills", "primary_skill", "hourly_rate"]:
+            for field in ["professional_title", "skills", "primary_skill", "hourly_rate", "bio"]:
                 if field in validated_data:
                     setattr(profile, field, validated_data[field])
             profile.save()
@@ -244,4 +244,96 @@ class UserDetailSerializer(serializers.ModelSerializer):
                     ),
 
                 }
+        return None
+
+
+class UserSettingsSerializer(serializers.ModelSerializer):
+    """Serializer for user notification settings"""
+    class Meta:
+        model = UserSettings
+        fields = ['email_notifications', 'push_notifications', 'message_alerts']
+
+
+class AccountStatsSerializer(serializers.Serializer):
+    """Serializer for account statistics"""
+    member_since = serializers.DateTimeField()
+    projects_count = serializers.IntegerField()
+    team_members_count = serializers.IntegerField()
+    completed_tasks_count = serializers.IntegerField()
+
+
+class ProfileUpdateBasicSerializer(serializers.ModelSerializer):
+    """Serializer for updating basic profile info from settings"""
+    bio = serializers.CharField(required=False, allow_blank=True)
+    
+    class Meta:
+        model = User
+        fields = ['full_name', 'email', 'bio']
+        extra_kwargs = {
+            'email': {'required': False},
+            'full_name': {'required': False},
+        }
+
+    def update(self, instance, validated_data):
+        bio = validated_data.pop('bio', None)
+        
+        # Update User fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Update bio in the appropriate profile
+        if bio is not None:
+            if instance.role == 'talent':
+                talent_profile, _ = TalentProfile.objects.get_or_create(
+                    user=instance,
+                    defaults={'professional_title': '', 'primary_skill': ''}
+                )
+                talent_profile.bio = bio
+                talent_profile.save()
+            elif instance.role == 'creator':
+                creator_profile, _ = CreatorProfile.objects.get_or_create(user=instance)
+                creator_profile.bio = bio
+                creator_profile.save()
+        
+        return instance
+
+
+class TalentProfileListSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source="full_name")
+    role = serializers.CharField(source="talentprofile.professional_title")
+    avatar = serializers.SerializerMethodField()
+    skills = serializers.SerializerMethodField()
+    bio = serializers.SerializerMethodField()
+    portfolioUrl = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "name",
+            "role",
+            "avatar",
+            "skills",
+            "bio",
+            "portfolioUrl",
+        ]
+
+    def get_avatar(self, obj):
+        if obj.profile_picture:
+            return obj.profile_picture.url
+        return f"https://api.dicebear.com/7.x/avataaars/svg?seed={obj.full_name}"
+
+    def get_skills(self, obj):
+        profile = getattr(obj, "talentprofile", None)
+        return profile.skills if profile else []
+
+    def get_bio(self, obj):
+        profile = getattr(obj, "talentprofile", None)
+        return profile.bio if profile else ""
+
+    def get_portfolioUrl(self, obj):
+        profile = getattr(obj, "talentprofile", None)
+        if profile and profile.portfolio_links:
+            return profile.portfolio_links[0]
         return None

@@ -144,7 +144,7 @@ export function MessageInput({
   };
 
   return (
-    <div className="border-t border-border/50 p-4">
+    <div className="border-t border-border/50 p-3 sm:p-4">
       {/* Typing indicator */}
       {typingUsers.length > 0 && (
         <div className="mb-2 text-sm text-muted-foreground">
@@ -179,9 +179,9 @@ export function MessageInput({
       {/* Attachment preview */}
       {attachedFile && (
         <div className="mb-2 flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-2">
-          <div className="flex items-center gap-2">
-            <Paperclip className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-foreground">{attachedFile.name}</span>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Paperclip className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-sm text-foreground truncate">{attachedFile.name}</span>
           </div>
           <Button
             size="icon"
@@ -195,7 +195,7 @@ export function MessageInput({
       )}
 
       {/* Input area */}
-      <div className="flex gap-3">
+      <div className="flex gap-2 sm:gap-3">
         <input
           type="file"
           ref={fileInputRef}
@@ -226,10 +226,11 @@ export function MessageInput({
         <Button
           onClick={handleSendMessage}
           disabled={disabled || (!message.trim() && !attachedFile)}
-          className="gap-2 shrink-0"
+          size="icon"
+          className="sm:w-auto sm:px-4 shrink-0"
         >
           <Send className="h-4 w-4" />
-          Send
+          <span className="hidden sm:inline sm:ml-2">Send</span>
         </Button>
       </div>
     </div>

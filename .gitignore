@@ -23,3 +23,19 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.vercel
+
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+
+# Django
+db.sqlite3
+
+# Nested repo backup while absorbing temp-landing-repo into the main repo
+temp-landing-repo/.git.nested-backup/
+
+# Temporary experiment/clone repo
+temp-landing-repo/
+

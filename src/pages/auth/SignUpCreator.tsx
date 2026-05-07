@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { User, Mail, Building2, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,12 +9,14 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function SignUpCreator() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signup, isAuthenticated } = useAuth();
   const { toast } = useToast();
+  const locationState = location.state as { prefilledEmail?: string; prefilledName?: string } | undefined;
   
   const [formData, setFormData] = useState({
-    full_name: '',
-    email: '',
+    full_name: locationState?.prefilledName || '',
+    email: locationState?.prefilledEmail || '',
     company_name: '',
     password: '',
     confirmPassword: '',
@@ -88,10 +90,13 @@ export default function SignUpCreator() {
         <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-2xl p-8 md:p-12 shadow-glow">
           {/* Header */}
           <div className="text-center mb-8">
-            <Link to="/" className="inline-block mb-6">
-              <h1 className="text-2xl font-bold text-foreground">
-                On<span className="text-primary">Swift</span>
-              </h1>
+            <Link to="/" className="inline-flex flex-col items-center gap-3 mb-6">
+              <img
+                src="/onswift-purple-logo.png"
+                alt="OnSwift logo"
+                className="h-14 w-14 object-contain"
+              />
+              <h1 className="text-2xl font-bold text-foreground">OnSwift</h1>
             </Link>
             
             {/* Stepper */}
@@ -124,7 +129,12 @@ export default function SignUpCreator() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">Creator Email</label>
+              <label className="text-sm font-medium text-foreground mb-2 block">
+                Creator Email
+                {locationState?.prefilledEmail && (
+                  <span className="text-xs text-muted-foreground ml-2">(from survey)</span>
+                )}
+              </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input

@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import HireRequest, Notification, InviteToken
 from .services import create_notification
 from django.utils import timezone
+from django.conf import settings
 from account.models import User
 
 
@@ -141,14 +142,10 @@ class InviteTokenCreateSerializer(serializers.ModelSerializer):
 
     def get_invite_url(self, obj):
         """Generate the full invite URL"""
-        request = self.context.get('request')
-        if request:
-            # Build absolute URL for the frontend
-            origin = request.build_absolute_uri('/').rstrip('/')
-            # Replace backend URL with frontend URL
-            origin = origin.replace(':8000', ':5173')  # Adjust port if needed
-            return f"{origin}/signup/talent?invite={obj.token}"
-        return f"/signup/talent?invite={obj.token}"
+        # Use FRONTEND_URL from settings, fallback to localhost:8080 for local dev
+        frontend_url = settings.FRONTEND_URL or 'http://localhost:8080'
+        frontend_url = frontend_url.rstrip('/')
+        return f"{frontend_url}/signup/talent?invite={obj.token}"
 
 
 class InviteTokenValidateSerializer(serializers.ModelSerializer):

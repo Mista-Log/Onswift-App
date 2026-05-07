@@ -1,3 +1,4 @@
+from django.utils import timezone
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 import uuid
@@ -31,6 +32,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = (
         ('creator', 'Creator'),
         ('talent', 'Talent'),
+        ('client', 'Client'),
     )
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
@@ -43,6 +45,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     full_name = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+
+
+    date_joined = models.DateTimeField(default=timezone.now)
 
 
     USERNAME_FIELD = "email" 
@@ -85,3 +90,20 @@ class CreatorProfile(models.Model):
 
     def __str__(self):
         return f"Creator: {self.user.full_name or self.user.email}"
+
+
+class UserSettings(models.Model):
+    """User notification and account preferences"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='settings')
+    email_notifications = models.BooleanField(default=True)
+    push_notifications = models.BooleanField(default=True)
+    message_alerts = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Settings for {self.user.email}"
+
+    class Meta:
+        verbose_name = "User Settings"
+        verbose_name_plural = "User Settings"

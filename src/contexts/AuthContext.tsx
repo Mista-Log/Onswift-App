@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { publicFetch, secureFetch } from '@/api/apiClient'; // Import both
+import posthog from 'posthog-js';
 
-export type UserRole = 'creator' | 'talent';
+export type UserRole = 'creator' | 'talent' | 'client';
 
 export interface User {
   id: string;
@@ -109,13 +110,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         full_name: data.full_name,
         email: data.email,
         role: data.role,
-        ...data.profile,
+
+        // 🔥 normalize profile fields
+        professional_title: data.profile?.professional_title,
+        bio: data.profile?.bio,
+        skills: data.profile?.skills,
+        availability: data.profile?.availability,
+
+        // rename fields properly
+        hourlyRate: data.profile?.hourly_rate,
         profilePicture: data.profile?.profile_picture || "",
+
         social_links: data.profile?.social_links ?? {},
       };
 
       setUser(fetchedUser);
       localStorage.setItem("onswift_user", JSON.stringify(fetchedUser));
+      
+      // Identify user in PostHog when fetching user data
+      posthog.identify(fetchedUser.id, {
+        email: fetchedUser.email,
+        full_name: fetchedUser.full_name,
+        role: fetchedUser.role,
+      });
     } catch (error) {
       console.error("Error fetching user:", error);
     }
@@ -130,15 +147,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data?.detail || "Login failed");
+      if (!response.ok) throw new Error(data?.detail || "Unable to connect your account. Please try again.");
 
       localStorage.setItem("onswift_access", data.access);
       localStorage.setItem("onswift_refresh", data.refresh);
       localStorage.setItem("onswift_user", JSON.stringify(data.user));
 
       await getUser();
-      return { success: true };
-
+      
+      // Identify user in PostHog
+      if (data.user) {
+        posthog.identify(data.user.id, {
+          email: data.user.email,
+          full_name: data.user.full_name,
+          role: data.user.role,
+          login_method: 'email',
+        });
+      }
       
       return { success: true };
     } catch (error: any) {
@@ -168,8 +193,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("onswift_user", JSON.stringify(data.user));
 
       await getUser();
-      return { success: true };
-
+      
+      // Identify user in PostHog and track signup
+      if (data.user) {
+        posthog.identify(data.user.id, {
+          email: data.user.email,
+          full_name: data.user.full_name,
+          role: data.user.role,
+          signup_method: 'email',
+        });
+        posthog.capture('user_signup', {
+          role: formData.role,
+          email: data.user.email,
+        });
+      }
       
       return { success: true };
     } catch (error: any) {
@@ -179,6 +216,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // LOGOUT
   const logout = () => {
+    // Track logout in PostHog
+    posthog.capture('user_logout');
+    posthog.reset();
+    
     setUser(null);
     localStorage.removeItem("onswift_user");
     localStorage.removeItem("onswift_access");
@@ -222,6 +263,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!response.ok) throw new Error(result?.detail || "Profile update failed");
 
       await getUser();
+
+      // 🔥 force re-render safety
+      setUser((prev) => ({
+        ...prev!,
+      }));
       
       return { success: true };
     } catch (error: any) {

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { DeliverableDetailModal } from "@/components/team/DeliverableDetailModal";
+import type { Deliverable } from "@/components/team/DeliverableCard";
 import { useParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -29,46 +31,17 @@ const taskData = {
   createdAt: "01 Oct 2023",
 };
 
-interface Deliverable {
-  id: string;
-  name: string;
-  type: string;
-  url?: string;
-  submittedAt: string;
-  status: "pending" | "approved" | "revision";
-  revisionCount: number;
-  feedback?: string;
-}
-
-const initialDeliverables: Deliverable[] = [
-  {
-    id: "1",
-    name: "storyboard_v1.pdf",
-    type: "file",
-    submittedAt: "10 Oct 2023",
-    status: "revision",
-    revisionCount: 1,
-    feedback: "Great start! Can we add more detail to scenes 3-5?",
-  },
-  {
-    id: "2",
-    name: "Updated scenes reference",
-    type: "link",
-    url: "https://example.com/scenes",
-    submittedAt: "12 Oct 2023",
-    status: "pending",
-    revisionCount: 0,
-  },
-];
+const initialDeliverables: Deliverable[] = [];
 
 export default function TaskDetails() {
   const { projectId, taskId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isTalent = user?.userType === 'talent';
+  const isTalent = user?.role === "talent";
   const [deliverables, setDeliverables] = useState<Deliverable[]>(initialDeliverables);
+  const [selectedDeliverable, setSelectedDeliverable] = useState<Deliverable | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isRevisionDialogOpen, setIsRevisionDialogOpen] = useState(false);
-  const [selectedDeliverableId, setSelectedDeliverableId] = useState<string | null>(null);
   const [revisionFeedback, setRevisionFeedback] = useState("");
 
   const maxRevisions = 3;
@@ -78,25 +51,15 @@ export default function TaskDetails() {
       d.id === deliverableId ? { ...d, status: "approved" as const } : d
     ));
     toast.success("Deliverable approved!");
+    setIsDetailModalOpen(false);
   };
 
   const handleRequestRevision = () => {
-    if (!selectedDeliverableId || !revisionFeedback.trim()) return;
-
-    setDeliverables(deliverables.map(d =>
-      d.id === selectedDeliverableId
-        ? { ...d, status: "revision" as const, revisionCount: d.revisionCount + 1, feedback: revisionFeedback }
-        : d
-    ));
-    toast.success("Revision requested!");
-    setIsRevisionDialogOpen(false);
-    setRevisionFeedback("");
-    setSelectedDeliverableId(null);
+    // handled in modal
   };
 
   const openRevisionDialog = (deliverableId: string) => {
-    setSelectedDeliverableId(deliverableId);
-    setIsRevisionDialogOpen(true);
+    // handled in modal
   };
 
   return (
@@ -142,7 +105,7 @@ export default function TaskDetails() {
           </div>
         </div>
 
-        <div className={cn("grid gap-6", isTalent ? "lg:grid-cols-1" : "lg:grid-cols-2")}>
+        <div className={cn("grid gap-6", isTalent ? "lg:grid-cols-1" : "lg:grid-cols-2")}> 
           {/* Upload Section - Talent Only */}
           {isTalent && (
             <section className="glass-card p-6">
@@ -191,23 +154,27 @@ export default function TaskDetails() {
                 <div
                   key={deliverable.id}
                   className={cn(
-                    "rounded-lg border p-4",
+                    "rounded-lg border p-4 cursor-pointer",
                     deliverable.status === "approved"
                       ? "border-success/30 bg-success/5"
                       : deliverable.status === "revision"
                       ? "border-warning/30 bg-warning/5"
                       : "border-border/50 bg-secondary/30"
                   )}
+                  onClick={() => {
+                    setSelectedDeliverable(deliverable);
+                    setIsDetailModalOpen(true);
+                  }}
                 >
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-2">
-                        {deliverable.type === "link" ? (
+                        {deliverable.files.length === 0 ? (
                           <LinkIcon className="h-4 w-4 text-muted-foreground" />
                         ) : (
                           <Upload className="h-4 w-4 text-muted-foreground" />
                         )}
-                        <span className="font-medium text-foreground">{deliverable.name}</span>
+                        <span className="font-medium text-foreground">{deliverable.title}</span>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Submitted: {deliverable.submittedAt}
@@ -225,41 +192,31 @@ export default function TaskDetails() {
                     </div>
                     <StatusBadge status={deliverable.status} />
                   </div>
-
-                  {/* Review Controls - Creator Only */}
-                  {!isTalent && deliverable.status !== "approved" && (
-                    <div className="mt-4 flex gap-3">
-                      <Button
-                        variant="success"
-                        size="sm"
-                        className="gap-2"
-                        onClick={() => handleApprove(deliverable.id)}
-                      >
-                        <Check className="h-4 w-4" />
-                        Approve
-                      </Button>
-
-                      {deliverable.revisionCount < maxRevisions ? (
-                        <Button
-                          variant="warning"
-                          size="sm"
-                          className="gap-2"
-                          onClick={() => openRevisionDialog(deliverable.id)}
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                          Request Revision
-                        </Button>
-                      ) : (
-                        <div className="flex items-center gap-2 text-sm text-warning">
-                          <AlertTriangle className="h-4 w-4" />
-                          Max revisions reached
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
+
+            {/* Deliverable Detail Modal */}
+            <DeliverableDetailModal
+              deliverable={selectedDeliverable}
+              open={isDetailModalOpen && !!selectedDeliverable}
+              onOpenChange={(open) => {
+                setIsDetailModalOpen(open);
+                if (!open) setSelectedDeliverable(null);
+              }}
+              isCreator={!isTalent}
+              onApprove={handleApprove}
+              onRequestRevision={(id, feedback) => {
+                setDeliverables(deliverables.map(d =>
+                  d.id === id
+                    ? { ...d, status: "revision" as const, revisionCount: d.revisionCount + 1, feedback }
+                    : d
+                ));
+                toast.success("Revision requested!");
+                setIsDetailModalOpen(false);
+                setSelectedDeliverable(null);
+              }}
+            />
           </section>
         </div>
 

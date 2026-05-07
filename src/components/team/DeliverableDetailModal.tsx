@@ -1,4 +1,6 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useTeam } from "@/contexts/TeamContext";
+// import { useMessaging } from "@/contexts/MessagingContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,30 +35,7 @@ interface DeliverableDetailModalProps {
 }
 
 // Mock comments
-const mockComments: Comment[] = [
-  {
-    id: "1",
-    userId: "1",
-    userName: "Alia Vance",
-    userAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia",
-    content: "Here's the final design! Let me know if you need any changes.",
-    timestamp: "2 hours ago",
-  },
-  {
-    id: "2",
-    userId: "me",
-    userName: "You",
-    userAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex",
-    content: "Looking great! Could we make the purple tones a bit more vibrant? @Alia",
-    timestamp: "1 hour ago",
-  },
-];
-
-const teamMembers = [
-  { id: "1", name: "Alia Vance" },
-  { id: "2", name: "Ben Carter" },
-  { id: "3", name: "Clara Dane" },
-];
+// Use real team members from TeamContext
 
 function getFileIcon(type: string) {
   if (type.startsWith("image/")) return Image;
@@ -107,7 +86,15 @@ export function DeliverableDetailModal({
   onApprove,
   onRequestRevision,
 }: DeliverableDetailModalProps) {
-  const [comments, setComments] = useState<Comment[]>(mockComments);
+  const { teamMembers } = useTeam();
+  // const { fetchComments, sendComment } = useMessaging();
+  const [comments, setComments] = useState<Comment[]>([]);
+  // Local-only comments for now
+  useEffect(() => {
+    if (deliverable && open) {
+      setComments([]); // Reset comments when modal opens
+    }
+  }, [deliverable, open]);
   const [newComment, setNewComment] = useState("");
   const [showMentions, setShowMentions] = useState(false);
   const [mentionFilter, setMentionFilter] = useState("");
@@ -148,14 +135,14 @@ export function DeliverableDetailModal({
   );
 
   const handleSendComment = () => {
-    if (!newComment.trim()) return;
+    if (!newComment.trim() || !deliverable) return;
     const comment: Comment = {
-      id: Date.now().toString(),
-      userId: "me",
+      id: crypto.randomUUID(),
+      userId: "current-user",
       userName: "You",
-      userAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex",
+      userAvatar: "",
       content: newComment,
-      timestamp: "Just now",
+      timestamp: new Date().toLocaleTimeString(),
     };
     setComments((prev) => [...prev, comment]);
     setNewComment("");
@@ -185,6 +172,12 @@ export function DeliverableDetailModal({
     setShowRevisionInput(false);
     setRevisionFeedback("");
   };
+
+  function formatDateTime(dateString: string): import("react").ReactNode {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return date.toLocaleString();
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -218,7 +211,9 @@ export function DeliverableDetailModal({
             </Avatar>
             <div>
               <p className="font-medium text-foreground">{deliverable.submittedBy.name}</p>
-              <p className="text-xs text-muted-foreground">Submitted {deliverable.submittedAt}</p>
+              <p className="text-xs text-muted-foreground">
+                Submitted {formatDateTime(deliverable.submittedAt)}
+              </p>
             </div>
           </div>
 
@@ -321,7 +316,7 @@ export function DeliverableDetailModal({
                         {comment.timestamp}
                       </span>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p className="text-sm text-foreground mt-1">
                       {comment.content.split(/(@\w+)/g).map((part, i) =>
                         part.startsWith("@") ? (
                           <span key={i} className="text-primary font-medium">
@@ -400,6 +395,11 @@ export function DeliverableDetailModal({
               </div>
             </div>
           )}
+                  {deliverable.feedback && (
+                    <div className="rounded-lg bg-warning/10 p-3 text-sm text-warning mt-4">
+                      <strong>Revision Feedback:</strong> {deliverable.feedback}
+                    </div>
+                  )}
         </div>
 
         {/* Actions (Creator only) */}

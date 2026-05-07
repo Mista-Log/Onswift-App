@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   ArrowLeft,
-  Calendar,
+  Calendar as CalendarIcon,
   Users,
   Plus,
   MoreVertical,
@@ -16,11 +16,20 @@ import {
   Trash2,
   Edit,
   Loader2,
+  ArrowUpDown,
+  MessageCircle,
+  Send,
+  Paperclip,
+  X,
+  File as FileIcon,
 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -35,19 +44,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { secureFetch } from "@/api/apiClient";
+import { ClientInviteModal } from "@/components/project/ClientInviteModal";
+import { ClientInvitesTable } from "@/components/project/ClientInvitesTable";
 import { useProjects, type Task } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -58,6 +65,9 @@ export default function ProjectDetail() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [taskFormData, setTaskFormData] = useState({
     name: "",
@@ -66,12 +76,23 @@ export default function ProjectDetail() {
     status: "planning" as "planning" | "in-progress" | "completed",
     deadline: "",
   });
+  const [sortMethod, setSortMethod] = useState<"deadline-asc" | "deadline-desc" | "alphabetical-asc" | "alphabetical-desc">("deadline-asc");
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [refreshInvitesTrigger, setRefreshInvitesTrigger] = useState(0);
+  
+  // Messages state
+  const [messages, setMessages] = useState<any[]>([]);
+  const [messageContent, setMessageContent] = useState("");
+  const [messageFile, setMessageFile] = useState<File | null>(null);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
   const project = projects.find((p) => p.id === id);
   const isCreator = user?.role === "creator";
 
   useEffect(() => {
     loadTasks();
+    loadMessages();
   }, [id]);
 
   const loadTasks = async () => {
@@ -82,6 +103,31 @@ export default function ProjectDetail() {
       setTasks(data);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const sortTasks = (tasksToSort: Task[]): Task[] => {
+    const sortedTasks = [...tasksToSort];
+
+    switch (sortMethod) {
+      case "deadline-asc":
+        return sortedTasks.sort((a, b) => {
+          if (!a.deadline) return 1;
+          if (!b.deadline) return -1;
+          return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+        });
+      case "deadline-desc":
+        return sortedTasks.sort((a, b) => {
+          if (!a.deadline) return 1;
+          if (!b.deadline) return -1;
+          return new Date(b.deadline).getTime() - new Date(a.deadline).getTime();
+        });
+      case "alphabetical-asc":
+        return sortedTasks.sort((a, b) => a.name.localeCompare(b.name));
+      case "alphabetical-desc":
+        return sortedTasks.sort((a, b) => b.name.localeCompare(a.name));
+      default:
+        return sortedTasks;
     }
   };
 
@@ -160,6 +206,81 @@ export default function ProjectDetail() {
     }
   };
 
+  const handleRenameProject = async () => {
+    if (!id) return;
+    const nextName = renameValue.trim();
+    if (!nextName) {
+      toast.error("Project name cannot be empty");
+      return;
+    }
+
+    try {
+      setIsRenaming(true);
+      await updateProject(id, { name: nextName });
+      toast.success("Project renamed successfully!");
+      setIsRenameDialogOpen(false);
+    } catch (error) {
+      toast.error("Failed to rename project");
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
+  const loadMessages = async () => {
+    if (!id) return;
+    setIsLoadingMessages(true);
+    try {
+      const response = await secureFetch(`/api/v5/projects/${id}/messages/`);
+      console.log("Messages response status:", response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Messages data:", data);
+        setMessages(data.messages || []);
+      } else {
+        const errorText = await response.text();
+        console.error("Failed to load messages:", response.status, errorText);
+        toast.error(`Failed to load messages: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Error loading messages:", error);
+      toast.error("Failed to load messages");
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!id || (!messageContent.trim() && !messageFile)) return;
+
+    setIsSendingMessage(true);
+    try {
+      const formData = new FormData();
+      if (messageContent.trim()) formData.append("content", messageContent.trim());
+      if (messageFile) formData.append("file", messageFile);
+
+      const response = await secureFetch(`/api/v5/projects/${id}/messages/send/`, {
+        method: "POST",
+        body: formData,
+        headers: {},
+      });
+
+      if (response.ok) {
+        const newMessage = await response.json();
+        setMessages((prev) => [...prev, newMessage]);
+        setMessageContent("");
+        setMessageFile(null);
+        toast.success("Message sent!");
+      } else {
+        toast.error("Failed to send message");
+      }
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
   if (!project) {
     return (
       <MainLayout>
@@ -175,14 +296,14 @@ export default function ProjectDetail() {
 
   const progress = project.task_count === 0 ? 0 : (project.completed_tasks / project.task_count) * 100;
 
-  const planningTasks = tasks.filter((t) => t.status === "planning");
-  const inProgressTasks = tasks.filter((t) => t.status === "in-progress");
-  const completedTasks = tasks.filter((t) => t.status === "completed");
+  const planningTasks = sortTasks(tasks.filter((t) => t.status === "planning"));
+  const inProgressTasks = sortTasks(tasks.filter((t) => t.status === "in-progress"));
+  const completedTasks = sortTasks(tasks.filter((t) => t.status === "completed"));
 
   // Available team members for assignment (if creator)
   const availableAssignees = isCreator ? [
     { id: user.id, name: user.full_name },
-    ...teamMembers.map((m) => ({ id: m.id, name: m.name }))
+    ...teamMembers.map((m) => ({ id: m.user_id, name: m.name }))
   ] : [];
 
   return (
@@ -227,6 +348,16 @@ export default function ProjectDetail() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                  onClick={() => {
+                    setRenameValue(project.name);
+                    setIsRenameDialogOpen(true);
+                  }}
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Rename Project
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
                   onClick={handleDeleteProject}
                   className="text-destructive focus:text-destructive"
                 >
@@ -238,6 +369,40 @@ export default function ProjectDetail() {
           )}
         </div>
 
+        <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Rename Project</DialogTitle>
+              <DialogDescription>
+                Update the project name to fix mistakes or improve clarity.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="project-rename">Project Name</Label>
+              <Input
+                id="project-rename"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleRenameProject();
+                  }
+                }}
+                placeholder="Enter project name"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsRenameDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleRenameProject} disabled={isRenaming || !renameValue.trim()}>
+                {isRenaming ? "Saving..." : "Save"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Project Info */}
         <div className="glass-card p-6 rounded-lg border border-border/50">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -248,7 +413,7 @@ export default function ProjectDetail() {
             <div>
               <p className="text-sm text-muted-foreground mb-1">Due Date</p>
               <div className="flex items-center gap-2 text-sm">
-                <Calendar className="h-4 w-4" />
+                
                 {project.due_date}
               </div>
             </div>
@@ -289,16 +454,41 @@ export default function ProjectDetail() {
         </div>
 
         {/* Tasks Section */}
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">Tasks</h2>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold">Tasks</h2>
+            <Select value={sortMethod} onValueChange={(value: any) => setSortMethod(value)}>
+              <SelectTrigger className="w-48">
+                <div className="flex items-center gap-2">
+                  <ArrowUpDown className="h-4 w-4" />
+                  <SelectValue />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="deadline-asc">Filter (Soonest)</SelectItem>
+                <SelectItem value="deadline-desc">Due Date (Latest)</SelectItem>
+                <SelectItem value="alphabetical-asc">Name (A-Z)</SelectItem>
+                <SelectItem value="alphabetical-desc">Name (Z-A)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {isCreator && (
-            <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  New Task
-                </Button>
-              </DialogTrigger>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline"
+                className="gap-2"
+                onClick={() => setIsInviteModalOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                New Client
+              </Button>
+              <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    New Task
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="glass-card border-border/50 sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Create New Task</DialogTitle>
@@ -353,25 +543,41 @@ export default function ProjectDetail() {
                         <SelectItem value="unassigned">Unassigned</SelectItem>
                         {availableAssignees.map((member) => (
                           <SelectItem key={member.id} value={member.id}>
-                            {member.name}
+                            {member.id === user?.id ? "Self" : member.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="task-deadline">Deadline</Label>
-                    <Input
-                      id="task-deadline"
-                      type="date"
-                      value={taskFormData.deadline}
-                      onChange={(e) =>
-                        setTaskFormData((prev) => ({
-                          ...prev,
-                          deadline: e.target.value,
-                        }))
-                      }
-                    />
+                    <Label>Deadline</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !taskFormData.deadline && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {taskFormData.deadline ? format(new Date(taskFormData.deadline), "PPP") : "Pick a deadline"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={taskFormData.deadline ? new Date(taskFormData.deadline) : undefined}
+                          onSelect={(date) =>
+                            setTaskFormData((prev) => ({
+                              ...prev,
+                              deadline: date ? format(date, "yyyy-MM-dd") : "",
+                            }))
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
                 <div className="flex justify-end gap-3">
@@ -385,6 +591,7 @@ export default function ProjectDetail() {
                 </div>
               </DialogContent>
             </Dialog>
+            </div>
           )}
         </div>
 
@@ -483,6 +690,202 @@ export default function ProjectDetail() {
             </div>
           </div>
         )}
+
+        {/* Client Invites Section UNFINISHED BUSINESS HERE, WOULD BE REVISED LATER */} 
+        {/* {id && isCreator && (
+          <div className="mt-8 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Client Invites</h2>
+              <span className="text-sm text-muted-foreground">Manage invitations</span>
+            </div>
+            <ClientInvitesTable projectId={id} refreshTrigger={refreshInvitesTrigger} />
+          </div>
+        )} */}
+
+        {/* Messages Section */}
+        {id && (
+          <div className="mt-8 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <MessageCircle className="h-5 w-5" />
+                Project Messages
+              </h2>
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={loadMessages}
+                disabled={isLoadingMessages}
+              >
+                {isLoadingMessages ? "Loading..." : "Refresh"}
+              </Button>
+            </div>
+            <Card className="overflow-hidden border-border/50 bg-white shadow-sm">
+              <CardContent className="p-0">
+                <div className="border-b border-border/50 px-5 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Project Thread</p>
+                      <p className="text-xs text-muted-foreground">Messages from your client and your replies</p>
+                    </div>
+                    <div className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                      {messages.length} messages
+                    </div>
+                  </div>
+                </div>
+
+                <div className="max-h-[28rem] space-y-4 overflow-y-auto px-5 py-5 bg-[#f8f6ff]">
+                  {isLoadingMessages ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-border/70 bg-white px-4 py-6 text-center text-sm text-muted-foreground">
+                      No messages yet. Start a conversation with your clients!
+                    </div>
+                  ) : (
+                    messages.map((msg: any) => {
+                      const isMine = msg.sender === user?.id;
+
+                      return (
+                        <div
+                          key={msg.id}
+                          className={cn(
+                            "flex items-end gap-2",
+                            isMine ? "justify-end" : "justify-start"
+                          )}
+                        >
+                          {!isMine && (
+                            <Avatar className="h-8 w-8 shrink-0 self-end">
+                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                                {(msg.sender_name || "?").charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+
+                          <div className={cn("max-w-[75%]", isMine && "text-right") }>
+                            {!isMine && (
+                              <p className="mb-1 text-xs font-medium text-muted-foreground">{msg.sender_name}</p>
+                            )}
+                            <div
+                              className={cn(
+                                "rounded-2xl px-4 py-3 shadow-sm",
+                                isMine
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-white text-foreground border border-border/40"
+                              )}
+                            >
+                              <p className="text-sm leading-relaxed">{msg.content}</p>
+                              {msg.file_name && (
+                                <a
+                                  href={msg.file}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={cn(
+                                    "mt-3 inline-flex items-center gap-1 text-xs font-medium underline-offset-4 hover:underline",
+                                    isMine ? "text-primary-foreground/90" : "text-primary"
+                                  )}
+                                >
+                                  <FileIcon className="h-3 w-3" />
+                                  {msg.file_name}
+                                </a>
+                              )}
+                            </div>
+                            <p className={cn("mt-1 text-[10px] text-muted-foreground", isMine && "text-right") }>
+                              {msg.created_at && format(new Date(msg.created_at), "hh:mm a")}
+                            </p>
+                          </div>
+
+                          {isMine && (
+                            <Avatar className="h-8 w-8 shrink-0 self-end">
+                              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                                {user?.full_name?.charAt(0) || "Y"}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50 bg-white shadow-sm">
+              <CardContent className="space-y-4 p-4 sm:p-5">
+                <div className="flex items-end gap-2">
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    disabled={isSendingMessage}
+                    className="shrink-0"
+                  >
+                    <label className="cursor-pointer">
+                      <input
+                        ref={
+                          (input) => {
+                            if (input) {
+                              const fileInput = input as HTMLInputElement;
+                              fileInput.onchange = (e) => {
+                                const file = (e.target as HTMLInputElement).files?.[0];
+                                if (file) setMessageFile(file);
+                              };
+                            }
+                          }
+                        }
+                        type="file"
+                        className="hidden"
+                      />
+                      <Paperclip className="h-4 w-4" />
+                    </label>
+                  </Button>
+
+                  <Textarea
+                    placeholder="Type your message..."
+                    value={messageContent}
+                    onChange={(e) => setMessageContent(e.target.value)}
+                    className="min-h-[52px] flex-1 resize-none rounded-2xl"
+                  />
+
+                  <Button
+                    onClick={sendMessage}
+                    className="shrink-0 rounded-full px-4"
+                    disabled={(!messageContent.trim() && !messageFile) || isSendingMessage}
+                  >
+                    {isSendingMessage ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+
+                {messageFile && (
+                  <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-secondary/40 p-3 text-xs text-muted-foreground">
+                    <FileIcon className="h-3 w-3" />
+                    <span className="truncate">{messageFile.name}</span>
+                    <button
+                      onClick={() => setMessageFile(null)}
+                      className="ml-auto rounded-full p-1 hover:bg-secondary"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* ClientInviteModal */}
+        {id && project && (
+          <ClientInviteModal
+            projectId={id}
+            projectName={project.name}
+            isOpen={isInviteModalOpen}
+            onClose={() => setIsInviteModalOpen(false)}
+            onSuccess={() => setRefreshInvitesTrigger(prev => prev + 1)}
+          />
+        )}
       </div>
     </MainLayout>
   );
@@ -495,9 +898,15 @@ interface TaskCardProps {
   onDelete: () => void;
 }
 
+const STATUS_COLORS: Record<string, string> = {
+  planning: "!bg-orange-100 border-orange-400",
+  "in-progress": "!bg-yellow-100 border-yellow-400",
+  completed: "!bg-green-100 border-green-400",
+};
+
 function TaskCard({ task, isCreator, onStatusChange, onDelete }: TaskCardProps) {
   return (
-    <div className="glass-card p-4 rounded-lg border border-border/50 space-y-3">
+    <div className={`glass-card p-4 rounded-lg border space-y-3 ${STATUS_COLORS[task.status] || "border-border/50"}`}>
       <div className="flex items-start justify-between gap-2">
         <h4 className="font-medium text-sm flex-1">{task.name}</h4>
         {isCreator && (
@@ -535,20 +944,10 @@ function TaskCard({ task, isCreator, onStatusChange, onDelete }: TaskCardProps) 
       )}
 
       <div className="flex items-center justify-between text-xs">
-        {task.assignee_name ? (
-          <span className="text-muted-foreground">
-            Assigned to {task.assignee_name}
-          </span>
-        ) : (
-          <span className="text-muted-foreground/50">Unassigned</span>
-        )}
-
-        {task.deadline && (
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <Calendar className="h-3 w-3" />
-            {task.deadline}
-          </div>
-        )}
+        <span className={task.assignee_name ? "text-muted-foreground" : "text-muted-foreground/50"}>
+          {task.assignee_name ? `Assigned to ${task.assignee_name}` : "Unassigned"}
+        </span>
+        {task.deadline && <span className="text-muted-foreground">{task.deadline}</span>}
       </div>
     </div>
   );

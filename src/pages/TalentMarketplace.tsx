@@ -1,22 +1,22 @@
-// import { useState } from "react";
-// import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
-// import { FreelancerCard } from "@/components/talent/FreelancerCard";
-// import { Input } from "@/components/ui/input";
-// import { Button } from "@/components/ui/button";
-// import { Search, Filter } from "lucide-react";
-// import {
-//   Select,
-//   SelectContent,
-//   SelectItem,
-//   SelectTrigger,
-//   SelectValue,
-// } from "@/components/ui/select";
-// import { toast } from "sonner";
+import { FreelancerCard } from "@/components/talent/FreelancerCard";
+import { HireComingSoonModal } from "@/components/talent/HireComingSoonModal";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Search, Filter } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { publicFetch } from "@/api/apiClient";
+import { useEffect } from "react";
 
-// ============================================
-// TODO: Uncomment when backend integration is ready
-// ============================================
+
 // const freelancers = [
 //   {
 //     id: "1",
@@ -73,24 +73,54 @@ import { MainLayout } from "@/components/layout/MainLayout";
 // ];
 
 export default function TalentMarketplace() {
-  // ============================================
-  // TODO: Uncomment when backend integration is ready
-  // ============================================
-  // const navigate = useNavigate();
-  // const [searchQuery, setSearchQuery] = useState("");
-  // const [experienceFilter, setExperienceFilter] = useState("");
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [experienceFilter, setExperienceFilter] = useState("");
+  const [freelancers, setFreelancers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [hireModalOpen, setHireModalOpen] = useState(false);
+  const [selectedTalent, setSelectedTalent] = useState<string | null>(null);
 
-  // const filteredFreelancers = freelancers.filter((freelancer) =>
-  //   freelancer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-  //   freelancer.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-  //   freelancer.skills.some((skill) =>
-  //     skill.toLowerCase().includes(searchQuery.toLowerCase())
-  //   )
-  // );
+  useEffect(() => {
+    const fetchTalents = async () => {
+      try {
+        const response = await publicFetch("/api/v1/user/talentprofile/");
+        if (!response.ok) throw new Error("Failed to fetch talents");
 
-  // const handleHire = (freelancerName: string) => {
-  //   toast.success(`Hire request sent to ${freelancerName}!`);
-  // };
+        const data = await response.json();
+        setFreelancers(data);
+      } catch (error) {
+        console.error("Error fetching talents:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTalents();
+  }, []);
+
+  const filteredFreelancers = freelancers.filter((freelancer) =>
+    freelancer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    freelancer.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    freelancer.skills.some((skill) =>
+      skill.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  );
+
+  const handleHire = (freelancerName: string) => {
+    setSelectedTalent(freelancerName);
+    setHireModalOpen(true);
+  };
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="flex justify-center items-center h-64">
+          <p>Loading talents...</p>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -104,33 +134,8 @@ export default function TalentMarketplace() {
         </div>
 
         {/* Coming Soon Message */}
-        <div className="glass-card flex flex-col items-center justify-center py-24">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 mb-6">
-            <svg
-              className="h-10 w-10 text-primary"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-              />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">Coming Soon</h2>
-          <p className="text-muted-foreground text-center max-w-md">
-            We're working hard to bring you an amazing talent marketplace. Stay tuned!
-          </p>
-        </div>
-
-        {/* ============================================ */}
-        {/* TODO: Uncomment when backend integration is ready */}
-        {/* ============================================ */}
         {/* Search & Filters */}
-        {/* <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="flex flex-col gap-4 sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -157,27 +162,37 @@ export default function TalentMarketplace() {
             <Filter className="h-4 w-4" />
             More Filters
           </Button>
-        </div> */}
+        </div>
 
         {/* Freelancer Grid */}
-        {/* <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredFreelancers.map((freelancer) => (
-            <FreelancerCard
-              key={freelancer.id}
-              {...freelancer}
-              onHire={() => handleHire(freelancer.name)}
-              onClick={() => navigate(`/talent/${freelancer.id}`)}
-            />
-          ))}
-        </div> */}
-
-        {/* <div className="glass-card flex flex-col items-center justify-center py-16">
-          <p className="text-lg font-medium text-foreground">No freelancers found</p>
-          <p className="mt-1 text-muted-foreground">
-            Try adjusting your search or filters
-          </p>
-        </div> */}
+        {filteredFreelancers.length > 0 ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredFreelancers.map((freelancer) => (
+              <FreelancerCard
+                key={freelancer.id}
+                {...freelancer}
+                onHire={() => handleHire(freelancer.name)}
+                
+              
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="glass-card flex flex-col items-center justify-center py-16">
+            <p className="text-lg font-medium text-foreground">No freelancers found</p>
+            <p className="mt-1 text-muted-foreground">
+              Try adjusting your search or filters
+            </p>
+          </div>
+        )}
       </div>
+
+      {/* Hire Coming Soon Modal */}
+      <HireComingSoonModal
+        open={hireModalOpen}
+        onClose={() => setHireModalOpen(false)}
+        talentName={selectedTalent || ""}
+      />
     </MainLayout>
   );
 }

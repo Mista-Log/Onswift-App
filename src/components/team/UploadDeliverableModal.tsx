@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,20 +21,24 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { secureFetch } from "@/api/apiClient";
 import { useProjects, type Task } from "@/contexts/ProjectContext";
+import type { Deliverable } from "@/components/team/DeliverableCard";
 
-interface UploadDeliverableModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (data: DeliverableFormData) => void;
-}
 
 export interface DeliverableFormData {
   projectId: string;
   taskId: string;
   title: string;
   description: string;
-  files: File[];
+  urls: string[];
   mentionedUserIds: string[];
+}
+
+interface UploadDeliverableModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (data: DeliverableFormData) => void;
+  // Optional: parent can pass deliverables to derive revision tasks (recommended)
+  revisionDeliverables?: Deliverable[];
 }
 
 function getFileIcon(type: string) {
@@ -54,6 +58,7 @@ export function UploadDeliverableModal({
   open,
   onOpenChange,
   onSubmit,
+  revisionDeliverables,
 }: UploadDeliverableModalProps) {
   const { projects } = useProjects();
   const [myTasks, setMyTasks] = useState<Task[]>([]);
@@ -61,17 +66,68 @@ export function UploadDeliverableModal({
   const [taskId, setTaskId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [urls, setUrls] = useState<string[]>([]);
+  const [newUrl, setNewUrl] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Build revision tasks list. We'll fetch from the API on open, with fallbacks.
+  type MinimalTask = { id: string; project: string; name: string; status?: string };
+  const [revisionTasks, setRevisionTasks] = useState<MinimalTask[]>([]);
+
+  // Merge myTasks and revisionTasks, avoiding duplicates
+  const allTasks = [
+    ...myTasks,
+    ...revisionTasks.filter((rt) => !myTasks.some((mt) => mt.id === rt.id)),
+  ];
 
   // Fetch my tasks when modal opens
   useEffect(() => {
     if (open) {
       fetchMyTasks();
+      fetchRevisionDeliverables();
     }
   }, [open]);
+
+  const fetchRevisionDeliverables = async () => {
+    try {
+      setIsLoadingTasks(true);
+      const response = await secureFetch('/api/v2/deliverables/');
+      if (response.ok) {
+        const data = await response.json();
+        const revs = data
+          .filter((d: any) => d.status === 'revision')
+          .map((d: any) => ({
+            id: d.task || d.taskId || d.task_id,
+            name: d.task_name || d.taskName,
+            project: d.project_id || d.projectId,
+            status: 'revision',
+          }));
+        setRevisionTasks(revs);
+        return;
+      }
+    } catch (error) {
+      console.error('Error fetching deliverables for revisions:', error);
+    } finally {
+      setIsLoadingTasks(false);
+    }
+
+    // Fallback: use prop if provided, else localStorage
+    if (revisionDeliverables && Array.isArray(revisionDeliverables)) {
+      const revs = revisionDeliverables
+        .filter((d) => d.status === 'revision')
+        .map((d) => ({ id: d.taskId, name: d.taskName, project: d.projectId, status: 'revision' }));
+      setRevisionTasks(revs);
+      return;
+    }
+
+    try {
+      const deliverables = JSON.parse(localStorage.getItem('deliverables') || '[]');
+      const revs = deliverables
+        .filter((d: any) => d.status === 'revision')
+        .map((d: any) => ({ id: d.taskId, name: d.taskName, project: d.projectId, status: 'revision' }));
+      setRevisionTasks(revs);
+    } catch {}
+  };
 
   const fetchMyTasks = async () => {
     try {
@@ -94,32 +150,14 @@ export function UploadDeliverableModal({
     return project?.name || "Unknown Project";
   };
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    setFiles((prev) => [...prev, ...droppedFiles]);
-  }, []);
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const selectedFiles = Array.from(e.target.files);
-      setFiles((prev) => [...prev, ...selectedFiles]);
-    }
+  // URL Attachments
+  const handleAddUrl = () => {
+    if (!newUrl.trim()) return;
+    setUrls((prev) => [...prev, newUrl.trim()]);
+    setNewUrl("");
   };
-
-  const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+  const removeUrl = (index: number) => {
+    setUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = () => {
@@ -128,7 +166,9 @@ export function UploadDeliverableModal({
       return;
     }
 
-    const selectedTask = myTasks.find(t => t.id === taskId);
+
+    // Find the selected task from allTasks (not just myTasks)
+    const selectedTask = allTasks.find(t => t.id === taskId);
     const projectId = selectedTask?.project || "";
 
     onSubmit({
@@ -136,15 +176,23 @@ export function UploadDeliverableModal({
       taskId,
       title,
       description,
-      files,
+      urls,
       mentionedUserIds: [],
     });
+
+
+    // If this was a revision task, update localStorage to remove it (simulate completion)
+    try {
+      const deliverables = JSON.parse(localStorage.getItem("deliverables") || "[]");
+      const updated = deliverables.filter((d: any) => d.taskId !== taskId);
+      localStorage.setItem("deliverables", JSON.stringify(updated));
+    } catch {}
 
     // Reset form
     setTaskId("");
     setTitle("");
     setDescription("");
-    setFiles([]);
+    setUrls([]);
   };
 
   return (
@@ -163,13 +211,13 @@ export function UploadDeliverableModal({
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span className="text-sm text-muted-foreground">Loading tasks...</span>
               </div>
-            ) : myTasks.length > 0 ? (
+            ) : allTasks.length > 0 ? (
               <Select value={taskId} onValueChange={setTaskId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a task" />
                 </SelectTrigger>
                 <SelectContent>
-                  {myTasks.map((task) => (
+                  {allTasks.map((task) => (
                     <SelectItem key={task.id} value={task.id}>
                       <div className="flex flex-col items-start">
                         <span>{task.name}</span>
@@ -210,71 +258,36 @@ export function UploadDeliverableModal({
             />
           </div>
 
-          {/* File Upload */}
+          {/* URL Attachments */}
           <div className="space-y-2">
-            <Label>File Attachments</Label>
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={cn(
-                "flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-all",
-                isDragging
-                  ? "border-primary bg-primary/10"
-                  : "border-border/50 hover:border-primary/50 hover:bg-secondary/30"
-              )}
-            >
-              <Upload className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-sm text-foreground font-medium">
-                Drag files here or click to browse
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Max 50MB per file
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                onChange={handleFileSelect}
-                className="hidden"
+            <Label>Attachment URLs</Label>
+            <div className="flex gap-2">
+              <Input
+                value={newUrl}
+                onChange={e => setNewUrl(e.target.value)}
+                placeholder="Paste a link (e.g. Google Drive, Dropbox, etc.)"
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddUrl(); } }}
               />
+              <Button type="button" onClick={handleAddUrl} disabled={!newUrl.trim()}>
+                Add
+              </Button>
             </div>
-
-            {/* File List */}
-            {files.length > 0 && (
+            {urls.length > 0 && (
               <div className="mt-3 space-y-2">
-                {files.map((file, index) => {
-                  const FileIcon = getFileIcon(file.type);
-                  return (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-2"
+                {urls.map((url, index) => (
+                  <div key={index} className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-2">
+                    <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline truncate max-w-xs">
+                      {url}
+                    </a>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeUrl(index)}
                     >
-                      <div className="flex items-center gap-3">
-                        <FileIcon className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium text-foreground">
-                            {file.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatFileSize(file.size)}
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeFile(index);
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  );
-                })}
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -284,7 +297,7 @@ export function UploadDeliverableModal({
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={!taskId || !title || myTasks.length === 0}>
+            <Button onClick={handleSubmit} disabled={!taskId || !title}>
               Submit Deliverable
             </Button>
           </div>

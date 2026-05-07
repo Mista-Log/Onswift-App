@@ -21,7 +21,7 @@ const statusConfig: Record<StatusType, { label: string; className: string }> = {
     className: "bg-success/20 text-success border-success/30",
   },
   pending: {
-    label: "Pending Review",
+    label: "Pending",
     className: "bg-muted text-muted-foreground border-muted",
   },
   approved: {

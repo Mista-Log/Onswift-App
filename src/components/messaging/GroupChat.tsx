@@ -82,16 +82,16 @@ export function GroupChat({ onShowGroupInfo }: GroupChatProps) {
   return (
     <div className="flex flex-1 flex-col">
       {/* Chat Header */}
-      <div className="flex items-center justify-between border-b border-border/50 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10 border border-border/50">
+      <div className="flex items-center justify-between border-b border-border/50 px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <Avatar className="h-10 w-10 border border-border/50 shrink-0">
             <AvatarImage src={activeConversation.avatar} alt={activeConversation.name} />
             <AvatarFallback className="bg-primary/20 text-primary">
               {activeConversation.name.charAt(0)}
             </AvatarFallback>
           </Avatar>
-          <div>
-            <h3 className="font-semibold text-foreground">{activeConversation.name}</h3>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-foreground truncate">{activeConversation.name}</h3>
             {activeConversation.isGroup && (
               <p className="text-sm text-muted-foreground">{getMemberNames()}</p>
             )}
@@ -102,6 +102,7 @@ export function GroupChat({ onShowGroupInfo }: GroupChatProps) {
           size="icon"
           variant="ghost"
           onClick={onShowGroupInfo}
+          className="shrink-0"
         >
           <Info className="h-5 w-5" />
         </Button>
@@ -110,7 +111,7 @@ export function GroupChat({ onShowGroupInfo }: GroupChatProps) {
       {/* Messages */}
       <div
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-6"
+        className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6"
       >
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center">

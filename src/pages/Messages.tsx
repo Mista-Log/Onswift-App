@@ -3,7 +3,12 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageCircle, Send, Search, Loader2 } from "lucide-react";
+import { MessageCircle, Send, Search, Loader2, ChevronLeft, Plus, Users, Info } from "lucide-react";
+import { CreateGroupModal } from "@/components/messaging/CreateGroupModal";
+import { MentionDropdown, MentionMember } from "@/components/messaging/MentionDropdown";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/contexts/TeamContext";
@@ -35,6 +40,32 @@ interface Message {
   created_at: string;
 }
 
+interface GroupMessage {
+  id: string;
+  group: string;
+  sender_id: string;
+  sender_name: string;
+  sender_avatar: string | null;
+  content: string;
+  is_mine: boolean;
+  created_at: string;
+}
+
+interface Group {
+  id: string;
+  name: string;
+  description: string | null;
+  avatar_url: string | null;
+  member_count: number;
+  last_message: {
+    content: string;
+    sender_name: string;
+    timestamp: string;
+  } | null;
+  unread_count: number;
+  is_admin: boolean;
+}
+
 interface Contact {
   id: string;
   user_id: string;
@@ -43,25 +74,51 @@ interface Contact {
   company?: string | null;
 }
 
+interface GroupMember {
+  id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  avatar: string | null;
+  role: string;
+  is_admin: boolean;
+}
+
 export default function Messages() {
   const { user } = useAuth();
   const { teamMembers } = useTeam();
+  const [activeTab, setActiveTab] = useState<"direct" | "groups">("direct");
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [groupMessages, setGroupMessages] = useState<GroupMessage[]>([]);
   const [message, setMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [myCreators, setMyCreators] = useState<Contact[]>([]);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showGroupInfo, setShowGroupInfo] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Mention state
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [selectedMemberIndex, setSelectedMemberIndex] = useState(0);
+  const [mentions, setMentions] = useState<MentionMember[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const isCreator = user?.role === "creator";
 
-  // Fetch conversations and contacts
+  // Fetch conversations, groups, and contacts
   useEffect(() => {
     fetchConversations();
+    fetchGroups();
     if (!isCreator) {
       fetchMyCreators();
     }
@@ -75,6 +132,18 @@ export default function Messages() {
     }
   }, [selectedConversation]);
 
+  // Fetch group messages when group changes
+  useEffect(() => {
+    if (selectedGroup) {
+      fetchGroupMessages(selectedGroup.id);
+      fetchGroupMembers(selectedGroup.id);
+      markGroupMessagesAsRead(selectedGroup.id);
+      // Reset mentions when group changes
+      setMentions([]);
+      setShowMentionDropdown(false);
+    }
+  }, [selectedGroup]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -82,14 +151,18 @@ export default function Messages() {
 
   // Poll for new messages
   useEffect(() => {
-    if (!selectedConversation) return;
+    if (!selectedConversation && !selectedGroup) return;
 
     const interval = setInterval(() => {
-      fetchMessages(selectedConversation.id);
+      if (selectedConversation) {
+        fetchMessages(selectedConversation.id);
+      } else if (selectedGroup) {
+        fetchGroupMessages(selectedGroup.id);
+      }
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [selectedConversation]);
+  }, [selectedConversation, selectedGroup]);
 
   const fetchConversations = async () => {
     try {
@@ -98,7 +171,7 @@ export default function Messages() {
       if (response.ok) {
         const data = await response.json();
         setConversations(data);
-        if (data.length > 0 && !selectedConversation) {
+        if (data.length > 0 && !selectedConversation && activeTab === "direct") {
           setSelectedConversation(data[0]);
         }
       }
@@ -106,6 +179,63 @@ export default function Messages() {
       console.error("Error fetching conversations:", error);
     } finally {
       setIsLoadingConversations(false);
+    }
+  };
+
+  const fetchGroups = async () => {
+    try {
+      setIsLoadingGroups(true);
+      const response = await secureFetch('/api/v2/groups/');
+      if (response.ok) {
+        const data = await response.json();
+        setGroups(data);
+      }
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+    } finally {
+      setIsLoadingGroups(false);
+    }
+  };
+
+  const fetchGroupMessages = async (groupId: string) => {
+    try {
+      setIsLoadingMessages(true);
+      const response = await secureFetch(`/api/v2/groups/${groupId}/messages/`);
+      if (response.ok) {
+        const data = await response.json();
+        setGroupMessages(data);
+      }
+    } catch (error) {
+      console.error("Error fetching group messages:", error);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  const fetchGroupMembers = async (groupId: string) => {
+    try {
+      const response = await secureFetch(`/api/v2/groups/${groupId}/members/`);
+      if (response.ok) {
+        const data = await response.json();
+        setGroupMembers(data);
+      }
+    } catch (error) {
+      console.error("Error fetching group members:", error);
+    }
+  };
+
+  const markGroupMessagesAsRead = async (groupId: string) => {
+    try {
+      await secureFetch(`/api/v2/groups/${groupId}/messages/read/`, {
+        method: "POST",
+      });
+      setGroups(prev =>
+        prev.map(g =>
+          g.id === groupId ? { ...g, unread_count: 0 } : g
+        )
+      );
+    } catch (error) {
+      console.error("Error marking group messages as read:", error);
     }
   };
 
@@ -211,6 +341,63 @@ export default function Messages() {
     }
   };
 
+  const handleSendGroupMessage = async () => {
+    if (!message.trim() || !selectedGroup || isSending) return;
+
+    try {
+      setIsSending(true);
+      const mentionIds = mentions.map(m => m.id);
+      const response = await secureFetch(
+        `/api/v2/groups/${selectedGroup.id}/messages/send/`,
+        {
+          method: "POST",
+          body: JSON.stringify({ 
+            content: message,
+            mention_ids: mentionIds
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const newMessage = await response.json();
+        setGroupMessages(prev => [...prev, newMessage]);
+        setMessage("");
+        setMentions([]); // Clear mentions after sending
+
+        // Update group list
+        setGroups(prev =>
+          prev.map(g =>
+            g.id === selectedGroup.id
+              ? {
+                  ...g,
+                  last_message: {
+                    content: message,
+                    sender_name: "You",
+                    timestamp: new Date().toISOString(),
+                  },
+                }
+              : g
+          )
+        );
+      } else {
+        toast.error("Failed to send message");
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      toast.error("Failed to send message");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleSend = () => {
+    if (activeTab === "direct" && selectedConversation) {
+      handleSendMessage();
+    } else if (activeTab === "groups" && selectedGroup) {
+      handleSendGroupMessage();
+    }
+  };
+
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -230,44 +417,188 @@ export default function Messages() {
 
   // Filter conversations based on search
   const filteredConversations = conversations.filter(conv =>
-    conv.other_user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conv.other_user.company?.toLowerCase().includes(searchQuery.toLowerCase())
+    (conv.other_user?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
+    (conv.other_user?.company?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
   );
+
+  // Filter groups based on search
+  const filteredGroups = groups.filter(group =>
+    group.name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false
+  );
+
+  // Handle tab change
+  const handleTabChange = (tab: "direct" | "groups") => {
+    setActiveTab(tab);
+    if (tab === "direct") {
+      setSelectedGroup(null);
+      if (conversations.length > 0 && !selectedConversation) {
+        setSelectedConversation(conversations[0]);
+      }
+    } else {
+      setSelectedConversation(null);
+      if (groups.length > 0 && !selectedGroup) {
+        setSelectedGroup(groups[0]);
+      }
+    }
+  };
 
   // Get contacts to start new conversations with
   // Creators can message their team members, talents can message their creators
   const availableContacts: Contact[] = isCreator
     ? teamMembers
-        .filter(m => !conversations.some(c => c.other_user.id === m.user_id))
+        .filter(m => !conversations.some(c => c.other_user?.id === m.user_id))
         .map(m => ({ id: m.id, user_id: m.user_id, name: m.name, avatar: m.avatar }))
-    : myCreators.filter(c => !conversations.some(conv => conv.other_user.id === c.user_id));
+    : myCreators.filter(c => !conversations.some(conv => conv.other_user?.id === c.user_id));
+
+  // Convert group members to mention members format (exclude current user)
+  const mentionMembers: MentionMember[] = groupMembers
+    .filter(m => m.user_id !== user?.id)
+    .map(m => ({
+      id: m.user_id,
+      name: m.name,
+      avatar: m.avatar,
+      role: m.role,
+    }));
+
+  // Handle message input change with mention detection
+  const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setMessage(value);
+
+    // Only check for mentions in group chat
+    if (activeTab !== "groups" || !selectedGroup) {
+      setShowMentionDropdown(false);
+      return;
+    }
+
+    // Find @ symbol position
+    const cursorPos = e.target.selectionStart || 0;
+    const textBeforeCursor = value.slice(0, cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIndex !== -1) {
+      // Check if @ is at the start or preceded by a space
+      const charBeforeAt = textBeforeCursor[lastAtIndex - 1];
+      if (lastAtIndex === 0 || charBeforeAt === ' ') {
+        const query = textBeforeCursor.slice(lastAtIndex + 1);
+        // Only show dropdown if query doesn't contain space (still typing username)
+        if (!query.includes(' ')) {
+          setMentionQuery(query);
+          setShowMentionDropdown(true);
+          setSelectedMemberIndex(0);
+          return;
+        }
+      }
+    }
+
+    setShowMentionDropdown(false);
+  };
+
+  // Handle mention selection
+  const handleMentionSelect = (member: MentionMember) => {
+    const cursorPos = inputRef.current?.selectionStart || 0;
+    const textBeforeCursor = message.slice(0, cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIndex !== -1) {
+      const beforeMention = message.slice(0, lastAtIndex);
+      const afterMention = message.slice(cursorPos);
+      const newMessage = `${beforeMention}@${member.name} ${afterMention}`;
+      setMessage(newMessage);
+
+      // Add to mentions list if not already present
+      if (!mentions.some(m => m.id === member.id)) {
+        setMentions(prev => [...prev, member]);
+      }
+    }
+
+    setShowMentionDropdown(false);
+    inputRef.current?.focus();
+  };
+
+  // Handle keyboard navigation in mention dropdown
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (showMentionDropdown && mentionMembers.length > 0) {
+      const filteredMembers = mentionMembers.filter(m => 
+        m.name.toLowerCase().includes(mentionQuery.toLowerCase())
+      );
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedMemberIndex(prev => 
+          prev < filteredMembers.length - 1 ? prev + 1 : 0
+        );
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedMemberIndex(prev => 
+          prev > 0 ? prev - 1 : filteredMembers.length - 1
+        );
+      } else if (e.key === 'Enter' && filteredMembers.length > 0) {
+        e.preventDefault();
+        handleMentionSelect(filteredMembers[selectedMemberIndex]);
+      } else if (e.key === 'Escape') {
+        setShowMentionDropdown(false);
+      }
+    } else if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
 
   return (
     <MainLayout>
       <div className="animate-fade-in h-[calc(100vh-8rem)]">
         <div className="glass-card h-full overflow-hidden">
-          <div className="grid h-full md:grid-cols-[320px_1fr]">
-            {/* Contact List */}
-            <div className="border-r border-border/50">
-              <div className="border-b border-border/50 p-4">
-                <h2 className="mb-3 text-lg font-semibold text-foreground">Messages</h2>
+          <div className="h-full md:grid md:grid-cols-[320px_1fr]">
+          {/* Contact List */}
+          <div
+            className={cn(
+              "border-r border-border/50 flex flex-col min-h-0",
+              (selectedConversation || selectedGroup) ? "hidden md:flex" : "flex"
+            )}
+          >
+              <div className="border-b border-border/50 p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-semibold text-foreground sm:text-lg">Messages</h2>
+                  {isCreator && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setShowCreateGroup(true)}
+                      title="Create new group"
+                    >
+                      <Plus className="h-5 w-5" />
+                    </Button>
+                  )}
+                </div>
+
+                {/* Tabs */}
+                <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as "direct" | "groups")} className="mb-3">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="direct">Direct</TabsTrigger>
+                    <TabsTrigger value="groups">Groups</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder="Search conversations..."
-                    className="pl-10"
+                    placeholder={activeTab === "direct" ? "Search conversations..." : "Search groups..."}
+                    className="pl-10 text-sm"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
               </div>
 
-              <div className="overflow-y-auto" style={{ height: 'calc(100% - 120px)' }}>
-                {isLoadingConversations ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  </div>
-                ) : filteredConversations.length > 0 ? (
+              <div className="flex-1 overflow-y-auto">
+                {activeTab === "direct" ? (
+                  /* Direct Messages List */
+                  isLoadingConversations ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  ) : filteredConversations.length > 0 ? (
                   filteredConversations.map((conv) => (
                     <button
                       key={conv.id}
@@ -277,24 +608,23 @@ export default function Messages() {
                         selectedConversation?.id === conv.id && "bg-secondary/50"
                       )}
                     >
-                      <div className="flex items-start gap-3">
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage src={conv.other_user.avatar || undefined} alt={conv.other_user.name} />
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-11 w-11 sm:h-12 sm:w-12">
+                          <AvatarImage src={conv.other_user?.avatar || undefined} alt={conv.other_user?.name || "User"} />
                           <AvatarFallback className="bg-primary/20 text-primary">
-                            {conv.other_user.name.charAt(0)}
+                            {conv.other_user?.name?.charAt(0) || "?"}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="font-medium text-foreground truncate">{conv.other_user.name}</p>
-                            <span className="text-xs text-muted-foreground">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-foreground truncate sm:text-base">
+                              {conv.other_user?.name || "Unknown"}
+                            </p>
+                            <span className="hidden text-[10px] text-muted-foreground sm:inline sm:text-xs">
                               {formatDate(conv.last_message_time)}
                             </span>
                           </div>
-                          {conv.other_user.company && (
-                            <p className="text-xs text-muted-foreground mb-1">{conv.other_user.company}</p>
-                          )}
-                          <p className="text-sm text-muted-foreground truncate">
+                          <p className="text-xs text-muted-foreground truncate sm:text-sm">
                             {conv.last_message_content || "No messages yet"}
                           </p>
                         </div>
@@ -311,10 +641,79 @@ export default function Messages() {
                     <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p className="text-sm">No conversations yet</p>
                   </div>
+                )
+                ) : (
+                  /* Groups List */
+                  isLoadingGroups ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  ) : filteredGroups.length > 0 ? (
+                    filteredGroups.map((group) => (
+                      <button
+                        key={group.id}
+                        onClick={() => {
+                          setSelectedGroup(group);
+                          setShowGroupInfo(false);
+                        }}
+                        className={cn(
+                          "w-full border-b border-border/30 p-4 text-left transition-colors hover:bg-secondary/50",
+                          selectedGroup?.id === group.id && "bg-secondary/50"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-11 w-11 sm:h-12 sm:w-12">
+                            <AvatarImage src={group.avatar_url || undefined} alt={group.name} />
+                            <AvatarFallback className="bg-primary/20 text-primary">
+                              <Users className="h-5 w-5" />
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-medium text-foreground truncate sm:text-base">
+                                {group.name}
+                              </p>
+                              {group.last_message && (
+                                <span className="hidden text-[10px] text-muted-foreground sm:inline sm:text-xs">
+                                  {formatDate(group.last_message.timestamp)}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate sm:text-sm">
+                              {group.last_message
+                                ? `${group.last_message.sender_name}: ${group.last_message.content}`
+                                : `${group.member_count} members`}
+                            </p>
+                          </div>
+                          {group.unread_count > 0 && (
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                              {group.unread_count}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-muted-foreground">
+                      <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No groups yet</p>
+                      {isCreator && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowCreateGroup(true)}
+                          className="mt-3"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Create Group
+                        </Button>
+                      )}
+                    </div>
+                  )
                 )}
 
                 {/* Available contacts to start conversations */}
-                {availableContacts.length > 0 && (
+                {activeTab === "direct" && availableContacts.length > 0 && (
                   <div className="border-t border-border/50 p-4">
                     <p className="text-xs text-muted-foreground mb-3">
                       {isCreator ? "Message team member" : "Message your creator"}
@@ -345,30 +744,42 @@ export default function Messages() {
             </div>
 
             {/* Chat Area */}
-            <div className="flex flex-col">
+            <div
+              className={cn(
+                "flex flex-col h-full min-h-0",
+                (selectedConversation || selectedGroup) ? "flex" : "hidden md:flex"
+              )}
+            >
               {selectedConversation ? (
                 <>
-                  {/* Chat Header */}
-                  <div className="flex items-center gap-3 border-b border-border/50 p-4">
+                  {/* Chat Header - Direct Message */}
+                  <div className="flex items-center gap-2 border-b border-border/50 p-4 sm:p-5">
+                    <button
+                      onClick={() => setSelectedConversation(null)}
+                      className="md:hidden p-1 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
+                      aria-label="Back to conversations"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
                     <Avatar className="h-10 w-10">
                       <AvatarImage
-                        src={selectedConversation.other_user.avatar || undefined}
-                        alt={selectedConversation.other_user.name}
+                        src={selectedConversation.other_user?.avatar || undefined}
+                        alt={selectedConversation.other_user?.name || "User"}
                       />
                       <AvatarFallback className="bg-primary/20 text-primary">
-                        {selectedConversation.other_user.name.charAt(0)}
+                        {selectedConversation.other_user?.name?.charAt(0) || "?"}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium text-foreground">{selectedConversation.other_user.name}</p>
-                      {selectedConversation.other_user.company && (
+                      <p className="font-medium text-foreground">{selectedConversation.other_user?.name || "Unknown"}</p>
+                      {selectedConversation.other_user?.company && (
                         <p className="text-sm text-muted-foreground">{selectedConversation.other_user.company}</p>
                       )}
                     </div>
                   </div>
 
                   {/* Messages */}
-                  <div className="flex-1 space-y-4 overflow-y-auto p-4">
+                  <div className="flex-1 space-y-4 overflow-y-auto p-3 sm:p-5 md:p-6">
                     {isLoadingMessages && messages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
                         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -385,13 +796,13 @@ export default function Messages() {
                           >
                             <div
                               className={cn(
-                                "max-w-[70%] rounded-2xl px-4 py-2",
+                                "max-w-[85%] sm:max-w-[75%] md:max-w-[70%] rounded-2xl px-3 py-2 sm:px-4",
                                 msg.sender === user?.id
                                   ? "bg-primary text-primary-foreground"
                                   : "bg-secondary text-foreground"
                               )}
                             >
-                              <p className="text-sm">{msg.content}</p>
+                              <p className="text-sm break-words">{msg.content}</p>
                               <p
                                 className={cn(
                                   "mt-1 text-xs",
@@ -416,9 +827,9 @@ export default function Messages() {
                     )}
                   </div>
 
-                  {/* Message Input */}
-                  <div className="border-t border-border/50 p-4">
-                    <div className="flex gap-3">
+                  {/* Message Input - Direct Message */}
+                  <div className="border-t border-border/50 p-3 sm:p-4 md:p-5">
+                    <div className="flex gap-2 sm:gap-3">
                       <Input
                         placeholder="Type a message..."
                         value={message}
@@ -426,21 +837,169 @@ export default function Messages() {
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && !e.shiftKey) {
                             e.preventDefault();
-                            handleSendMessage();
+                            handleSend();
                           }
                         }}
                         className="flex-1"
                         disabled={isSending}
                       />
-                      <Button onClick={handleSendMessage} className="gap-2" disabled={isSending || !message.trim()}>
+                      <Button onClick={handleSend} size="icon" className="sm:w-auto sm:px-4 shrink-0" disabled={isSending || !message.trim()}>
                         {isSending ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          <Send className="h-4 w-4" />
+                          <>
+                            <Send className="h-4 w-4" />
+                            <span className="hidden sm:inline sm:ml-2">Send</span>
+                          </>
                         )}
-                        Send
                       </Button>
                     </div>
+                  </div>
+                </>
+              ) : selectedGroup ? (
+                <>
+                  {/* Chat Header - Group */}
+                  <div className="flex items-center justify-between gap-2 border-b border-border/50 p-4 sm:p-5">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setSelectedGroup(null);
+                          setShowGroupInfo(false);
+                        }}
+                        className="md:hidden p-1 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
+                        aria-label="Back to groups"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage
+                          src={selectedGroup.avatar_url || undefined}
+                          alt={selectedGroup.name}
+                        />
+                        <AvatarFallback className="bg-primary/20 text-primary">
+                          <Users className="h-5 w-5" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium text-foreground">{selectedGroup.name}</p>
+                        <p className="text-sm text-muted-foreground">{selectedGroup.member_count} members</p>
+                      </div>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setShowGroupInfo(true)}
+                      aria-label="Open group info"
+                      title="Group info"
+                    >
+                      <Info className="h-5 w-5" />
+                    </Button>
+                  </div>
+
+                  {/* Group Messages */}
+                  <div className="flex-1 space-y-4 overflow-y-auto p-3 sm:p-5 md:p-6">
+                    {isLoadingMessages && groupMessages.length === 0 ? (
+                      <div className="flex items-center justify-center h-full">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      </div>
+                    ) : groupMessages.length > 0 ? (
+                      <>
+                        {groupMessages.map((msg) => (
+                          <div
+                            key={msg.id}
+                            className={cn(
+                              "flex",
+                              msg.is_mine ? "justify-end" : "justify-start"
+                            )}
+                          >
+                            {!msg.is_mine && (
+                              <Avatar className="h-8 w-8 mr-2 shrink-0">
+                                <AvatarImage src={msg.sender_avatar || undefined} alt={msg.sender_name} />
+                                <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                                  {msg.sender_name.charAt(0)}
+                                </AvatarFallback>
+                              </Avatar>
+                            )}
+                            <div>
+                              {!msg.is_mine && (
+                                <p className="text-xs text-muted-foreground mb-1">{msg.sender_name}</p>
+                              )}
+                              <div
+                                className={cn(
+                                  "max-w-[85%] sm:max-w-[75%] md:max-w-[70%] rounded-2xl px-3 py-2 sm:px-4",
+                                  msg.is_mine
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-secondary text-foreground"
+                                )}
+                              >
+                                <p className="text-sm break-words">{msg.content}</p>
+                                <p
+                                  className={cn(
+                                    "mt-1 text-xs",
+                                    msg.is_mine
+                                      ? "text-primary-foreground/70"
+                                      : "text-muted-foreground"
+                                  )}
+                                >
+                                  {formatTime(msg.created_at)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        <div ref={messagesEndRef} />
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                        <Users className="h-12 w-12 mb-2 opacity-50" />
+                        <p>No messages yet</p>
+                        <p className="text-sm">Send a message to start the conversation</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Message Input - Group */}
+                  <div className="border-t border-border/50 p-3 sm:p-4 md:p-5">
+                    <div className="flex gap-2 sm:gap-3 relative">
+                      <div className="flex-1 relative">
+                        <Input
+                          ref={inputRef}
+                          placeholder="Type a message... (use @ to mention)"
+                          value={message}
+                          onChange={handleMessageChange}
+                          onKeyDown={handleKeyDown}
+                          className="w-full"
+                          disabled={isSending}
+                        />
+                        <MentionDropdown
+                          members={mentionMembers}
+                          searchQuery={mentionQuery}
+                          selectedIndex={selectedMemberIndex}
+                          onSelect={handleMentionSelect}
+                          visible={showMentionDropdown}
+                        />
+                      </div>
+                      <Button onClick={handleSend} size="icon" className="sm:w-auto sm:px-4 shrink-0" disabled={isSending || !message.trim()}>
+                        {isSending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4" />
+                            <span className="hidden sm:inline sm:ml-2">Send</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    {mentions.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        <span className="text-xs text-muted-foreground">Mentioning:</span>
+                        {mentions.map(m => (
+                          <span key={m.id} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                            @{m.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (
@@ -454,6 +1013,49 @@ export default function Messages() {
           </div>
         </div>
       </div>
+
+      {/* Create Group Modal */}
+      <CreateGroupModal
+        open={showCreateGroup}
+        onClose={() => setShowCreateGroup(false)}
+        onGroupCreated={fetchGroups}
+      />
+
+      <Dialog open={showGroupInfo} onOpenChange={setShowGroupInfo}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedGroup?.name}</DialogTitle>
+            <DialogDescription>
+              {selectedGroup?.description?.trim() || "No group description yet."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <span className="text-sm text-muted-foreground">Members</span>
+              <Badge variant="secondary">{selectedGroup?.member_count ?? 0}</Badge>
+            </div>
+
+            <div className="max-h-64 space-y-2 overflow-y-auto">
+              {groupMembers.length > 0 ? (
+                groupMembers.map((member) => (
+                  <div key={member.id} className="flex items-center justify-between rounded-md border p-2">
+                    <div>
+                      <p className="text-sm font-medium">{member.name}</p>
+                      <p className="text-xs text-muted-foreground">{member.email}</p>
+                    </div>
+                    <Badge variant={member.is_admin ? "default" : "outline"}>
+                      {member.is_admin ? "Admin" : "Member"}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No member details available.</p>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

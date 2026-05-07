@@ -37,6 +37,37 @@ export default function DashboardTalent() {
       if (response.ok) {
         const data = await response.json();
         setTasks(data);
+
+        // Auto-start recently assigned tasks for the logged-in talent
+        if (user && data && Array.isArray(data)) {
+          const now = Date.now();
+          const RECENT_MS = 5 * 60 * 1000; // 5 minutes
+
+          data.forEach((task: any) => {
+            try {
+              if (
+                task.status === "planning" &&
+                task.assignee === user.id &&
+                task.created_at &&
+                now - new Date(task.created_at).getTime() <= RECENT_MS
+              ) {
+                // update remotely and locally
+                updateTask(task.id, { status: "in-progress" })
+                  .then(() => {
+                    setTasks((prev) =>
+                      prev.map((t) => (t.id === task.id ? { ...t, status: "in-progress" } : t))
+                    );
+                    toast.success("New task started");
+                  })
+                  .catch((err) => {
+                    console.error("Failed to auto-start newly assigned task:", err);
+                  });
+              }
+            } catch (err) {
+              console.error("Error auto-starting task:", err);
+            }
+          });
+        }
       }
     } catch (error) {
       console.error("Error fetching tasks:", error);
@@ -89,7 +120,6 @@ export default function DashboardTalent() {
     (user.bio ? 15 : 0) +
     (user.skills?.length ? 15 : 0) +
     (user.portfolioLink ? 15 : 0) +
-    (user.avatarUrl ? 10 : 0) +
     (user.hourlyRate ? 10 : 0) +
     (user.availability ? 10 : 0)
     : 0;
@@ -108,10 +138,10 @@ export default function DashboardTalent() {
 
   return (
     <MainLayout>
-      <div className="animate-fade-in space-y-6">
+      <div className="animate-fade-in space-y-6 sm:space-y-8">
         {/* Welcome Header */}
         <div>
-          <h1 className="text-3xl font-bold text-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">
             Welcome back, {user?.full_name?.split(' ')[0] || 'there'}!
           </h1>
           <p className="text-muted-foreground mt-1">Here's what's happening with your projects today</p>
@@ -121,7 +151,7 @@ export default function DashboardTalent() {
         <ProfileCompletionBanner completionPercentage={profileCompletion} />
 
         {/* Quick Stats */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-5 sm:gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <TalentStatCard
             title="Active Projects"
             value={activeProjectsCount}
@@ -148,11 +178,11 @@ export default function DashboardTalent() {
           />
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-6 sm:gap-8 lg:grid-cols-3">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* My Tasks */}
-            <section className="glass-card p-6">
+            <section className="glass-card p-5 sm:p-6 md:p-7">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-foreground">My Tasks</h2>
                 <Button variant="ghost" size="sm" asChild>
@@ -204,7 +234,7 @@ export default function DashboardTalent() {
             </section>
 
             {/* Recent Activity */}
-            <section className="glass-card p-6">
+            <section className="glass-card p-5 sm:p-6 md:p-7">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-foreground">Recent Activity</h2>
               </div>
@@ -216,12 +246,12 @@ export default function DashboardTalent() {
           <div className="space-y-6">
             {/* Performance Overview */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="glass-card p-4 text-center">
+              <div className="glass-card p-5 text-center">
                 <Target className="h-8 w-8 text-primary mx-auto mb-2" />
                 <p className="text-2xl font-bold text-foreground">{completedTasksCount * 50}</p>
                 <p className="text-xs text-muted-foreground">Points Earned</p>
               </div>
-              <div className="glass-card p-4 text-center">
+              <div className="glass-card p-5 text-center">
                 <CheckSquare className="h-8 w-8 text-success mx-auto mb-2" />
                 <p className="text-2xl font-bold text-foreground">{completedTasksCount}</p>
                 <p className="text-xs text-muted-foreground">Tasks Done</p>
@@ -229,7 +259,7 @@ export default function DashboardTalent() {
             </div>
 
             {/* Current Rank */}
-            <div className="glass-card p-6 text-center">
+            <div className="glass-card p-5 sm:p-6 md:p-7 text-center">
               <Trophy className="h-10 w-10 text-warning mx-auto mb-2" />
               <p className="text-4xl font-bold text-foreground">#3</p>
               <p className="text-sm text-muted-foreground">Current Rank</p>
@@ -239,7 +269,7 @@ export default function DashboardTalent() {
             <ProfileStrengthCard
               percentage={profileCompletion}
               tips={[
-                { text: "Add profile photo", completed: !!user?.avatarUrl },
+                // { text: "Add profile photo", completed: !!user?.avatarUrl },
                 { text: "Upload portfolio samples", completed: !!user?.portfolioLink },
                 { text: "Get 3+ client reviews", completed: false },
                 { text: "Complete your bio", completed: !!user?.bio },
@@ -247,7 +277,7 @@ export default function DashboardTalent() {
             />
 
             {/* Upcoming Deadlines */}
-            <section className="glass-card p-6">
+            <section className="glass-card p-5 sm:p-6 md:p-7">
               <div className="flex items-center gap-2 mb-4">
                 <Calendar className="h-5 w-5 text-primary" />
                 <h3 className="font-semibold text-foreground">Upcoming Deadlines</h3>
