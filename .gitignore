@@ -39,3 +39,4 @@ temp-landing-repo/.git.nested-backup/
 # Temporary experiment/clone repo
 temp-landing-repo/
 
+.env*.local
