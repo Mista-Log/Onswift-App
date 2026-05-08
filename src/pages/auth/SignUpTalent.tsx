@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { FIXED_PROCESSING_MESSAGE, runWithFixedProcessingDelay } from '@/lib/loadingGate';
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 const SKILL_OPTIONS = [
   // Core Creative
@@ -55,6 +56,9 @@ const SKILL_OPTIONS = [
 export default function SignUpTalent() {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const from = (location.state as any)?.from?.pathname || '/dashboard';
+  
   const { signup, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -542,6 +546,9 @@ export default function SignUpTalent() {
                 'Create Talent Account'
               )}
             </Button>
+
+            <GoogleSignInButton from={from} />
+
             {inviteToken && (isLoading || isValidatingInvite) && (
               <p className="text-center text-xs text-muted-foreground">{processingMessage || FIXED_PROCESSING_MESSAGE}</p>
             )}

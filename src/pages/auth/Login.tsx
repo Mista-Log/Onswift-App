@@ -6,6 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+
+
 
 export default function Login() {
   const navigate = useNavigate();
@@ -137,6 +140,8 @@ export default function Login() {
                 'Sign In'
               )}
             </Button>
+
+            <GoogleSignInButton from={from} />
           </form>
 
           <p className="text-center text-muted-foreground mt-6">

@@ -6,10 +6,15 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+
 
 export default function SignUpCreator() {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const from = (location.state as any)?.from?.pathname || '/dashboard';
+
   const { signup, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const locationState = location.state as { prefilledEmail?: string; prefilledName?: string } | undefined;
@@ -238,6 +243,9 @@ export default function SignUpCreator() {
                 'Create Creator Account'
               )}
             </Button>
+
+            <GoogleSignInButton from={from} />
+
           </form>
 
           <p className="text-center text-muted-foreground mt-6">

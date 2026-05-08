@@ -2,6 +2,10 @@ from urllib import request
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from .models import User, TalentProfile, CreatorProfile, UserSettings
+from google.auth.transport import requests
+from google.oauth2 import id_token
+from django.conf import settings
+
 
 
 class SignupSerializer(serializers.ModelSerializer):
@@ -337,3 +341,33 @@ class TalentProfileListSerializer(serializers.ModelSerializer):
         if profile and profile.portfolio_links:
             return profile.portfolio_links[0]
         return None
+
+class GoogleAuthSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    role = serializers.CharField(required=False)
+
+    def validate(self, attrs):
+        token = attrs.get("token")
+
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                token,
+                requests.Request(),
+                settings.GOOGLE_CLIENT_ID
+            )
+
+            email = idinfo.get("email")
+            full_name = idinfo.get("name")
+            picture = idinfo.get("picture")
+
+            if not email:
+                raise serializers.ValidationError("Google account email not available")
+
+            attrs["email"] = email
+            attrs["full_name"] = full_name
+            attrs["picture"] = picture
+
+            return attrs
+
+        except ValueError:
+            raise serializers.ValidationError("Invalid Google token")
