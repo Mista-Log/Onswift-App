@@ -52,7 +52,7 @@ jobs:
           npm test  # Runs your Jest/Vitest tests
 
       - name: Install Vercel CLI
-        run: npm install --global vercel@latest
+        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy to Vercel
         run: |
