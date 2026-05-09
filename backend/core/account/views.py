@@ -21,6 +21,7 @@ from django.conf import settings
 from google.auth.transport import requests
 from google.oauth2 import id_token
 from .serializers import GoogleAuthSerializer
+from .models import TalentProfile, CreatorProfile
 
 
 class SignupView(APIView):
@@ -352,6 +353,17 @@ class GoogleAuthView(APIView):
                 "role": role,
             }
         )
+
+        if created:
+            if role == "talent":
+                TalentProfile.objects.create(
+                    user=user
+                )
+
+            elif role == "creator":
+                CreatorProfile.objects.create(
+                    user=user
+                )
 
         # Update full name if empty
         if not user.full_name:
