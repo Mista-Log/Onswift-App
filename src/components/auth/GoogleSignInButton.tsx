@@ -1,5 +1,8 @@
 import { GoogleLogin } from "@react-oauth/google";
+import { FcGoogle } from "react-icons/fc";
 import { useNavigate } from "react-router-dom";
+
+import { Button } from "@/components/ui/button";
 import { googleAuth } from "@/services/googleAuth";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -8,52 +11,70 @@ interface Props {
   role?: string;
 }
 
-export default function GoogleSignInButton({ from, role }: Props) {
+export default function GoogleSignInButton({
+  from,
+  role,
+}: Props) {
   const navigate = useNavigate();
   const { getUser } = useAuth();
 
   return (
-    <div className="w-full">
-      <GoogleLogin
-        theme="outline"
-        size="large"
-        width="100%"
-        text="signin_with"
-        shape="rectangular"
-        onSuccess={async (credentialResponse) => {
-          try {
-            if (!credentialResponse.credential) return;
+    <div className="w-full relative">
+      {/* Hidden Google Button */}
+      <div className="absolute inset-0 opacity-0">
+        <GoogleLogin
+          onSuccess={async (credentialResponse) => {
+            try {
+              if (!credentialResponse.credential) return;
 
-            const data = await googleAuth(
-              credentialResponse.credential,
-              role
-            );
+              const data = await googleAuth(
+                credentialResponse.credential,
+                role
+              );
 
-            // store tokens
-            localStorage.setItem("onswift_access", data.access);
-            localStorage.setItem("onswift_refresh", data.refresh);
+              localStorage.setItem(
+                "onswift_access",
+                data.access
+              );
 
-            localStorage.setItem(
-              "onswift_user",
-              JSON.stringify(data.user)
-            );
+              localStorage.setItem(
+                "onswift_refresh",
+                data.refresh
+              );
 
-            // fetch authenticated user
-            await getUser();
+              localStorage.setItem(
+                "onswift_user",
+                JSON.stringify(data.user)
+              );
 
-            // redirect AFTER auth state updates
-            navigate(from || "/dashboard", {
-              replace: true,
-            });
+              await getUser();
 
-          } catch (error) {
-            console.error("Google login failed:", error);
-          }
-        }}
-        onError={() => {
-          console.log("Google Login Failed");
-        }}
-      />
+              navigate(from || "/dashboard", {
+                replace: true,
+              });
+
+            } catch (error) {
+              console.error(
+                "Google login failed:",
+                error
+              );
+            }
+          }}
+          onError={() => {
+            console.log("Google Login Failed");
+          }}
+        />
+      </div>
+
+      {/* Your Custom UI */}
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full flex items-center justify-center gap-3 h-11 rounded-xl border-neutral-300 hover:bg-neutral-100"
+      >
+        <FcGoogle className="h-5 w-5" />
+        Continue with Google
+      </Button>
     </div>
   );
 }
