@@ -1,13 +1,16 @@
 import { GoogleLogin } from "@react-oauth/google";
 import { useNavigate } from "react-router-dom";
 import { googleAuth } from "@/services/googleAuth";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   from?: string;
+  role?: string;
 }
 
-export default function GoogleSignInButton({ from }: Props) {
+export default function GoogleSignInButton({ from, role }: Props) {
   const navigate = useNavigate();
+  const { getUser } = useAuth();
 
   return (
     <div className="w-full">
@@ -22,20 +25,27 @@ export default function GoogleSignInButton({ from }: Props) {
             if (!credentialResponse.credential) return;
 
             const data = await googleAuth(
-              credentialResponse.credential
+              credentialResponse.credential,
+              role
             );
 
-            localStorage.setItem("access", data.access);
-            localStorage.setItem("refresh", data.refresh);
+            // store tokens
+            localStorage.setItem("onswift_access", data.access);
+            localStorage.setItem("onswift_refresh", data.refresh);
 
             localStorage.setItem(
-              "user",
+              "onswift_user",
               JSON.stringify(data.user)
             );
 
+            // fetch authenticated user
+            await getUser();
+
+            // redirect AFTER auth state updates
             navigate(from || "/dashboard", {
               replace: true,
             });
+
           } catch (error) {
             console.error("Google login failed:", error);
           }
