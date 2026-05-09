@@ -244,7 +244,10 @@ export default function SignUpCreator() {
               )}
             </Button>
 
-            <GoogleSignInButton from={from} />
+            <GoogleSignInButton
+              from={from}
+              role="creator"
+            />
 
           </form>
 

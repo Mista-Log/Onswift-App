@@ -58,7 +58,7 @@ export default function SignUpTalent() {
   const location = useLocation();
 
   const from = (location.state as any)?.from?.pathname || '/dashboard';
-  
+
   const { signup, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -547,7 +547,10 @@ export default function SignUpTalent() {
               )}
             </Button>
 
-            <GoogleSignInButton from={from} />
+            <GoogleSignInButton
+              from={from}
+              role="talent"
+            />
 
             {inviteToken && (isLoading || isValidatingInvite) && (
               <p className="text-center text-xs text-muted-foreground">{processingMessage || FIXED_PROCESSING_MESSAGE}</p>

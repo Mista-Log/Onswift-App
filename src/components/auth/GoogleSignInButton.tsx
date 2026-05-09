@@ -4,9 +4,10 @@ import { googleAuth } from "@/services/googleAuth";
 
 interface Props {
   from?: string;
+  role?: string;
 }
 
-export default function GoogleSignInButton({ from }: Props) {
+export default function GoogleSignInButton({ from, role }: Props) {
   const navigate = useNavigate();
 
   return (
@@ -22,7 +23,8 @@ export default function GoogleSignInButton({ from }: Props) {
             if (!credentialResponse.credential) return;
 
             const data = await googleAuth(
-              credentialResponse.credential
+              credentialResponse.credential,
+              role
             );
 
             localStorage.setItem("access", data.access);
