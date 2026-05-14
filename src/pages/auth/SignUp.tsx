@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Crown, Lightbulb, ChevronLeft, Check } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAnalytics } from '@/hooks/useAnalytics';
@@ -102,33 +102,24 @@ const SCREENS: Screen[] = [
     id: 'welcome',
     type: 'welcome',
     emoji: '💜',
-    title: 'Welcome Aboard',
+    title: 'Almost Done!!! 😉 ',
     subtitle: 'Let\'s personalise OnSwift for you. It only takes a minute, we promise.',
     cta: 'Get started'
   },
   {
-    id: 'name',
-    type: 'text-input',
-    step: 1,
-    total_steps: 7,
-    question: 'What\'s your name?',
-    subtitle: 'We\'d love to know who we\'re working with.',
-    cta: 'Continue'
-  },
-  {
     id: 'email',
     type: 'text-input',
-    step: 2,
-    total_steps: 7,
-    question: 'What\'s your email address?',
-    subtitle: 'We\'ll use this to send you updates.',
+    step: 1,
+    total_steps: 6,
+    question: 'Confirm your email',
+    subtitle: 'Is this the email you signed up with?',
     cta: 'Continue'
   },
   {
     id: 'step-1',
     type: 'single-select',
-    step: 3,
-    total_steps: 7,
+    step: 2,
+    total_steps: 6,
     question: 'What best describes you?',
     subtitle: 'Pick one that fits best.',
     options: [
@@ -144,8 +135,8 @@ const SCREENS: Screen[] = [
   {
     id: 'step-2',
     type: 'single-select',
-    step: 4,
-    total_steps: 7,
+    step: 3,
+    total_steps: 6,
     question: 'What would you like to use OnSwift for?',
     subtitle: 'Pick one that best describes your goal.',
     options: [
@@ -161,8 +152,8 @@ const SCREENS: Screen[] = [
   {
     id: 'step-3',
     type: 'multi-select-card',
-    step: 5,
-    total_steps: 7,
+    step: 4,
+    total_steps: 6,
     question: 'What do you want to manage inside OnSwift?',
     subtitle: 'Select all that apply.',
     options: [
@@ -179,8 +170,8 @@ const SCREENS: Screen[] = [
   {
     id: 'step-4',
     type: 'single-select',
-    step: 6,
-    total_steps: 7,
+    step: 5,
+    total_steps: 6,
     question: 'Who will be using OnSwift with you?',
     subtitle: 'This helps us suggest the right workspace setup.',
     options: [
@@ -195,8 +186,8 @@ const SCREENS: Screen[] = [
   {
     id: 'step-5',
     type: 'single-select',
-    step: 7,
-    total_steps: 7,
+    step: 6,
+    total_steps: 6,
     question: 'How did you hear about us?',
     subtitle: 'We\'re curious — no wrong answers.',
     options: [
@@ -223,11 +214,16 @@ const COMPLETION_SCREEN: Screen = {
 export default function SignUp() {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { track } = useAnalytics();
+  const locationState = location.state as { fromSignup?: boolean; prefilledEmail?: string; prefilledName?: string } | undefined;
   const [currentScreenIndex, setCurrentScreenIndex] = useState(0);
-  const [data, setData] = useState<OnboardingData>({});
+  const [data, setData] = useState<OnboardingData>({
+    email: locationState?.prefilledEmail,
+    name: locationState?.prefilledName,
+  });
 
-  if (isAuthenticated) {
+  if (isAuthenticated && !locationState?.fromSignup) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -244,21 +240,13 @@ export default function SignUp() {
       });
     }
 
-    if (currentScreen?.id === 'name' && typeof value === 'string') {
-      if (value.trim().length >= 2) {
-        setData(prev => ({ ...prev, name: value.trim() }));
-        setCurrentScreenIndex(currentScreenIndex + 1);
-      }
-    } else if (currentScreen?.id === 'email' && typeof value === 'string') {
-      if (/\S+@\S+\.\S+/.test(value)) {
-        setData(prev => ({ ...prev, email: value.trim() }));
-        setCurrentScreenIndex(currentScreenIndex + 1);
-      }
-    } else if (currentScreen?.type === 'welcome') {
+    if (currentScreen?.type === 'welcome') {
       setCurrentScreenIndex(currentScreenIndex + 1);
     } else if (currentScreen?.type === 'single-select') {
-      const stepNum = currentScreen.step === 3 ? 1 : currentScreen.step === 4 ? 2 : currentScreen.step === 6 ? 4 : currentScreen.step === 7 ? 5 : currentScreen.step;
-      const dataKey = `step${stepNum}` as keyof OnboardingData;
+      const idToKey: Record<string, keyof OnboardingData> = {
+        'step-1': 'step1', 'step-2': 'step2', 'step-4': 'step4', 'step-5': 'step5',
+      };
+      const dataKey = (idToKey[currentScreen.id] || `step${currentScreen.step}`) as keyof OnboardingData;
       setData(prev => ({ ...prev, [dataKey]: value }));
       setCurrentScreenIndex(currentScreenIndex + 1);
     } else if (currentScreen?.type === 'multi-select-card') {
@@ -269,8 +257,14 @@ export default function SignUp() {
 
   const handleRoleSelect = (role: 'creator' | 'talent') => {
     track('role_selected', { role });
-    
-    // Save to Firestore asynchronously (don't block navigation)
+
+    if (!locationState?.fromSignup) {
+      // Pre-account-creation: go straight to the signup form
+      navigate(role === 'creator' ? '/signup/creator' : '/signup/talent');
+      return;
+    }
+
+    // Post-survey save (legacy path kept for safety)
     if (data.email) {
       import('@/lib/firebase').then(({ saveOnboardingData, sanitizeEmailForDoc }) => {
         saveOnboardingData(sanitizeEmailForDoc(data.email!), {
@@ -289,7 +283,6 @@ export default function SignUp() {
       });
     }
 
-    // Navigate immediately
     const navigationState = {
       onboarding: data,
       prefilledEmail: data.email,
@@ -310,6 +303,18 @@ export default function SignUp() {
   };
 
   const isShowBackButton = currentScreenIndex > 0 && currentScreen?.type !== 'role-select' && currentScreenIndex < SCREENS.length;
+
+  if (!locationState?.fromSignup) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl">
+          <div className="px-8 py-12 md:px-12 md:py-16">
+            <RoleSelectScreen onRoleSelect={handleRoleSelect} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
@@ -347,21 +352,15 @@ export default function SignUp() {
 
           {/* Content */}
           <div className="px-8 py-12 md:px-12 md:py-16">
-            {/* Name Input */}
-            {currentScreen?.id === 'name' && (
-              <TextInputScreen
-                screen={currentScreen}
-                onContinue={handleContinue}
-                currentValue={data.name}
-              />
-            )}
-
-            {/* Email Input */}
+            {/* Email Confirm */}
             {currentScreen?.id === 'email' && (
-              <TextInputScreen
-                screen={currentScreen}
-                onContinue={handleContinue}
-                currentValue={data.email}
+              <EmailConfirmScreen
+                email={data.email || ''}
+                onConfirm={(confirmedEmail) => {
+                  track('onboarding_step_completed', { step: 1, total_steps: 6, screen_type: 'confirm-email' });
+                  setData(prev => ({ ...prev, email: confirmedEmail }));
+                  setCurrentScreenIndex(currentScreenIndex + 1);
+                }}
               />
             )}
 
@@ -375,7 +374,12 @@ export default function SignUp() {
               <SingleSelectScreen
                 screen={currentScreen}
                 onContinue={handleContinue}
-                currentValue={data[`step${currentScreen.step}` as keyof OnboardingData] as string | undefined}
+                currentValue={(() => {
+                  const idToKey: Record<string, keyof OnboardingData> = {
+                    'step-1': 'step1', 'step-2': 'step2', 'step-4': 'step4', 'step-5': 'step5',
+                  };
+                  return data[idToKey[currentScreen.id] as keyof OnboardingData] as string | undefined;
+                })()}
               />
             )}
 
@@ -394,9 +398,25 @@ export default function SignUp() {
                 screen={COMPLETION_SCREEN}
                 onContinue={() => {
                   track('onboarding_completed', { data });
-                  setCurrentScreenIndex(currentScreenIndex + 1);
+                  if (locationState?.fromSignup) {
+                    if (data.email) {
+                      import('@/lib/firebase').then(({ saveOnboardingData, sanitizeEmailForDoc }) => {
+                        saveOnboardingData(sanitizeEmailForDoc(data.email!), {
+                          full_name: data.name || 'Unknown',
+                          step1: data.step1,
+                          step2: data.step2,
+                          step3: data.step3,
+                          step4: data.step4,
+                          step5: data.step5,
+                        }).catch(console.error);
+                      }).catch(console.warn);
+                    }
+                    navigate('/dashboard');
+                  } else {
+                    setCurrentScreenIndex(currentScreenIndex + 1);
+                  }
                 }}
-                onRoleSelect={handleRoleSelect}
+                onRoleSelect={locationState?.fromSignup ? undefined : handleRoleSelect}
               />
             )}
 
@@ -717,9 +737,10 @@ function CompletionScreen({
       <h1 className="text-4xl font-bold text-slate-900 mb-4 animate-fade-in-delay-1">{screen.title}</h1>
       <p className="text-lg text-slate-600 mb-8 leading-relaxed animate-fade-in-delay-2 max-w-md mx-auto">{screen.subtitle}</p>
       
+      {onRoleSelect ? (
       <div className="mt-12 space-y-8">
         <p className="text-slate-600 font-medium">Now, let's get you set up:</p>
-        
+
         <div className="grid md:grid-cols-2 gap-6 animate-fade-in-delay-2">
           {/* Creator Card */}
           <button
@@ -739,7 +760,7 @@ function CompletionScreen({
                 </div>
               </div>
               
-              <h3 className="text-2xl font-bold text-slate-900 mb-3">Creator</h3>
+              <h3 className="text-2xl font-bold text-slate-900 mb-3">Creator / Agency</h3>
               <p className="text-slate-600 text-sm leading-relaxed">
                 Hire and manage talented professionals for your projects
               </p>
@@ -780,6 +801,96 @@ function CompletionScreen({
           </button>
         </div>
       </div>
+      ) : (
+        <button
+          onClick={onContinue}
+          className="w-full px-6 py-3 bg-[#6B5CE7] text-white font-semibold rounded-[100px] hover:bg-[#5A4BD1] transition-colors animate-fade-in-delay-2 mt-8"
+        >
+          Enter your workspace →
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Email Confirm Screen Component
+function EmailConfirmScreen({
+  email,
+  onConfirm,
+}: {
+  email: string;
+  onConfirm: (email: string) => void;
+}) {
+  const [showInput, setShowInput] = useState(false);
+  const [customEmail, setCustomEmail] = useState('');
+  const [error, setError] = useState('');
+
+  if (showInput) {
+    return (
+      <div className="animate-fade-in space-y-6">
+        <div>
+          <h2 className="text-3xl font-bold text-slate-900 mb-2">Enter your email</h2>
+          <p className="text-slate-600">What email should we use for your account?</p>
+        </div>
+        <input
+          type="email"
+          placeholder="you@example.com"
+          value={customEmail}
+          onChange={(e) => { setCustomEmail(e.target.value); setError(''); }}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && /\S+@\S+\.\S+/.test(customEmail)) onConfirm(customEmail.trim());
+          }}
+          autoFocus
+          className="w-full px-6 py-4 rounded-[14px] border-2 border-slate-200 focus:border-[#6B5CE7] focus:outline-none text-slate-900 placeholder-slate-400 transition-colors"
+        />
+        {error && <p className="text-red-500 text-sm">{error}</p>}
+        <button
+          onClick={() => {
+            if (!/\S+@\S+\.\S+/.test(customEmail)) { setError('Please enter a valid email address'); return; }
+            onConfirm(customEmail.trim());
+          }}
+          disabled={!customEmail.trim()}
+          className="w-full px-6 py-3 bg-[#6B5CE7] text-white font-semibold rounded-[100px] hover:bg-[#5A4BD1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          Continue
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="animate-fade-in space-y-6">
+      <div>
+        <h2 className="text-3xl font-bold text-slate-900 mb-2">Confirm your email</h2>
+        <p className="text-slate-600 mb-4">Is this the right email for your OnSwift account?</p>
+        <div className="px-6 py-4 rounded-[14px] bg-[#F5F3FF] border-2 border-[#6B5CE7]/30 text-slate-900 font-medium text-center break-all">
+          {email}
+        </div>
+      </div>
+      <div className="space-y-3">
+        <button
+          onClick={() => onConfirm(email)}
+          className="w-full text-left px-6 py-4 rounded-[14px] border-2 font-medium transition-all animate-fade-in"
+          style={{ borderColor: '#6B5CE7', backgroundColor: '#F5F3FF', color: '#0f172a' }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0" style={{ borderColor: '#6B5CE7', backgroundColor: '#6B5CE7' }}>
+              <Check className="w-3 h-3 text-white" />
+            </div>
+            <span>Yes, that's my email</span>
+          </div>
+        </button>
+        <button
+          onClick={() => setShowInput(true)}
+          className="w-full text-left px-6 py-4 rounded-[14px] border-2 font-medium transition-all animate-fade-in"
+          style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc', color: '#475569' }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-5 h-5 rounded-full border-2 flex-shrink-0" style={{ borderColor: '#cbd5e1' }} />
+            <span>No, use a different one</span>
+          </div>
+        </button>
+      </div>
     </div>
   );
 }
@@ -789,8 +900,8 @@ function RoleSelectScreen({ onRoleSelect }: { onRoleSelect: (role: 'creator' | '
   return (
     <div className="space-y-8">
       <div className="text-center animate-fade-in">
-        <h2 className="text-3xl font-bold text-slate-900 mb-2">Choose your path</h2>
-        <p className="text-slate-600">Select how you'd like to contribute to OnSwift</p>
+        <h2 className="text-3xl font-bold text-slate-900 mb-2">Let's Get You Signed Up 🤩!!</h2>
+        <p className="text-slate-600">How'd you like to get started with OnSwift?</p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 animate-fade-in-delay-1">
@@ -813,7 +924,7 @@ function RoleSelectScreen({ onRoleSelect }: { onRoleSelect: (role: 'creator' | '
               </div>
             </div>
             
-            <h3 className="text-2xl font-bold text-slate-900 mb-3 text-center">Creator</h3>
+            <h3 className="text-2xl font-bold text-slate-900 mb-3 text-center">Creator/Agency</h3>
             <p className="text-slate-600 text-center text-sm leading-relaxed">
               Hire and manage talented professionals for your projects
             </p>

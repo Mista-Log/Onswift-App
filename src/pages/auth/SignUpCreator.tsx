@@ -76,7 +76,13 @@ export default function SignUpCreator() {
     
     if (result.success) {
       toast({ title: 'Account created!', description: 'Welcome to OnSwift.' });
-      navigate('/dashboard');
+      navigate('/signup', {
+        state: {
+          fromSignup: true,
+          prefilledEmail: formData.email,
+          prefilledName: formData.full_name,
+        },
+      });
     } else {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
     }
@@ -99,16 +105,16 @@ export default function SignUpCreator() {
               <h1 className="text-2xl font-bold text-foreground">OnSwift</h1>
             </Link>
             
-            {/* Stepper */}
+            {/* Stepper — Step 1 of 3: account setup */}
             <div className="flex items-center justify-center gap-2 mb-6">
               <div className="w-3 h-3 rounded-full bg-primary" />
-              <div className="w-8 h-0.5 bg-primary" />
-              <div className="w-3 h-3 rounded-full bg-primary" />
+              <div className="w-8 h-0.5 bg-border" />
+              <div className="w-3 h-3 rounded-full bg-border" />
               <div className="w-8 h-0.5 bg-border" />
               <div className="w-3 h-3 rounded-full bg-border" />
             </div>
             
-            <h2 className="text-2xl font-semibold text-foreground">Create Creator Account</h2>
+            <h2 className="text-2xl font-semibold text-foreground">Create Agency/Creator Account</h2>
             <p className="text-muted-foreground mt-2">Set up your account to start hiring talent</p>
           </div>
 
