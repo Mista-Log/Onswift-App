@@ -561,7 +561,7 @@ const TestimonialsSection = () => {
         <div className="mb-12 text-center">
           <SectionBadge>Testimonials</SectionBadge>
           <h2 className="mt-5 text-3xl font-bold md:text-4xl lg:text-5xl" style={{ color: TEAL }}>
-            What Founders Who Uses <br />Onswift Says Says
+            What Founders Who Uses <br />Onswift Says
           </h2>
         </div>
 
