@@ -77,17 +77,24 @@ export default function DashboardCreator() {
               </div>
 
               {projects.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    You currently don't have active projects, click{" "}
-                    <button
-                      onClick={() => navigate('/projects')}
-                      className="text-primary hover:underline font-medium"
-                    >
-                      Project section
-                    </button>{" "}
-                    to start creating
-                  </p>
+                <div className="flex flex-col items-center justify-center py-12 text-center gap-4">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                    <Plus className="h-8 w-8 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-foreground mb-1">No active projects yet</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Create your first project to get started
+                    </p>
+                  </div>
+                  <Button
+                    variant="glow"
+                    className="gap-2"
+                    onClick={() => navigate('/projects')}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create New Project
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-3">
