@@ -18,6 +18,11 @@ from django.core.mail import send_mail
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes
 from django.conf import settings
+from google.auth.transport import requests
+from google.oauth2 import id_token
+from .serializers import GoogleAuthSerializer
+from .models import TalentProfile, CreatorProfile
+
 
 class SignupView(APIView):
     permission_classes = [AllowAny]
@@ -327,3 +332,54 @@ class TalentProfileListView(APIView):
 
         serializer = TalentProfileListSerializer(talents, many=True)
         return Response(serializer.data)
+
+
+
+class GoogleAuthView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = GoogleAuthSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        full_name = serializer.validated_data["full_name"]
+        role = serializer.validated_data.get("role", "talent")
+
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                "full_name": full_name,
+                "role": role,
+            }
+        )
+
+        if created:
+            if role == "talent":
+                TalentProfile.objects.create(
+                    user=user
+                )
+
+            elif role == "creator":
+                CreatorProfile.objects.create(
+                    user=user
+                )
+
+        # Update full name if empty
+        if not user.full_name:
+            user.full_name = full_name
+            user.save()
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            "message": "Google authentication successful",
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "full_name": user.full_name,
+                "role": user.role,
+            }
+        }, status=status.HTTP_200_OK)

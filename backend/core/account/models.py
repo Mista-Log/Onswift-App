@@ -61,10 +61,10 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 class TalentProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    professional_title = models.CharField(max_length=255)
+    professional_title = models.CharField(max_length=255, null=True, blank=True)
     bio = models.TextField(blank=True)
     skills = models.JSONField(default=list)
-    primary_skill = models.CharField(max_length=100)
+    primary_skill = models.CharField(max_length=100, null=True, blank=True)
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     portfolio_links = models.JSONField(default=list, blank=True)
     availability = models.CharField(max_length=100, blank=True)

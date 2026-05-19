@@ -7,10 +7,15 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { AuthImagePanel } from '@/components/auth/AuthImagePanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+
 
 export default function SignUpCreator() {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const from = (location.state as any)?.from?.pathname || '/dashboard';
+
   const { signup, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const locationState = location.state as { prefilledEmail?: string; prefilledName?: string } | undefined;
@@ -248,6 +253,21 @@ export default function SignUpCreator() {
                 'Create Creator Account'
               )}
             </Button>
+
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+              </div>
+            </div>
+
+            <GoogleSignInButton
+              from={from}
+              role="creator"
+            />
+
           </form>
 
           <p className="text-center text-muted-foreground mt-6">

@@ -11,6 +11,7 @@ from .views import (
     PasswordResetRequestView,
     PasswordResetConfirmView,
     TalentProfileListView,
+    GoogleAuthView,
 )
 
 
@@ -22,6 +23,7 @@ urlpatterns = [
     path("auth/token/refresh/", TokenRefreshView.as_view()),
     path("user/talentprofile/", TalentProfileListView.as_view(), name="talent-profiles"),
 
+    path("auth/google/", GoogleAuthView.as_view(), name="google-auth"),
 
     # Settings endpoints
     path("settings/", UserSettingsView.as_view(), name="user-settings"),
