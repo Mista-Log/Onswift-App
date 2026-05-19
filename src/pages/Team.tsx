@@ -47,9 +47,13 @@ export default function Team() {
   const [showInviteCelebration, setShowInviteCelebration] = useState(false);
 
   const handleFirstInvite = () => {
-    if (!localStorage.getItem("onswift_celebrated_first_invite")) {
-      localStorage.setItem("onswift_celebrated_first_invite", "1");
-      setShowInviteCelebration(true);
+    try {
+      if (!localStorage.getItem("onswift_celebrated_first_invite")) {
+        localStorage.setItem("onswift_celebrated_first_invite", "1");
+        setShowInviteCelebration(true);
+      }
+    } catch (error) {
+      console.warn("Unable to access localStorage for invite celebration:", error);
     }
   };
 
