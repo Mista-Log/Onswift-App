@@ -54,7 +54,6 @@ export default function Team() {
       }
     } catch (error) {
       console.warn("Unable to access localStorage for invite celebration:", error);
-      setShowInviteCelebration(false);
     }
   };
 
