@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Calendar as CalendarIcon, Users, FolderKanban, MoreVertical, Trash2, ExternalLink } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Users, FolderKanban, MoreVertical, Trash2, ExternalLink, Sparkles, ArrowRight, Pencil } from "lucide-react";
+import { CelebrationModal } from "@/components/CelebrationModal";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
@@ -43,7 +44,7 @@ import { useProjects } from "@/contexts/ProjectContext";
 export default function Projects() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { projects, addProject, deleteProject } = useProjects();
+  const { projects, addProject, deleteProject, updateProject } = useProjects();
   const isTalent = user?.role === 'talent';
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -53,6 +54,10 @@ export default function Projects() {
     description: "",
     due_date: "",
   });
+  const [celebration, setCelebration] = useState<{ open: boolean; projectId?: string }>({ open: false });
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [projectToRename, setProjectToRename] = useState<{ id: string; name: string } | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const handleDeleteProject = async () => {
     if (!projectToDelete) return;
@@ -73,6 +78,26 @@ export default function Projects() {
     setDeleteDialogOpen(true);
   };
 
+  const openRenameDialog = (e: React.MouseEvent, project: { id: string; name: string }) => {
+    e.stopPropagation();
+    setProjectToRename(project);
+    setRenameValue(project.name);
+    setRenameDialogOpen(true);
+  };
+
+  const handleRenameProject = async () => {
+    if (!projectToRename || !renameValue.trim()) return;
+    try {
+      await updateProject(projectToRename.id, { name: renameValue.trim() });
+      toast.success("Project renamed successfully");
+    } catch {
+      toast.error("Failed to rename project");
+    } finally {
+      setRenameDialogOpen(false);
+      setProjectToRename(null);
+    }
+  };
+
   // const projects = isTalent ? talentProjects : contextProjects;
 
 
@@ -84,15 +109,22 @@ export default function Projects() {
       return;
     }
 
-    await addProject({
+    const isFirstProject = projects.length === 0;
+
+    const newId = await addProject({
       name: formData.name,
       description: formData.description,
-      due_date: formData.due_date, // ✅ SEND RAW DATE
+      due_date: formData.due_date,
     });
 
     toast.success("Project created successfully!");
     setFormData({ name: "", description: "", due_date: "" });
     setIsDialogOpen(false);
+
+    if (isFirstProject && !localStorage.getItem("onswift_celebrated_first_project")) {
+      localStorage.setItem("onswift_celebrated_first_project", "1");
+      setCelebration({ open: true, projectId: newId });
+    }
   };
 
 
@@ -187,18 +219,36 @@ export default function Projects() {
 
         {/* Projects Grid */}
         {projects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center min-h-[360px]">
-            <FolderKanban className="h-12 w-12 text-muted-foreground/50" />
-            <p className="mt-3 text-sm font-medium text-foreground">
-              {isTalent ? "No projects assigned yet" : "No projects yet"}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {isTalent
-                ? "Projects assigned to you will appear here"
-                : "Click the + New Project button above to create your first project"
-              }
-            </p>
-          </div>
+          isTalent ? (
+            <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center min-h-[360px]">
+              <div className="rounded-2xl bg-secondary/60 p-6 mb-4">
+                <FolderKanban className="h-12 w-12 text-muted-foreground/50" />
+              </div>
+              <p className="text-base font-semibold text-foreground">No projects assigned yet</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Projects assigned to you will appear here once a creator adds you.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-10 sm:p-14 text-center min-h-[420px] border-2 border-dashed border-border/60 rounded-2xl bg-secondary/20">
+              <div className="rounded-2xl bg-primary/10 p-5 mb-5">
+                <FolderKanban className="h-14 w-14 text-primary" />
+              </div>
+              <h2 className="text-xl font-bold text-foreground mb-2">Create your first project</h2>
+              <p className="text-sm text-muted-foreground mb-8 max-w-xs leading-relaxed">
+                Projects are where you organize tasks, assign work to your team, and track everything from start to finish.
+              </p>
+              <Button
+                size="lg"
+                className="gap-2 text-base px-8"
+                onClick={() => setIsDialogOpen(true)}
+              >
+                <Sparkles className="h-5 w-5" />
+                Create My First Project
+              </Button>
+              <p className="mt-3 text-xs text-muted-foreground">Takes less than a minute</p>
+            </div>
+          )
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => {
@@ -232,6 +282,10 @@ export default function Projects() {
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/projects/${project.id}`); }}>
                               <ExternalLink className="h-4 w-4 mr-2" />
                               Open Project
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => openRenameDialog(e, { id: project.id, name: project.name })}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Rename Project
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={(e) => openDeleteDialog(e, { id: project.id, name: project.name })}
@@ -285,11 +339,33 @@ export default function Projects() {
                       ))}
                     </div>
                   </div> */}
+
+                  <div className="flex items-center justify-end pt-2 mt-1 border-t border-border/40">
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                      Open project
+                      <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
+                    </span>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
+
+        {/* First project celebration */}
+        <CelebrationModal
+          open={celebration.open}
+          onClose={() => setCelebration({ open: false })}
+          emoji="🚀"
+          title="First project is live!"
+          description="You're officially building on Onswift! Head into your project and create your first task to start tracking real work."
+          cta={
+            celebration.projectId
+              ? { label: "Create My First Task", href: `/projects/${celebration.projectId}` }
+              : undefined
+          }
+          secondaryLabel="I'll explore on my own"
+        />
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -311,6 +387,30 @@ export default function Projects() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        {/* Rename Dialog */}
+        <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+          <DialogContent className="glass-card border-border/50 sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Rename Project</DialogTitle>
+              <DialogDescription>Enter a new name for "{projectToRename?.name}".</DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Label htmlFor="rename-input">Project Name</Label>
+              <Input
+                id="rename-input"
+                className="mt-2"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleRenameProject()}
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleRenameProject} disabled={!renameValue.trim()}>Rename</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

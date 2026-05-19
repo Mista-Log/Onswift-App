@@ -1,4 +1,4 @@
-import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, Upload, ClipboardList, FileArchive } from "lucide-react";
+import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, Upload, ClipboardList, FileArchive, Wrench } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,14 +15,14 @@ import { NotificationDropdown } from "@/components/notifications/NotificationDro
 import { useTheme } from "next-themes";
 const creatorNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
-  { label: "Find Talent", icon: Users, route: "/talent" },
-  { label: "My Team", icon: UsersRound, route: "/team" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
+  { label: "My Team", icon: UsersRound, route: "/team" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Deliverables", icon: Upload, route: "/deliverables" },
   { label: "Client Portal", icon: ClipboardList, route: "/onboarding" },
   { label: "Library", icon: FileArchive, route: "/library" },
   { label: "Deadlines", icon: Calendar, route: "/calendar" },
+  { label: "Marketplace", icon: Users, route: "/talent" },
 ];
 
 const talentNavItems = [
@@ -38,6 +38,10 @@ const bottomNavItems = [
   { label: "Settings", icon: Settings, route: "/settings" },
 ];
 
+const toolNavItems = [
+  { label: "CRM Builder", icon: Wrench, route: "/tools/crm" },
+];
+
 interface AppSidebarProps {
   isCollapsed?: boolean;
   onClose?: () => void;
@@ -49,6 +53,7 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
   const { resolvedTheme } = useTheme();
 
   const navItems = user?.role === 'talent' ? talentNavItems : creatorNavItems;
+  const showTools = user?.role === "creator";
 
   return (
     <aside
@@ -133,6 +138,45 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
             );
           })}
         </nav>
+
+        {showTools && (
+          <nav className={cn("mt-4 flex flex-col gap-2", isCollapsed ? "items-center" : "") }>
+            {!isCollapsed && (
+              <p className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                Tools
+              </p>
+            )}
+
+            {toolNavItems.map((item) => {
+              const isActive = location.pathname === item.route || location.pathname.startsWith(item.route);
+
+              return (
+                <NavLink
+                  key={item.route}
+                  to={item.route}
+                  className={cn(
+                    "group relative flex items-center gap-3 rounded-xl transition-all duration-300",
+                    isCollapsed ? "h-12 w-12 justify-center" : "h-12 px-4",
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-glow"
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  )}
+                >
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                  {!isCollapsed && (
+                    <span className="font-medium">{item.label}</span>
+                  )}
+
+                  {isCollapsed && (
+                    <span className="absolute left-full ml-3 hidden rounded-lg bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground shadow-lg group-hover:block whitespace-nowrap">
+                      {item.label}
+                    </span>
+                  )}
+                </NavLink>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Bottom Navigation */}
         <nav className={cn("mt-6 flex flex-col gap-2", isCollapsed ? "items-center" : "")}>

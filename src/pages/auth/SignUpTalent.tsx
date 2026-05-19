@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { AuthImagePanel } from '@/components/auth/AuthImagePanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { FIXED_PROCESSING_MESSAGE, runWithFixedProcessingDelay } from '@/lib/loadingGate';
@@ -153,7 +154,6 @@ export default function SignUpTalent() {
     else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Invalid email format';
     if (!formData.professional_title.trim()) newErrors.professional_title = 'Professional title is required';
     if (!formData.primary_skill.trim()) newErrors.primary_skill = 'Primary skill is required';
-    if (formData.skills.length === 0) newErrors.skills = 'Select at least one skill';
     if (!formData.password) newErrors.password = 'Password is required';
     else if (formData.password.length < 8) newErrors.password = 'Password must be at least 8 characters';
     if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
@@ -176,14 +176,6 @@ export default function SignUpTalent() {
     if (score <= 1) return { level: 1, label: 'Weak', color: 'bg-destructive' };
     if (score <= 2) return { level: 2, label: 'Fair', color: 'bg-warning' };
     return { level: 3, label: 'Strong', color: 'bg-success' };
-  };
-
-  const toggleSkill = (skill: string) => {
-    if (formData.skills.includes(skill)) {
-      setFormData({ ...formData, skills: formData.skills.filter(s => s !== skill) });
-    } else if (formData.skills.length < 5) {
-      setFormData({ ...formData, skills: [...formData.skills, skill] });
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -241,12 +233,15 @@ export default function SignUpTalent() {
   const strength = getPasswordStrength();
 
   return (
-    <div className="min-h-screen bg-gradient-radial flex items-center justify-center p-6">
-      <div className="w-full max-w-lg">
-        <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-2xl p-8 md:p-12 shadow-glow">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.08),transparent_42%),linear-gradient(180deg,#fbfaff_0%,#f4effb_100%)] lg:flex">
+      <AuthImagePanel />
+
+      <div className="flex min-h-screen flex-1 items-center justify-center px-5 py-10 sm:px-8 lg:px-12">
+        <div className="w-full max-w-xl">
+          <div className="rounded-[28px] border border-white/70 bg-white/92 p-5 shadow-[0_30px_90px_rgba(46,16,101,0.12)] backdrop-blur-xl md:p-8">
           {/* Header */}
-          <div className="text-center mb-8">
-            <Link to="/" className="inline-flex flex-col items-center gap-3 mb-6">
+          <div className="text-center mb-5">
+            <Link to="/" className="inline-flex flex-col items-center gap-2 mb-4">
               <img
                 src="/onswift-purple-logo.png"
                 alt="OnSwift logo"
@@ -270,7 +265,7 @@ export default function SignUpTalent() {
             )}
 
             {/* Stepper — Step 1 of 3: account setup */}
-            <div className="flex items-center justify-center gap-2 mb-6">
+            <div className="flex items-center justify-center gap-2 mb-4">
               <div className="w-3 h-3 rounded-full bg-primary" />
               <div className="w-8 h-0.5 bg-border" />
               <div className="w-3 h-3 rounded-full bg-border" />
@@ -293,7 +288,7 @@ export default function SignUpTalent() {
             )}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="text-sm font-medium text-foreground mb-2 block">Full Name</label>
               <div className="relative">
@@ -429,50 +424,6 @@ export default function SignUpTalent() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">
-                Additional Skills <span className="text-muted-foreground">(Select up to 5)</span>
-              </label>
-
-              {/* Selected Skills */}
-              {formData.skills.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {formData.skills.map(skill => (
-                    <Badge key={skill} variant="secondary" className="bg-primary/20 text-primary border-primary/30">
-                      {skill}
-                      <button type="button" onClick={() => toggleSkill(skill)} className="ml-1">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-
-              {/* Skill Selector Dropdown */}
-              <div className="relative">
-                <select
-                  className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-foreground hover:border-primary/50 transition-colors"
-                  onChange={(e) => {
-                    if (e.target.value && formData.skills.length < 5) {
-                      toggleSkill(e.target.value);
-                      e.target.value = '';
-                    }
-                  }}
-                  disabled={formData.skills.length >= 5}
-                >
-                  <option value="">
-                    {formData.skills.length >= 5 ? '5/5 skills selected' : 'Select additional skills'}
-                  </option>
-                  {SKILL_OPTIONS.filter(skill => !formData.skills.includes(skill) && skill !== formData.primary_skill).map(skill => (
-                    <option key={skill} value={skill}>
-                      {skill}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {errors.skills && <p className="text-destructive text-sm mt-1">{errors.skills}</p>}
-            </div>
-
-            <div>
               <label className="text-sm font-medium text-foreground mb-2 block">Password</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -557,8 +508,10 @@ export default function SignUpTalent() {
             Already have an account?{' '}
             <Link to="/login" className="text-primary hover:underline">Sign In</Link>
           </p>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { CelebrationModal } from "@/components/CelebrationModal";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/contexts/TeamContext";
@@ -43,6 +44,14 @@ export default function Team() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<{ id: string; name: string } | null>(null);
+  const [showInviteCelebration, setShowInviteCelebration] = useState(false);
+
+  const handleFirstInvite = () => {
+    if (!localStorage.getItem("onswift_celebrated_first_invite")) {
+      localStorage.setItem("onswift_celebrated_first_invite", "1");
+      setShowInviteCelebration(true);
+    }
+  };
 
   // Redirect talent users to dashboard
   useEffect(() => {
@@ -272,6 +281,18 @@ export default function Team() {
           open={showInviteModal}
           onOpenChange={setShowInviteModal}
           onNavigateToTalent={() => navigate('/talent')}
+          onInviteSent={handleFirstInvite}
+        />
+
+        {/* First invite celebration */}
+        <CelebrationModal
+          open={showInviteCelebration}
+          onClose={() => setShowInviteCelebration(false)}
+          emoji="🎉"
+          title="Your first invite is out!"
+          description="Your team is growing! While your talent gets set up, create your first project — then create a task and assign it to them to kick things off."
+          cta={{ label: "Create My First Project", href: "/projects" }}
+          secondaryLabel="I'll explore on my own"
         />
       </div>
     </MainLayout>

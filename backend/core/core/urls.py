@@ -28,6 +28,7 @@ urlpatterns = [
     path('api/v4/', include("onboarding.urls")),
     path('api/v5/', include("portal.urls")),
     path('api/v6/', include("library.urls")),
+    path('api/v7/', include("crm.urls")),
 
 ]
 

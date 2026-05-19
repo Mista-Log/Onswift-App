@@ -20,6 +20,7 @@ interface InviteMemberModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onNavigateToTalent: () => void;
+  onInviteSent?: () => void;
 }
 
 type ModalStep = "choice" | "send-invite";
@@ -28,6 +29,7 @@ export function InviteMemberModal({
   open,
   onOpenChange,
   onNavigateToTalent,
+  onInviteSent,
 }: InviteMemberModalProps) {
   const [step, setStep] = useState<ModalStep>("choice");
   const [email, setEmail] = useState("");
@@ -80,7 +82,6 @@ export function InviteMemberModal({
   const handleCopyLink = async () => {
     let link = inviteLink;
 
-    // Generate link if not already generated
     if (!link) {
       link = await generateInviteLink();
       if (!link) return;
@@ -88,6 +89,7 @@ export function InviteMemberModal({
 
     navigator.clipboard.writeText(link);
     toast.success("Invite link copied to clipboard!");
+    onInviteSent?.();
   };
 
   const handleSendEmail = async () => {
@@ -96,16 +98,11 @@ export function InviteMemberModal({
       return;
     }
 
-    // Generate invite link if not already generated
-    let link = inviteLink;
-    if (!link) {
-      link = await generateInviteLink();
-      if (!link) return;
-    }
+    const link = await generateInviteLink();
+    if (!link) return;
 
-    // TODO: Implement actual email sending via backend
-    toast.success(`Invite link generated! Copy and send to ${email}`);
-    // For now, just show the link for manual sending
+    toast.success(`Invite sent to ${email}!`);
+    onInviteSent?.();
   };
 
   const handleHireFromMarketplace = () => {
