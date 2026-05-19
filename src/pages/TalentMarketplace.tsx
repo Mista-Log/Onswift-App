@@ -88,12 +88,12 @@ export default function TalentMarketplace() {
     const q = searchQuery.toLowerCase();
     const matchSearch =
       !q ||
-      f.name.toLowerCase().includes(q) ||
-      f.role.toLowerCase().includes(q) ||
-      f.skills.some((s: string) => s.toLowerCase().includes(q));
+      (f.name ?? "").toLowerCase().includes(q) ||
+      (f.role ?? "").toLowerCase().includes(q) ||
+      (f.skills ?? []).some((s: string) => (s ?? "").toLowerCase().includes(q));
     const matchCat =
       categoryFilter === "All" ||
-      keywords.some(kw => f.role.toLowerCase().includes(kw));
+      keywords.some(kw => (f.role ?? "").toLowerCase().includes(kw));
     return matchSearch && matchCat;
   }), [freelancers, searchQuery, categoryFilter, keywords]);
 
