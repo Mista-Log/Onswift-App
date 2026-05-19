@@ -52,7 +52,8 @@ export default function Team() {
         localStorage.setItem("onswift_celebrated_first_invite", "1");
         setShowInviteCelebration(true);
       }
-    } catch {
+    } catch (error) {
+      console.warn("Unable to access localStorage for invite celebration:", error);
       setShowInviteCelebration(false);
     }
   };
