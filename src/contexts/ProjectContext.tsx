@@ -42,7 +42,7 @@ interface ProjectContextType {
   fetchProjects: () => Promise<void>;
   addProject: (
     project: Omit<Project, "id" | "teamMembers" | "task_count" | "completed_tasks" | "status" | "progress">
-  ) => Promise<void>;
+  ) => Promise<string | undefined>;
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
 
@@ -57,6 +57,12 @@ const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+const deriveStatus = (p: Project): Project["status"] => {
+  if (p.task_count === 0) return "planning";
+  if (p.completed_tasks >= p.task_count) return "completed";
+  return "in-progress";
+};
+
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
 
@@ -66,10 +72,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const fetchProjects = async () => {
     try {
       // Just provide the endpoint. secureFetch handles the token + refresh!
-      const response = await secureFetch('/api/v2/projects/'); 
+      const response = await secureFetch('/api/v2/projects/');
       if (response.ok) {
         const data = await response.json();
-        setProjects(data);
+        setProjects(data.map((p: Project) => ({ ...p, status: deriveStatus(p) })));
       }
     } catch (error) {
       console.error("Error loading projects:", error);
@@ -82,9 +88,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ---------------- ADD PROJECT ----------------
-  const addProject = async (projectData: {name: string; description: string; due_date: string;}) => {
+  const addProject = async (projectData: {name: string; description: string; due_date: string;}): Promise<string | undefined> => {
     try {
-      // secureFetch replaces fetch + getToken logic
       const res = await secureFetch(`/api/v2/projects/`, {
         method: "POST",
         body: JSON.stringify({
@@ -101,9 +106,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         throw new Error(JSON.stringify(data));
       }
 
-      // Refresh projects list (includes the new project)
       await fetchProjects();
-      
+      return data.id as string;
     } catch (error: any) {
       console.error("Add Project failed:", error.message);
       throw error;
@@ -126,10 +130,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       if (!res.ok) throw new Error("Failed to update project");
 
       const data = await res.json();
-      const updated = mapFromBackend(data);
+      const updated = mapFromBackend(data) as Project;
 
       setProjects((prev) =>
-        prev.map((p) => (p.id === id ? updated : p))
+        prev.map((p) => (p.id === id ? { ...updated, status: deriveStatus(updated) } : p))
       );
     } catch (error: any) {
       console.error("Update Project failed:", error.message);

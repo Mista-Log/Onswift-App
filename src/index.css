@@ -419,6 +419,25 @@
   background: hsl(250 76% 63% / 0.5);
 }
 
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-10px) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(160px) rotate(600deg) scale(0.6);
+    opacity: 0;
+  }
+}
+
+.confetti-piece {
+  position: absolute;
+  animation: confetti-fall 2.2s ease-in infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reveal {
     opacity: 1;

@@ -30,7 +30,7 @@ export interface OnboardingAnalytics {
   email: string;
   full_name: string;
   step1?: string;
-  step2?: string;
+  step2?: string[];
   step3?: string[];
   step4?: string;
   step5?: string;

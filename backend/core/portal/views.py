@@ -401,6 +401,30 @@ class ClientInviteCreateView(APIView):
             expires_in_days=data.get("expires_in_days", 30),
         )
 
+        # Email the client their portal invite link
+        from django.conf import settings
+        from utils.email_service import send_email
+        frontend_url = getattr(settings, "FRONTEND_URL", "https://onswift.org")
+        invite_link = f"{frontend_url}/client/invite/{invite.token}"
+        creator_label = request.user.full_name or request.user.email
+        company = getattr(getattr(request.user, "creatorprofile", None), "company_name", None)
+        company_line = f" ({company})" if company else ""
+
+        body = (
+            f"Hi,\n\n"
+            f"{creator_label}{company_line} has invited you to access the client portal for:\n"
+            f"  Project: {project.name}\n\n"
+            f"Click the link below to complete your onboarding form and gain access:\n"
+            f"{invite_link}\n\n"
+            f"This link expires in {data.get('expires_in_days', 30)} days.\n\n"
+            f"— The OnSwift Team"
+        )
+        send_email(
+            to_email=invite.client_email,
+            subject=f"You've been invited to the {project.name} client portal",
+            body=body,
+        )
+
         return Response(
             ClientInviteSerializer(invite).data,
             status=status.HTTP_201_CREATED,

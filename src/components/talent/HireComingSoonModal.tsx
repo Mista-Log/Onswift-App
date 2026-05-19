@@ -1,7 +1,6 @@
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -13,48 +12,32 @@ interface HireComingSoonModalProps {
   talentName?: string;
 }
 
-export function HireComingSoonModal({
-  open,
-  onClose,
-  talentName,
-}: HireComingSoonModalProps) {
+export function HireComingSoonModal({ open, onClose, talentName }: HireComingSoonModalProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-sm text-center">
         <DialogHeader>
-          <DialogTitle>Hire {talentName}</DialogTitle>
-          <DialogDescription>
-            Coming Soon
-          </DialogDescription>
+          <DialogTitle className="sr-only">Hire {talentName}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col items-center justify-center py-8">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-4">
-            <svg
-              className="h-8 w-8 text-primary"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-              />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">
-            Hiring Coming Soon
-          </h3>
-          <p className="text-center text-sm text-muted-foreground mb-6">
-            We're working on the hiring system. Check back soon to start hiring talented creatives!
-          </p>
-        </div>
+        <div className="flex flex-col items-center gap-4 py-6">
+          <span className="text-6xl select-none" aria-hidden>🚀</span>
 
-        <Button onClick={onClose} className="w-full">
-          Got it
-        </Button>
+          <div>
+            <h2 className="text-xl font-extrabold text-foreground">
+              Something exciting is coming!
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+              Direct hiring for{" "}
+              <span className="font-semibold text-foreground">{talentName}</span>{" "}
+              is almost ready. We're putting the final touches on it. You'll be the first to know.
+            </p>
+          </div>
+
+          <Button className="w-full" onClick={onClose}>
+            Notify me when it's live 🎉
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

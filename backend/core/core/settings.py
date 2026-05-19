@@ -16,7 +16,9 @@ from corsheaders.defaults import default_headers
 from dotenv import load_dotenv
 import dj_database_url
 
-load_dotenv()
+_settings_root = Path(__file__).resolve().parent.parent.parent.parent
+load_dotenv(_settings_root / '.env')
+load_dotenv(_settings_root / '.env.local', override=True)
 import os
 
 
@@ -53,6 +55,7 @@ INSTALLED_APPS = [
     'onboarding',
     'portal',
     'library',
+    'crm',
     "corsheaders",
     "rest_framework",
     "rest_framework.authtoken",
@@ -252,7 +255,7 @@ SIMPLE_JWT = {
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST = 'smtp.resend.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")

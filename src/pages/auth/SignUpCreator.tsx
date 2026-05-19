@@ -4,6 +4,7 @@ import { User, Mail, Building2, Lock, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { AuthImagePanel } from '@/components/auth/AuthImagePanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
@@ -96,9 +97,12 @@ export default function SignUpCreator() {
   const strength = getPasswordStrength();
 
   return (
-    <div className="min-h-screen bg-gradient-radial flex items-center justify-center p-6">
-      <div className="w-full max-w-lg">
-        <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-2xl p-8 md:p-12 shadow-glow">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.08),transparent_42%),linear-gradient(180deg,#fbfaff_0%,#f4effb_100%)] lg:flex">
+      <AuthImagePanel />
+
+      <div className="flex min-h-screen flex-1 items-center justify-center px-5 py-10 sm:px-8 lg:px-12">
+        <div className="w-full max-w-xl">
+          <div className="rounded-[28px] border border-white/70 bg-white/92 p-7 shadow-[0_30px_90px_rgba(46,16,101,0.12)] backdrop-blur-xl md:p-10">
           {/* Header */}
           <div className="text-center mb-8">
             <Link to="/" className="inline-flex flex-col items-center gap-3 mb-6">
@@ -270,6 +274,7 @@ export default function SignUpCreator() {
             Already have an account?{' '}
             <Link to="/login" className="text-primary hover:underline">Sign In</Link>
           </p>
+          </div>
         </div>
       </div>
     </div>

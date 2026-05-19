@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { CelebrationModal } from "@/components/CelebrationModal";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
@@ -18,6 +19,8 @@ import {
   Loader2,
   ArrowUpDown,
   MessageCircle,
+  ChevronDown,
+  ChevronUp,
   Send,
   Paperclip,
   X,
@@ -79,6 +82,9 @@ export default function ProjectDetail() {
   const [sortMethod, setSortMethod] = useState<"deadline-asc" | "deadline-desc" | "alphabetical-asc" | "alphabetical-desc">("deadline-asc");
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [refreshInvitesTrigger, setRefreshInvitesTrigger] = useState(0);
+  const [showTaskCelebration, setShowTaskCelebration] = useState(false);
+  const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<"planning" | "in-progress" | "completed" | null>(null);
   
   // Messages state
   const [messages, setMessages] = useState<any[]>([]);
@@ -86,6 +92,17 @@ export default function ProjectDetail() {
   const [messageFile, setMessageFile] = useState<File | null>(null);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isMessagesCollapsed, setIsMessagesCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    try {
+      const stored = localStorage.getItem(`onswift_project_${id}_messages_collapsed`);
+      setIsMessagesCollapsed(stored === "1");
+    } catch (e) {
+      // ignore
+    }
+  }, [id]);
 
   const project = projects.find((p) => p.id === id);
   const isCreator = user?.role === "creator";
@@ -137,6 +154,8 @@ export default function ProjectDetail() {
       return;
     }
 
+    const isFirstTask = tasks.length === 0;
+
     try {
       await addTask(id, {
         name: taskFormData.name,
@@ -156,6 +175,11 @@ export default function ProjectDetail() {
       });
       setIsTaskDialogOpen(false);
       await loadTasks();
+
+      if (isFirstTask && !localStorage.getItem("onswift_celebrated_first_task")) {
+        localStorage.setItem("onswift_celebrated_first_task", "1");
+        setShowTaskCelebration(true);
+      }
     } catch (error) {
       toast.error("Failed to create task");
     }
@@ -204,6 +228,18 @@ export default function ProjectDetail() {
     } catch (error) {
       toast.error("Failed to update project status");
     }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetStatus: "planning" | "in-progress" | "completed") => {
+    e.preventDefault();
+    if (dragTaskId) {
+      const task = tasks.find((t) => t.id === dragTaskId);
+      if (task && task.status !== targetStatus) {
+        handleUpdateTask(dragTaskId, { status: targetStatus });
+      }
+    }
+    setDragTaskId(null);
+    setDragOverCol(null);
   };
 
   const handleRenameProject = async () => {
@@ -611,16 +647,24 @@ export default function ProjectDetail() {
                   ({planningTasks.length})
                 </span>
               </div>
-              <div className="space-y-3">
+              <div
+                className={cn(
+                  "space-y-3 min-h-[80px] rounded-lg p-1 transition-colors",
+                  dragOverCol === "planning" && dragTaskId && "bg-orange-50 ring-2 ring-orange-300 ring-dashed"
+                )}
+                onDragOver={(e) => { e.preventDefault(); setDragOverCol("planning"); }}
+                onDragLeave={() => setDragOverCol(null)}
+                onDrop={(e) => handleDrop(e, "planning")}
+              >
                 {planningTasks.map((task) => (
                   <TaskCard
                     key={task.id}
                     task={task}
                     isCreator={isCreator}
-                                        onStatusChange={(status) =>
-                      handleUpdateTask(task.id, { status })
-                    }
+                    onStatusChange={(status) => handleUpdateTask(task.id, { status })}
                     onDelete={() => handleDeleteTask(task.id)}
+                    onDragStart={() => setDragTaskId(task.id)}
+                    onDragEnd={() => { setDragTaskId(null); setDragOverCol(null); }}
                   />
                 ))}
                 {planningTasks.length === 0 && (
@@ -640,16 +684,24 @@ export default function ProjectDetail() {
                   ({inProgressTasks.length})
                 </span>
               </div>
-              <div className="space-y-3">
+              <div
+                className={cn(
+                  "space-y-3 min-h-[80px] rounded-lg p-1 transition-colors",
+                  dragOverCol === "in-progress" && dragTaskId && "bg-yellow-50 ring-2 ring-yellow-300 ring-dashed"
+                )}
+                onDragOver={(e) => { e.preventDefault(); setDragOverCol("in-progress"); }}
+                onDragLeave={() => setDragOverCol(null)}
+                onDrop={(e) => handleDrop(e, "in-progress")}
+              >
                 {inProgressTasks.map((task) => (
                   <TaskCard
                     key={task.id}
                     task={task}
                     isCreator={isCreator}
-                                        onStatusChange={(status) =>
-                      handleUpdateTask(task.id, { status })
-                    }
+                    onStatusChange={(status) => handleUpdateTask(task.id, { status })}
                     onDelete={() => handleDeleteTask(task.id)}
+                    onDragStart={() => setDragTaskId(task.id)}
+                    onDragEnd={() => { setDragTaskId(null); setDragOverCol(null); }}
                   />
                 ))}
                 {inProgressTasks.length === 0 && (
@@ -669,16 +721,24 @@ export default function ProjectDetail() {
                   ({completedTasks.length})
                 </span>
               </div>
-              <div className="space-y-3">
+              <div
+                className={cn(
+                  "space-y-3 min-h-[80px] rounded-lg p-1 transition-colors",
+                  dragOverCol === "completed" && dragTaskId && "bg-green-50 ring-2 ring-green-300 ring-dashed"
+                )}
+                onDragOver={(e) => { e.preventDefault(); setDragOverCol("completed"); }}
+                onDragLeave={() => setDragOverCol(null)}
+                onDrop={(e) => handleDrop(e, "completed")}
+              >
                 {completedTasks.map((task) => (
                   <TaskCard
                     key={task.id}
                     task={task}
                     isCreator={isCreator}
-                                        onStatusChange={(status) =>
-                      handleUpdateTask(task.id, { status })
-                    }
+                    onStatusChange={(status) => handleUpdateTask(task.id, { status })}
                     onDelete={() => handleDeleteTask(task.id)}
+                    onDragStart={() => setDragTaskId(task.id)}
+                    onDragEnd={() => { setDragTaskId(null); setDragOverCol(null); }}
                   />
                 ))}
                 {completedTasks.length === 0 && (
@@ -710,16 +770,33 @@ export default function ProjectDetail() {
                 <MessageCircle className="h-5 w-5" />
                 Project Messages
               </h2>
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={loadMessages}
-                disabled={isLoadingMessages}
-              >
-                {isLoadingMessages ? "Loading..." : "Refresh"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={loadMessages}
+                  disabled={isLoadingMessages}
+                >
+                  {isLoadingMessages ? "Loading..." : "Refresh"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    const next = !isMessagesCollapsed;
+                    setIsMessagesCollapsed(next);
+                    try { localStorage.setItem(`onswift_project_${id}_messages_collapsed`, next ? "1" : "0"); } catch (e) {}
+                  }}
+                  aria-label={isMessagesCollapsed ? "Expand messages" : "Collapse messages"}
+                >
+                  {isMessagesCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
-            <Card className="overflow-hidden border-border/50 bg-white shadow-sm">
+
+            {!isMessagesCollapsed && (
+              <>
+                <Card className="overflow-hidden border-border/50 bg-white shadow-sm">
               <CardContent className="p-0">
                 <div className="border-b border-border/50 px-5 py-4">
                   <div className="flex items-center justify-between gap-3">
@@ -810,8 +887,8 @@ export default function ProjectDetail() {
               </CardContent>
             </Card>
 
-            <Card className="border-border/50 bg-white shadow-sm">
-              <CardContent className="space-y-4 p-4 sm:p-5">
+                  <Card className="border-border/50 bg-white shadow-sm">
+                    <CardContent className="space-y-4 p-4 sm:p-5">
                 <div className="flex items-end gap-2">
                   <Button
                     size="icon"
@@ -871,8 +948,10 @@ export default function ProjectDetail() {
                     </button>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
         )}
 
@@ -886,6 +965,17 @@ export default function ProjectDetail() {
             onSuccess={() => setRefreshInvitesTrigger(prev => prev + 1)}
           />
         )}
+
+        {/* First task celebration */}
+        <CelebrationModal
+          open={showTaskCelebration}
+          onClose={() => setShowTaskCelebration(false)}
+          emoji="✅"
+          title="First task is rolling!"
+          description="You're tracking work like a pro! Assign this task to a team member to get things moving — or create more tasks to build out the project."
+          cta={{ label: "Go to My Team", href: "/team" }}
+          secondaryLabel="I'll keep building"
+        />
       </div>
     </MainLayout>
   );
@@ -896,6 +986,8 @@ interface TaskCardProps {
   isCreator: boolean;
   onStatusChange: (status: "planning" | "in-progress" | "completed") => void;
   onDelete: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -904,9 +996,32 @@ const STATUS_COLORS: Record<string, string> = {
   completed: "!bg-green-100 border-green-400",
 };
 
-function TaskCard({ task, isCreator, onStatusChange, onDelete }: TaskCardProps) {
+const STATUSES: Array<"planning" | "in-progress" | "completed"> = ["planning", "in-progress", "completed"];
+const SWIPE_THRESHOLD = 50;
+
+function TaskCard({ task, isCreator, onStatusChange, onDelete, onDragStart, onDragEnd }: TaskCardProps) {
+  const touchStartX = useRef(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    const idx = STATUSES.indexOf(task.status);
+    if (delta < -SWIPE_THRESHOLD && idx < STATUSES.length - 1) onStatusChange(STATUSES[idx + 1]);
+    if (delta > SWIPE_THRESHOLD && idx > 0) onStatusChange(STATUSES[idx - 1]);
+  };
+
   return (
-    <div className={`glass-card p-4 rounded-lg border space-y-3 ${STATUS_COLORS[task.status] || "border-border/50"}`}>
+    <div
+      className={`glass-card p-4 rounded-lg border space-y-3 cursor-grab active:cursor-grabbing select-none ${STATUS_COLORS[task.status] || "border-border/50"}`}
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       <div className="flex items-start justify-between gap-2">
         <h4 className="font-medium text-sm flex-1">{task.name}</h4>
         {isCreator && (
@@ -917,16 +1032,6 @@ function TaskCard({ task, isCreator, onStatusChange, onDelete }: TaskCardProps) 
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onStatusChange("planning")}>
-                Move to Planning
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onStatusChange("in-progress")}>
-                Move to In Progress
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onStatusChange("completed")}>
-                Move to Completed
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={onDelete}
                 className="text-destructive focus:text-destructive"

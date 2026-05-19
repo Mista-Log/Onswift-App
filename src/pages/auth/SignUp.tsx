@@ -75,13 +75,13 @@ interface OnboardingData {
   name?: string;
   email?: string;
   step1?: string;
-  step2?: string;
+  step2?: string[];
   step3?: string[];
   step4?: string;
   step5?: string;
 }
 
-type ScreenType = 'welcome' | 'single-select' | 'multi-select-card' | 'completion' | 'role-select' | 'text-input';
+type ScreenType = 'welcome' | 'single-select' | 'multi-select' | 'multi-select-card' | 'completion' | 'role-select' | 'text-input';
 
 interface Screen {
   id: string;
@@ -134,18 +134,18 @@ const SCREENS: Screen[] = [
   },
   {
     id: 'step-2',
-    type: 'single-select',
+    type: 'multi-select',
     step: 3,
     total_steps: 6,
     question: 'What would you like to use OnSwift for?',
-    subtitle: 'Pick one that best describes your goal.',
+    subtitle: 'Select all that apply.',
     options: [
       'Manage projects',
       'Find and hire talent',
       'Organize team work',
       'Track deliverables & deadlines',
       'Run client work',
-      'Build internal systems'
+      'Build CRMs & internal tools'
     ],
     cta: 'Continue'
   },
@@ -248,6 +248,9 @@ export default function SignUp() {
       };
       const dataKey = (idToKey[currentScreen.id] || `step${currentScreen.step}`) as keyof OnboardingData;
       setData(prev => ({ ...prev, [dataKey]: value }));
+      setCurrentScreenIndex(currentScreenIndex + 1);
+    } else if (currentScreen?.type === 'multi-select') {
+      setData(prev => ({ ...prev, step2: value as string[] }));
       setCurrentScreenIndex(currentScreenIndex + 1);
     } else if (currentScreen?.type === 'multi-select-card') {
       setData(prev => ({ ...prev, step3: value as string[] }));
@@ -383,7 +386,16 @@ export default function SignUp() {
               />
             )}
 
-            {/* Multi Select */}
+            {/* Multi Select (step-2) */}
+            {currentScreen?.type === 'multi-select' && (
+              <MultiSelectScreen
+                screen={currentScreen}
+                onContinue={handleContinue}
+                currentValue={data.step2 ?? []}
+              />
+            )}
+
+            {/* Multi Select Card (step-3) */}
             {currentScreen?.type === 'multi-select-card' && (
               <MultiSelectScreen
                 screen={currentScreen}
@@ -605,6 +617,9 @@ function MultiSelectScreen({
   const [selected, setSelected] = useState<string[]>(
     currentValue || []
   );
+  const options = (screen.options || []).map((option) =>
+    typeof option === 'string' ? { label: option } : option
+  );
 
   const handleToggle = (option: string) => {
     setSelected(prev =>
@@ -626,7 +641,7 @@ function MultiSelectScreen({
       <p className="text-slate-600 mb-8">{screen.subtitle}</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
-        {(screen.options as Array<{ label: string }>).map((option) => (
+        {options.map((option) => (
           <button
             key={option.label}
             onClick={() => handleToggle(option.label)}

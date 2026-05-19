@@ -52,6 +52,7 @@ import InviteAccept from "./pages/portal/InviteAccept";
 
 // Library (creator)
 import DocumentLibrary from "./pages/library/DocumentLibrary";
+import CRMBuilder from "./pages/tools/CRMBuilder";
 
 // Analytics
 import { PageTracker } from "./components/analytics/PageTracker";
@@ -118,6 +119,7 @@ const App = () => (
 
               {/* Document Library — creator (protected) */}
               <Route path="/library" element={<ProtectedRoute><DocumentLibrary /></ProtectedRoute>} />
+              <Route path="/tools/crm" element={<ProtectedRoute><CRMBuilder /></ProtectedRoute>} />
 
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />

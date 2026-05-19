@@ -152,6 +152,30 @@ class InviteTokenCreateView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         invite = serializer.save()
 
+        # Send invite email if the invite targets a specific email address
+        if invite.invited_email:
+            from django.conf import settings
+            from utils.email_service import send_email
+            creator = request.user
+            frontend_url = getattr(settings, "FRONTEND_URL", "https://onswift.org")
+            invite_link = f"{frontend_url}/signup/talent?invite={invite.token}"
+            creator_label = creator.full_name or creator.email
+            company = getattr(getattr(creator, "creatorprofile", None), "company_name", None)
+            company_line = f" at {company}" if company else ""
+
+            body = (
+                f"Hi,\n\n"
+                f"You've been invited by {creator_label}{company_line} to join their team on OnSwift.\n\n"
+                f"Accept your invite and set up your account here:\n{invite_link}\n\n"
+                f"This link expires in 7 days.\n\n"
+                f"— The OnSwift Team"
+            )
+            send_email(
+                to_email=invite.invited_email,
+                subject=f"{creator_label} invited you to join OnSwift",
+                body=body,
+            )
+
         return Response(
             serializer.data,
             status=status.HTTP_201_CREATED
