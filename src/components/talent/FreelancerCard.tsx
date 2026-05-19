@@ -74,8 +74,8 @@ const DEFAULT_THEME = {
   chip: { bg: "hsl(250 76% 63% / 0.12)", border: "hsl(250 70% 63% / 0.3)", color: "#c4b5fd" },
 };
 
-function getTheme(role: string) {
-  const r = role.toLowerCase();
+function getTheme(role: string | null | undefined) {
+  const r = (role ?? "").toLowerCase();
   return ROLE_THEMES.find(t => t.keywords.some(k => r.includes(k))) ?? DEFAULT_THEME;
 }
 
