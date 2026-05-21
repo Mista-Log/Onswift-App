@@ -4,7 +4,7 @@ import { secureFetch } from "@/api/apiClient";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type CRMFieldType =
-  | "text" | "email" | "phone" | "number"
+  | "text" | "email" | "phone" | "url" | "number"
   | "date" | "single_select" | "multi_select" | "checkbox";
 
 export type AccessRole = "viewer" | "editor" | "admin";
@@ -169,6 +169,22 @@ export function useCRM() {
     });
   }, []);
 
+  const updateColumn = useCallback(async (
+    sheetId: string,
+    columnId: string,
+    updates: { name?: string; field_type?: CRMFieldType; options?: string[] }
+  ) => {
+    const res = await secureFetch(`/api/v7/sheets/${sheetId}/columns/${columnId}/`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error("Failed to update column");
+    setActiveSheet((prev) => {
+      if (!prev || prev.id !== sheetId) return prev;
+      return { ...prev, columns: prev.columns.map((c) => c.id === columnId ? { ...c, ...updates } : c) };
+    });
+  }, []);
+
   const deleteColumn = useCallback(async (sheetId: string, columnId: string) => {
     const res = await secureFetch(`/api/v7/sheets/${sheetId}/columns/${columnId}/`, {
       method: "DELETE",
@@ -301,6 +317,7 @@ export function useCRM() {
     deleteSheet,
     addColumn,
     renameColumn,
+    updateColumn,
     deleteColumn,
     addRow,
     deleteRow,
