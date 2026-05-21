@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -29,7 +34,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/contexts/TeamContext";
-import { useCRM, CRMFieldType } from "@/hooks/useCRM";
+import { useCRM, CRMFieldType, CRMColumn } from "@/hooks/useCRM";
+import { cn } from "@/lib/utils";
 import {
   Plus,
   Trash2,
@@ -44,9 +50,28 @@ import {
   Columns3,
   Sparkles,
   Loader2,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Lock,
+  LockOpen,
 } from "lucide-react";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Field type options ─────────────────────────────────────────────────────────
+
+const FIELD_TYPES: { value: CRMFieldType; label: string }[] = [
+  { value: "text",          label: "Text" },
+  { value: "email",         label: "Email" },
+  { value: "phone",         label: "Phone Number" },
+  { value: "url",           label: "URL" },
+  { value: "number",        label: "Number" },
+  { value: "date",          label: "Date" },
+  { value: "single_select", label: "Dropdown" },
+  { value: "multi_select",  label: "Multi-select" },
+  { value: "checkbox",      label: "Checkbox" },
+];
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function formatCellForCsv(value: string | number | boolean | string[] | undefined) {
   if (Array.isArray(value)) return `"${value.join(", ").split('"').join('""')}"`;
@@ -65,16 +90,73 @@ function triggerDownload(filename: string, content: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
-const PRESET_COLUMNS = [
-  { name: "Name", field_type: "text" as CRMFieldType, options: [] },
-  { name: "Email", field_type: "email" as CRMFieldType, options: [] },
-  { name: "Status", field_type: "single_select" as CRMFieldType, options: ["New", "Active", "Paused", "Won"] },
-  { name: "Last Contact", field_type: "date" as CRMFieldType, options: [] },
-  { name: "Deal Value", field_type: "number" as CRMFieldType, options: [] },
-  { name: "Priority", field_type: "checkbox" as CRMFieldType, options: [] },
-];
+// Auto-resize a textarea to fit its content
+function autoResize(el: HTMLTextAreaElement) {
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+interface ColPanelState {
+  open: boolean;
+  columnId: string | null;
+  name: string;
+  type: CRMFieldType;
+  options: string;
+  anchor: { top: number; left: number; width: number } | null;
+}
+
+const CLOSED_PANEL: ColPanelState = {
+  open: false, columnId: null, name: "", type: "text", options: "", anchor: null,
+};
+
+// ── Auto-resize textarea cell ──────────────────────────────────────────────────
+
+function AutoTextarea({
+  defaultValue,
+  onBlur,
+  placeholder,
+  type = "text",
+}: {
+  defaultValue: string;
+  onBlur: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (ref.current) autoResize(ref.current);
+  }, []);
+
+  // For non-text types (email, phone, url, number, date) use a plain input
+  if (type !== "text") {
+    return (
+      <input
+        type={type}
+        defaultValue={defaultValue}
+        onBlur={(e) => onBlur(e.target.value)}
+        placeholder={placeholder}
+        className="w-full min-w-[100px] rounded border-0 bg-transparent px-0 py-0.5 text-sm text-foreground outline-none focus:ring-0 placeholder:text-muted-foreground/50"
+      />
+    );
+  }
+
+  return (
+    <textarea
+      ref={ref}
+      defaultValue={defaultValue}
+      rows={1}
+      onBlur={(e) => onBlur(e.target.value)}
+      onChange={(e) => autoResize(e.target)}
+      placeholder={placeholder}
+      className="w-full min-w-[100px] resize-none overflow-hidden rounded border-0 bg-transparent px-0 py-0.5 text-sm text-foreground outline-none focus:ring-0 placeholder:text-muted-foreground/50"
+    />
+  );
+}
+
+// ── Component ──────────────────────────────────────────────────────────────────
 
 export default function CRMBuilder() {
   const { user } = useAuth();
@@ -83,49 +165,117 @@ export default function CRMBuilder() {
 
   // Setup dialog
   const [isSetupOpen, setIsSetupOpen] = useState(false);
-  const [setupName, setSetupName] = useState("");
-  const [setupCols, setSetupCols] = useState(6);
-
-  // Add-column dialog
-  const [isAddColOpen, setIsAddColOpen] = useState(false);
-  const [newColName, setNewColName] = useState("");
-  const [newColType, setNewColType] = useState<CRMFieldType>("text");
-  const [newColOptions, setNewColOptions] = useState("");
+  const [setupName, setSetupName]     = useState("");
+  const [setupCols, setSetupCols]     = useState(6);
 
   // Rename dialog
-  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
-  const [sheetToRename, setSheetToRename] = useState<{ id: string; name: string } | null>(null);
-  const [renameValue, setRenameValue] = useState("");
+  const [renameDialogOpen, setRenameDialogOpen]   = useState(false);
+  const [sheetToRename, setSheetToRename]         = useState<{ id: string; name: string } | null>(null);
+  const [renameValue, setRenameValue]             = useState("");
 
   // Delete dialog
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [sheetToDelete, setSheetToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen]   = useState(false);
+  const [sheetToDelete, setSheetToDelete]         = useState<{ id: string; name: string } | null>(null);
 
-  // Inline column-header editing
-  const [editingColId, setEditingColId] = useState<string | null>(null);
-  const [editingColName, setEditingColName] = useState("");
+  // Column popover
+  const [colPanel, setColPanel] = useState<ColPanelState>(CLOSED_PANEL);
+
+  // Horizontal scroll
+  const scrollRef   = useRef<HTMLDivElement>(null);
+  const [scrollPct, setScrollPct] = useState(0);
+  const [canScroll, setCanScroll] = useState(false);
+
+  // Column resize
+  const resizingRef = useRef<{ colId: string; startX: number; startWidth: number } | null>(null);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+
+  // Row-number column sticky toggle
+  const [stickyRowNum, setStickyRowNum] = useState(true);
 
   const canManageTools = user?.role === "creator";
   const { activeSheet } = crm;
 
-  const totalValue = useMemo(() => {
-    if (!activeSheet) return 0;
-    const dealValueCol = activeSheet.columns.find(
-      (c) => c.name.toLowerCase().replace(/\s+/g, "_") === "deal_value" || c.name === "Deal Value"
-    );
-    if (!dealValueCol) return 0;
-    return activeSheet.rows.reduce((sum, row) => {
-      const raw = row.values[dealValueCol.id];
-      if (typeof raw === "number") return sum + raw;
-      if (typeof raw === "string") {
-        const n = Number(raw);
-        return Number.isNaN(n) ? sum : sum + n;
-      }
-      return sum;
-    }, 0);
-  }, [activeSheet]);
+  // Reset column widths when a different sheet is opened
+  useEffect(() => { setColumnWidths({}); }, [activeSheet?.id]);
 
-  // ── Sheet handlers ──────────────────────────────────────────────────────────
+  // ── Scroll helpers ─────────────────────────────────────────────────────────
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setCanScroll(max > 0);
+    setScrollPct(max > 0 ? el.scrollLeft / max : 0);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateScrollState, { passive: true });
+    const ro = new ResizeObserver(updateScrollState);
+    ro.observe(el);
+    updateScrollState();
+    return () => {
+      el.removeEventListener("scroll", updateScrollState);
+      ro.disconnect();
+    };
+  }, [updateScrollState, activeSheet]);
+
+  const handleScrollSlider = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const pct = Number(e.target.value) / 100;
+    el.scrollLeft = pct * (el.scrollWidth - el.clientWidth);
+  };
+
+  // ── Column resize ──────────────────────────────────────────────────────────
+
+  const startResize = useCallback((e: React.MouseEvent, colId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startWidth = columnWidths[colId] ?? 160;
+    resizingRef.current = { colId, startX: e.clientX, startWidth };
+
+    const onMove = (ev: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const { colId: id, startX, startWidth: sw } = resizingRef.current;
+      setColumnWidths((p) => ({ ...p, [id]: Math.max(80, sw + ev.clientX - startX) }));
+    };
+
+    const onUp = () => {
+      resizingRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [columnWidths]);
+
+  // ── Panel helpers ──────────────────────────────────────────────────────────
+
+  const openColPanel = (
+    col: CRMColumn | null,
+    event: React.MouseEvent<HTMLTableCellElement>
+  ) => {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    setColPanel({
+      open: true,
+      columnId: col?.id ?? null,
+      name: col?.name ?? "",
+      type: col?.field_type ?? "text",
+      options: (col?.options ?? []).join(", "),
+      anchor: { top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: rect.width },
+    });
+  };
+
+  const closeColPanel = () => setColPanel(CLOSED_PANEL);
+
+  // ── Sheet handlers ─────────────────────────────────────────────────────────
 
   const handleCreateSheet = async () => {
     const name = setupName.trim();
@@ -133,24 +283,23 @@ export default function CRMBuilder() {
 
     try {
       const created = await crm.createSheet(name);
-      // Add preset columns after creation
       const count = Math.max(1, Math.min(20, setupCols));
-      const presets = PRESET_COLUMNS.slice(0, Math.min(count, PRESET_COLUMNS.length));
-      const extras = count > PRESET_COLUMNS.length
-        ? Array.from({ length: count - PRESET_COLUMNS.length }, (_, i) => ({
-            name: `Column ${PRESET_COLUMNS.length + i + 1}`,
-            field_type: "text" as CRMFieldType,
-            options: [],
-          }))
-        : [];
 
-      // Open the sheet detail, then add columns
       await crm.openSheet(created.id);
-      for (let i = 0; i < presets.length + extras.length; i++) {
-        const col = i < presets.length ? presets[i] : extras[i - presets.length];
-        await crm.addColumn(created.id, { ...col, order: i });
+      const addedCols: CRMColumn[] = [];
+      for (let i = 0; i < count; i++) {
+        const col = await crm.addColumn(created.id, {
+          name: `Column ${i + 1}`,
+          field_type: "text" as CRMFieldType,
+          options: [],
+          order: i,
+        });
+        addedCols.push(col);
       }
-      // Refresh detail to pick up all columns
+      // Add 2 default empty rows using the columns we just created
+      for (let r = 0; r < 2; r++) {
+        await crm.addRow(created.id, addedCols);
+      }
       await crm.openSheet(created.id);
 
       setIsSetupOpen(false);
@@ -199,37 +348,36 @@ export default function CRMBuilder() {
     setSheetToDelete(null);
   };
 
-  // ── Column handlers ─────────────────────────────────────────────────────────
+  // ── Column handlers ────────────────────────────────────────────────────────
 
-  const handleAddColumn = async () => {
+  const handleSaveColPanel = async () => {
     if (!activeSheet) return;
-    const name = newColName.trim();
+    const name = colPanel.name.trim();
     if (!name) { toast.error("Column name is required"); return; }
 
     const options =
-      newColType === "single_select" || newColType === "multi_select"
-        ? newColOptions.split(",").map((v) => v.trim()).filter(Boolean)
+      colPanel.type === "single_select" || colPanel.type === "multi_select"
+        ? colPanel.options.split(",").map((v) => v.trim()).filter(Boolean)
         : [];
 
-    if ((newColType === "single_select" || newColType === "multi_select") && options.length === 0) {
+    if ((colPanel.type === "single_select" || colPanel.type === "multi_select") && options.length === 0) {
       toast.error("Add at least one option for dropdown fields");
       return;
     }
 
     try {
-      await crm.addColumn(activeSheet.id, {
-        name,
-        field_type: newColType,
-        options,
-        order: activeSheet.columns.length,
-      });
-      setNewColName("");
-      setNewColType("text");
-      setNewColOptions("");
-      setIsAddColOpen(false);
-      toast.success(`Column "${name}" added`);
+      if (colPanel.columnId) {
+        await crm.updateColumn(activeSheet.id, colPanel.columnId, { name, field_type: colPanel.type, options });
+        toast.success("Column updated");
+      } else {
+        await crm.addColumn(activeSheet.id, {
+          name, field_type: colPanel.type, options, order: activeSheet.columns.length,
+        });
+        toast.success(`Column "${name}" added`);
+      }
+      closeColPanel();
     } catch {
-      toast.error("Failed to add column");
+      toast.error("Failed to save column");
     }
   };
 
@@ -237,62 +385,35 @@ export default function CRMBuilder() {
     if (!activeSheet) return;
     try {
       await crm.deleteColumn(activeSheet.id, columnId);
+      if (colPanel.columnId === columnId) closeColPanel();
     } catch {
       toast.error("Failed to delete column");
     }
   };
 
-  const commitColumnRename = async (colId: string) => {
-    const trimmed = editingColName.trim();
-    setEditingColId(null);
-    if (!trimmed || !activeSheet) return;
-    const col = activeSheet.columns.find((c) => c.id === colId);
-    if (col?.name === trimmed) return;
-    try {
-      await crm.renameColumn(activeSheet.id, colId, trimmed);
-      toast.success("Column renamed");
-    } catch {
-      toast.error("Failed to rename column");
-    }
-  };
-
-  // ── Row handlers ────────────────────────────────────────────────────────────
+  // ── Row handlers ───────────────────────────────────────────────────────────
 
   const handleAddRow = async () => {
     if (!activeSheet) return;
-    try {
-      await crm.addRow(activeSheet.id, activeSheet.columns);
-    } catch {
-      toast.error("Failed to add row");
-    }
+    try { await crm.addRow(activeSheet.id, activeSheet.columns); }
+    catch { toast.error("Failed to add row"); }
   };
 
   const handleDeleteRow = async (rowId: string) => {
     if (!activeSheet) return;
-    try {
-      await crm.deleteRow(activeSheet.id, rowId);
-    } catch {
-      toast.error("Failed to delete row");
-    }
+    try { await crm.deleteRow(activeSheet.id, rowId); }
+    catch { toast.error("Failed to delete row"); }
   };
 
-  const handleCellBlur = async (
-    rowId: string,
-    colId: string,
-    nextValue: string | number | boolean | string[]
-  ) => {
+  const handleCellBlur = async (rowId: string, colId: string, nextValue: string | number | boolean | string[]) => {
     if (!activeSheet) return;
     const row = activeSheet.rows.find((r) => r.id === rowId);
     if (!row) return;
-    const updated = { ...row.values, [colId]: nextValue };
-    try {
-      await crm.updateRowValues(activeSheet.id, rowId, updated);
-    } catch {
-      toast.error("Failed to save cell");
-    }
+    try { await crm.updateRowValues(activeSheet.id, rowId, { ...row.values, [colId]: nextValue }); }
+    catch { toast.error("Failed to save cell"); }
   };
 
-  // ── Export helpers ──────────────────────────────────────────────────────────
+  // ── Export ─────────────────────────────────────────────────────────────────
 
   const exportCsv = () => {
     if (!activeSheet) return;
@@ -300,50 +421,36 @@ export default function CRMBuilder() {
     const body = activeSheet.rows
       .map((row) => activeSheet.columns.map((c) => formatCellForCsv(row.values[c.id])).join(","))
       .join("\n");
-    const slug = activeSheet.name.toLowerCase().replace(/\s+/g, "_");
-    triggerDownload(`${slug}_export.csv`, `${header}\n${body}`, "text/csv;charset=utf-8;");
+    triggerDownload(
+      `${activeSheet.name.toLowerCase().replace(/\s+/g, "_")}_export.csv`,
+      `${header}\n${body}`,
+      "text/csv;charset=utf-8;"
+    );
     toast.success("CSV exported");
   };
 
   const exportJson = () => {
     if (!activeSheet) return;
-    const payload = {
-      sheetName: activeSheet.name,
-      columns: activeSheet.columns,
-      rows: activeSheet.rows,
-      exportedAt: new Date().toISOString(),
-    };
-    const slug = activeSheet.name.toLowerCase().replace(/\s+/g, "_");
     triggerDownload(
-      `${slug}_backup.json`,
-      JSON.stringify(payload, null, 2),
+      `${activeSheet.name.toLowerCase().replace(/\s+/g, "_")}_backup.json`,
+      JSON.stringify({ sheetName: activeSheet.name, columns: activeSheet.columns, rows: activeSheet.rows, exportedAt: new Date().toISOString() }, null, 2),
       "application/json;charset=utf-8;"
     );
     toast.success("JSON backup exported");
   };
 
-  const openPrintForPdf = () => {
-    if (!activeSheet) return;
-    toast.message("Use Print → Save as PDF in the next dialog");
-    window.print();
-  };
-
-  // ── Guard ───────────────────────────────────────────────────────────────────
+  // ── Guard ──────────────────────────────────────────────────────────────────
 
   if (!canManageTools) {
     return (
       <MainLayout>
         <div className="rounded-xl border border-border/60 bg-card p-8 text-center">
           <h1 className="text-2xl font-bold text-foreground">CRM Builder</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            This tool is currently available to creator accounts.
-          </p>
+          <p className="mt-2 text-sm text-muted-foreground">This tool is available to creator accounts.</p>
         </div>
       </MainLayout>
     );
   }
-
-  // ── Detail view (spreadsheet) ───────────────────────────────────────────────
 
   if (crm.isDetailLoading) {
     return (
@@ -355,168 +462,253 @@ export default function CRMBuilder() {
     );
   }
 
+  // ── Detail view ────────────────────────────────────────────────────────────
+
   if (activeSheet) {
     return (
       <MainLayout>
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-5 animate-fade-in w-full min-w-0">
 
-          {/* Detail header */}
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3">
+          {/* Header row */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 min-w-0">
               <Button
                 variant="ghost"
                 size="sm"
-                className="gap-1.5 text-muted-foreground hover:text-foreground"
+                className="gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
                 onClick={crm.closeSheet}
               >
                 <ArrowLeft className="h-4 w-4" />
-                All CRM Sheets
+                All Sheets
               </Button>
               <span className="text-muted-foreground/40">/</span>
-              <h1 className="text-xl font-bold text-foreground">{activeSheet.name}</h1>
+              <h1 className="text-lg font-bold text-foreground truncate">{activeSheet.name}</h1>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" className="gap-2" onClick={() => setIsAddColOpen(true)}>
-                <Plus className="h-4 w-4" />
-                Add Column
-              </Button>
-              <Button variant="outline" className="gap-2" onClick={exportCsv}>
-                <Download className="h-4 w-4" />
-                Export CSV
-              </Button>
-              <Button variant="outline" className="gap-2" onClick={exportJson}>
-                <Download className="h-4 w-4" />
-                Backup JSON
-              </Button>
-            </div>
-          </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Sharing — hidden behind icon popover */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" title="Sharing access">
+                    <Share2 className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 p-0">
+                  <div className="px-4 py-3 border-b border-border">
+                    <h3 className="font-semibold text-sm text-foreground">Sharing Access</h3>
+                  </div>
+                  <div className="px-4 py-3 max-h-72 overflow-y-auto">
+                    {teamMembers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No team members yet. Invite teammates to assign access.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {teamMembers.map((member) => {
+                          const existing = activeSheet.access_list.find((a) => a.user === member.user_id);
+                          return (
+                            <div key={member.id} className="flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate">{member.name}</p>
+                                <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                              </div>
+                              <select
+                                value={existing?.role ?? "viewer"}
+                                onChange={async (e) => {
+                                  const role = e.target.value as "viewer" | "editor" | "admin";
+                                  try {
+                                    await crm.upsertAccess(activeSheet.id, member.user_id, role, existing?.id);
+                                    toast.success(`${member.name} set as ${role}`);
+                                  } catch {
+                                    toast.error("Failed to update access");
+                                  }
+                                }}
+                                className="h-8 rounded-md border border-input bg-background px-2 text-xs shrink-0"
+                              >
+                                <option value="viewer">Viewer</option>
+                                <option value="editor">Editor</option>
+                                <option value="admin">Admin</option>
+                              </select>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
 
-          {/* Stats */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-border/60 bg-card p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Records</p>
-              <p className="mt-1 text-2xl font-bold text-foreground">{activeSheet.rows.length}</p>
-            </div>
-            <div className="rounded-xl border border-border/60 bg-card p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Columns</p>
-              <p className="mt-1 text-2xl font-bold text-foreground">{activeSheet.columns.length}</p>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={exportCsv}>
+                <Download className="h-3.5 w-3.5" />
+                CSV
+              </Button>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={exportJson}>
+                <Download className="h-3.5 w-3.5" />
+                JSON
+              </Button>
             </div>
           </div>
 
           {/* Table */}
-          <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[600px] text-sm">
+          <div className="rounded-xl border border-border bg-card overflow-hidden w-full">
+
+            {/* Horizontal-only scroll area */}
+            <div
+              ref={scrollRef}
+              className="overflow-x-auto w-full"
+              style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(var(--border)) transparent" }}
+            >
+              <table
+                className="text-sm border-collapse"
+                style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}
+              >
+                {/* colgroup drives exact column widths for table-layout:fixed */}
+                <colgroup>
+                  {/* row-number col */}
+                  <col style={{ width: 44 }} />
+                  {activeSheet.columns.map((col) => (
+                    <col key={col.id} style={{ width: columnWidths[col.id] ?? 160 }} />
+                  ))}
+                  {/* add-column col */}
+                  <col style={{ width: 44 }} />
+                  {/* delete-row col */}
+                  <col style={{ width: 36 }} />
+                </colgroup>
+
                 <thead className="bg-secondary/50">
                   <tr>
+                    {/* Row-number header — padlock toggles column stickiness */}
+                    <th className="sticky left-0 z-10 bg-secondary/50 border border-border px-2 py-2.5 text-center select-none">
+                      <button
+                        onClick={() => setStickyRowNum((v) => !v)}
+                        title={stickyRowNum ? "Unpin row numbers" : "Pin row numbers"}
+                        className="inline-flex items-center justify-center rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                      >
+                        {stickyRowNum
+                          ? <Lock className="h-3 w-3" />
+                          : <LockOpen className="h-3 w-3" />
+                        }
+                      </button>
+                    </th>
+
                     {activeSheet.columns.map((col) => (
                       <th
                         key={col.id}
-                        className="px-3 py-2 text-left font-semibold text-foreground whitespace-nowrap"
+                        onClick={(e) => openColPanel(col, e)}
+                        className="relative bg-secondary/50 border border-border py-2.5 text-left font-semibold text-foreground group/th cursor-pointer hover:bg-secondary transition-colors select-none overflow-hidden"
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          {editingColId === col.id ? (
-                            <input
-                              autoFocus
-                              className="w-full rounded border border-primary/50 bg-background px-1.5 py-0.5 text-sm font-semibold text-foreground outline-none focus:ring-1 focus:ring-primary"
-                              value={editingColName}
-                              onChange={(e) => setEditingColName(e.target.value)}
-                              onBlur={() => commitColumnRename(col.id)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") commitColumnRename(col.id);
-                                if (e.key === "Escape") setEditingColId(null);
-                              }}
-                            />
-                          ) : (
-                            <span
-                              className="cursor-pointer select-none"
-                              onDoubleClick={() => {
-                                setEditingColId(col.id);
-                                setEditingColName(col.name);
-                              }}
-                              title="Double-click to rename"
-                            >
-                              {col.name}
-                            </span>
-                          )}
-                          <button
-                            className="text-muted-foreground hover:text-destructive shrink-0"
-                            onClick={() => handleDeleteColumn(col.id)}
-                            aria-label={`Delete ${col.name} column`}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                        <div className="flex items-center justify-between gap-1 px-3">
+                          <span className="text-sm truncate">{col.name}</span>
+                          <Pencil className="h-3 w-3 shrink-0 opacity-0 group-hover/th:opacity-40 text-muted-foreground transition-opacity" />
                         </div>
+                        {/* Drag-to-resize handle */}
+                        <div
+                          className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors z-10"
+                          onMouseDown={(e) => startResize(e, col.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                       </th>
                     ))}
-                    <th className="px-3 py-2 text-right font-semibold text-foreground">Actions</th>
+
+                    {/* Add-column */}
+                    <th
+                      onClick={(e) => openColPanel(null, e)}
+                      title="Add column"
+                      className="bg-secondary/50 border border-border px-2 py-2.5 text-center cursor-pointer text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
+                    >
+                      <Plus className="h-4 w-4 mx-auto" />
+                    </th>
+
+                    {/* Delete-row col header */}
+                    <th className="bg-secondary/50 border border-border" />
                   </tr>
                 </thead>
+
                 <tbody>
-                  {activeSheet.rows.map((row) => (
-                    <tr key={row.id} className="border-t border-border/60">
+                  {activeSheet.rows.map((row, rowIdx) => (
+                    <tr key={row.id} className="group/row hover:bg-secondary/10 transition-colors">
+
+                      {/* Sticky row number */}
+                      <td className={cn(
+                        "border border-border px-2 py-1.5 text-center text-xs text-muted-foreground select-none transition-colors",
+                        stickyRowNum
+                          ? "sticky left-0 z-[5] bg-card group-hover/row:bg-secondary/10"
+                          : "bg-secondary/20"
+                      )}>
+                        {rowIdx + 1}
+                      </td>
+
                       {activeSheet.columns.map((col) => (
-                        <td key={`${row.id}_${col.id}`} className="px-3 py-2 align-top">
+                        <td
+                          key={`${row.id}_${col.id}`}
+                          className="border border-border px-3 py-1.5 align-top overflow-hidden"
+                        >
                           {col.field_type === "checkbox" ? (
-                            <input
-                              type="checkbox"
-                              checked={Boolean(row.values[col.id])}
-                              onChange={(e) =>
-                                handleCellBlur(row.id, col.id, e.target.checked)
-                              }
-                              className="h-4 w-4"
-                            />
+                            <div className="flex items-center h-7">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(row.values[col.id])}
+                                onChange={(e) => handleCellBlur(row.id, col.id, e.target.checked)}
+                                className="h-4 w-4 accent-primary"
+                              />
+                            </div>
                           ) : col.field_type === "single_select" ? (
                             <select
                               defaultValue={String(row.values[col.id] || "")}
                               onBlur={(e) => handleCellBlur(row.id, col.id, e.target.value)}
                               onChange={(e) => handleCellBlur(row.id, col.id, e.target.value)}
-                              className="h-9 w-full rounded-md border border-input bg-background px-2"
+                              className="h-7 w-full rounded border border-input bg-background px-2 text-sm"
                             >
-                              <option value="">Select...</option>
+                              <option value="">Select…</option>
                               {(col.options || []).map((opt) => (
                                 <option key={opt} value={opt}>{opt}</option>
                               ))}
                             </select>
                           ) : col.field_type === "multi_select" ? (
-                            <Input
+                            <AutoTextarea
+                              type="text"
                               defaultValue={
                                 Array.isArray(row.values[col.id])
                                   ? (row.values[col.id] as string[]).join(", ")
                                   : ""
                               }
-                              onBlur={(e) =>
-                                handleCellBlur(
-                                  row.id,
-                                  col.id,
-                                  e.target.value.split(",").map((v) => v.trim()).filter(Boolean)
-                                )
+                              onBlur={(v) =>
+                                handleCellBlur(row.id, col.id, v.split(",").map((s) => s.trim()).filter(Boolean))
                               }
                               placeholder="Comma-separated"
                             />
                           ) : (
-                            <Input
+                            <AutoTextarea
                               type={
                                 col.field_type === "number" ? "number"
-                                : col.field_type === "date" ? "date"
+                                : col.field_type === "date"   ? "date"
+                                : col.field_type === "url"    ? "url"
+                                : col.field_type === "email"  ? "email"
                                 : "text"
                               }
                               defaultValue={String(row.values[col.id] ?? "")}
-                              onBlur={(e) => {
-                                const value = col.field_type === "number"
-                                  ? Number(e.target.value)
-                                  : e.target.value;
+                              onBlur={(v) => {
+                                const value = col.field_type === "number" ? Number(v) : v;
                                 handleCellBlur(row.id, col.id, value);
                               }}
-                              placeholder={`Enter ${col.name.toLowerCase()}`}
+                              placeholder={col.name}
                             />
                           )}
                         </td>
                       ))}
-                      <td className="px-3 py-2 text-right">
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteRow(row.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
+
+                      {/* Spacer under add-column header */}
+                      <td className="border border-border" />
+
+                      {/* Delete row — appears on hover */}
+                      <td className="border border-border px-1 py-1 text-center align-middle">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                          onClick={() => handleDeleteRow(row.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
                         </Button>
                       </td>
                     </tr>
@@ -525,152 +717,162 @@ export default function CRMBuilder() {
               </table>
             </div>
 
-            <div className="border-t border-border/60 p-3">
-              <Button variant="outline" className="gap-2" onClick={handleAddRow}>
-                <Plus className="h-4 w-4" />
+            {/* Horizontal scroll slider — tracks scrollRef.scrollLeft */}
+            {canScroll && (
+              <div className="border-t border-border/40 px-3 py-1.5 flex items-center gap-2 bg-secondary/20">
+                <ChevronLeft className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round(scrollPct * 100)}
+                  onChange={handleScrollSlider}
+                  className="flex-1 h-1 accent-primary cursor-pointer"
+                />
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              </div>
+            )}
+
+            {/* Add record */}
+            <div className="border-t border-border p-3">
+              <Button variant="outline" size="sm" className="gap-2" onClick={handleAddRow}>
+                <Plus className="h-3.5 w-3.5" />
                 Add Record
               </Button>
             </div>
           </div>
-
-          {/* Sharing */}
-          <div className="rounded-xl border border-border/60 bg-card p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <Share2 className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-base font-semibold text-foreground">Sharing Access</h2>
-            </div>
-
-            {teamMembers.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No team members found yet. Invite teammates to assign CRM access roles.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {teamMembers.map((member) => {
-                  const existing = activeSheet.access_list.find((a) => a.user === member.user_id);
-                  return (
-                    <div
-                      key={member.id}
-                      className="flex flex-col gap-2 rounded-lg border border-border/60 p-3 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div>
-                        <p className="font-medium text-foreground">{member.name}</p>
-                        <p className="text-xs text-muted-foreground">{member.email}</p>
-                      </div>
-                      <select
-                        value={existing?.role ?? "viewer"}
-                        onChange={async (e) => {
-                          const role = e.target.value as "viewer" | "editor" | "admin";
-                          try {
-                            await crm.upsertAccess(activeSheet.id, member.user_id, role, existing?.id);
-                            toast.success(`${member.name} set as ${role}`);
-                          } catch {
-                            toast.error("Failed to update access");
-                          }
-                        }}
-                        className="h-9 min-w-36 rounded-md border border-input bg-background px-2 text-sm"
-                      >
-                        <option value="viewer">Viewer</option>
-                        <option value="editor">Editor</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Add column dialog */}
-        <Dialog open={isAddColOpen} onOpenChange={setIsAddColOpen}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Add Column</DialogTitle>
-              <DialogDescription>
-                Add a new field to <strong>{activeSheet.name}</strong>.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-5 py-2">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="col-name">Column Name</Label>
-                  <Input
-                    id="col-name"
-                    value={newColName}
-                    onChange={(e) => setNewColName(e.target.value)}
-                    placeholder="e.g. Lead Source"
-                    onKeyDown={(e) => { if (e.key === "Enter") handleAddColumn(); }}
+        {/* ── Inline column popover (Notion-style) ──────────────────────────── */}
+        {colPanel.open && colPanel.anchor && (
+          <>
+            {/* Click-away backdrop */}
+            <div className="fixed inset-0 z-40" onClick={closeColPanel} />
+
+            {/* Popover box */}
+            <div
+              className="fixed z-50 w-64 rounded-xl border border-border bg-card shadow-xl"
+              style={{
+                top:  colPanel.anchor.top + 4,
+                left: Math.min(
+                  colPanel.anchor.left,
+                  window.innerWidth - 272
+                ),
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  {colPanel.columnId ? "Edit Column" : "New Column"}
+                </span>
+                <button
+                  onClick={closeColPanel}
+                  className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              <div className="p-3 space-y-3">
+                {/* Column name */}
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    Column Name
+                  </label>
+                  <input
                     autoFocus
+                    value={colPanel.name}
+                    onChange={(e) => setColPanel((p) => ({ ...p, name: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSaveColPanel();
+                      if (e.key === "Escape") closeColPanel();
+                    }}
+                    placeholder="e.g. Lead Source"
+                    className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="col-type">Type</Label>
-                  <select
-                    id="col-type"
-                    value={newColType}
-                    onChange={(e) => setNewColType(e.target.value as CRMFieldType)}
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="text">Text</option>
-                    <option value="email">Email</option>
-                    <option value="phone">Phone</option>
-                    <option value="number">Number</option>
-                    <option value="date">Date</option>
-                    <option value="single_select">Dropdown</option>
-                    <option value="multi_select">Multi-select</option>
-                    <option value="checkbox">Checkbox</option>
-                  </select>
+
+                {/* Field type */}
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    Field Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-1">
+                    {FIELD_TYPES.map((ft) => (
+                      <button
+                        key={ft.value}
+                        onClick={() => setColPanel((p) => ({ ...p, type: ft.value }))}
+                        className={cn(
+                          "px-2 py-1.5 rounded-md text-xs text-left transition-colors",
+                          colPanel.type === ft.value
+                            ? "bg-primary text-primary-foreground font-medium"
+                            : "text-foreground hover:bg-secondary border border-border/50"
+                        )}
+                      >
+                        {ft.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Options — dropdown / multi-select only */}
+                {(colPanel.type === "single_select" || colPanel.type === "multi_select") && (
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">
+                      Options <span className="font-normal">(comma-separated)</span>
+                    </label>
+                    <input
+                      value={colPanel.options}
+                      onChange={(e) => setColPanel((p) => ({ ...p, options: e.target.value }))}
+                      placeholder="Hot, Warm, Cold"
+                      className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="col-options">Options (dropdown / multi-select only)</Label>
-                <Input
-                  id="col-options"
-                  value={newColOptions}
-                  disabled={newColType !== "single_select" && newColType !== "multi_select"}
-                  onChange={(e) => setNewColOptions(e.target.value)}
-                  placeholder="Hot, Warm, Cold"
-                />
-              </div>
-              <div className="flex items-center justify-end gap-3 pt-1">
-                <Button variant="outline" onClick={() => setIsAddColOpen(false)}>Cancel</Button>
-                <Button className="gap-2" onClick={handleAddColumn}>
-                  <Plus className="h-4 w-4" />
-                  Add Column
+
+              {/* Actions */}
+              <div className="px-3 pb-3 flex flex-col gap-1.5">
+                <Button size="sm" className="w-full gap-1.5" onClick={handleSaveColPanel}>
+                  {colPanel.columnId ? "Update Column" : <><Plus className="h-3.5 w-3.5" />Add Column</>}
                 </Button>
+                {colPanel.columnId && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full gap-1.5 text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/5"
+                    onClick={() => colPanel.columnId && handleDeleteColumn(colPanel.columnId)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete Column
+                  </Button>
+                )}
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+          </>
+        )}
       </MainLayout>
     );
   }
 
-  // ── List view (card grid) ───────────────────────────────────────────────────
+  // ── List view ──────────────────────────────────────────────────────────────
 
   return (
     <MainLayout>
       <div className="animate-fade-in space-y-6 sm:space-y-8">
 
-        {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">
-              CRM Builder
-            </h1>
-            <p className="mt-1 text-muted-foreground">
-              Manage your CRM sheets — click any card to open it.
-            </p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">CRM Builder</h1>
+            <p className="mt-1 text-muted-foreground">Manage your CRM sheets — click any card to open it.</p>
           </div>
-
           <Button className="gap-2 w-full sm:w-auto" onClick={() => setIsSetupOpen(true)}>
             <Plus className="h-4 w-4" />
             New CRM Sheet
           </Button>
         </div>
 
-        {/* Loading */}
         {crm.isLoading ? (
           <div className="flex items-center justify-center min-h-[300px]">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -682,13 +884,9 @@ export default function CRMBuilder() {
             </div>
             <h2 className="text-xl font-bold text-foreground mb-2">Create your first CRM sheet</h2>
             <p className="text-sm text-muted-foreground mb-8 max-w-xs leading-relaxed">
-              CRM sheets let you track contacts, deals, and pipelines — fully customised with your own columns and fields.
+              Track contacts, deals, and pipelines — fully customised with your own columns and fields.
             </p>
-            <Button
-              size="lg"
-              className="gap-2 text-base px-8"
-              onClick={() => setIsSetupOpen(true)}
-            >
+            <Button size="lg" className="gap-2 text-base px-8" onClick={() => setIsSetupOpen(true)}>
               <Sparkles className="h-5 w-5" />
               Create My First CRM
             </Button>
@@ -702,7 +900,6 @@ export default function CRMBuilder() {
                 onClick={() => crm.openSheet(sheet.id)}
                 className="cursor-pointer p-6 rounded-lg border group hover:border-primary/50 transition-colors"
               >
-                {/* Card header */}
                 <div className="flex justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <div className="rounded-lg bg-primary/10 p-2">
@@ -710,42 +907,29 @@ export default function CRMBuilder() {
                     </div>
                     <h3 className="font-semibold text-foreground">{sheet.name}</h3>
                   </div>
-
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
+                      <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={(e) => { e.stopPropagation(); crm.openSheet(sheet.id); }}
-                      >
-                        <FileSpreadsheet className="h-4 w-4 mr-2" />
-                        Open CRM
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); crm.openSheet(sheet.id); }}>
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />Open CRM
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => openRenameDialog(e, { id: sheet.id, name: sheet.name })}
-                      >
-                        <Pencil className="h-4 w-4 mr-2" />
-                        Rename Sheet
+                      <DropdownMenuItem onClick={(e) => openRenameDialog(e, { id: sheet.id, name: sheet.name })}>
+                        <Pencil className="h-4 w-4 mr-2" />Rename Sheet
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={(e) => openDeleteDialog(e, { id: sheet.id, name: sheet.name })}
                         className="text-destructive focus:text-destructive"
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Sheet
+                        <Trash2 className="h-4 w-4 mr-2" />Delete Sheet
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
 
-                {/* Stats pills */}
                 <div className="flex items-center gap-3 mb-5">
                   <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <Rows3 className="h-3.5 w-3.5" />
@@ -758,24 +942,15 @@ export default function CRMBuilder() {
                   </div>
                 </div>
 
-                {/* Column preview chips */}
                 <div className="flex flex-wrap gap-1.5 mb-5 min-h-[28px]">
                   {sheet.column_names.slice(0, 4).map((name) => (
-                    <span
-                      key={name}
-                      className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground"
-                    >
-                      {name}
-                    </span>
+                    <span key={name} className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">{name}</span>
                   ))}
                   {sheet.column_count > 4 && (
-                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-                      +{sheet.column_count - 4} more
-                    </span>
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">+{sheet.column_count - 4} more</span>
                   )}
                 </div>
 
-                {/* Footer */}
                 <div className="flex items-center justify-end pt-2 mt-1 border-t border-border/40">
                   <span className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-primary transition-colors">
                     Open CRM
@@ -788,7 +963,7 @@ export default function CRMBuilder() {
         )}
       </div>
 
-      {/* ── Setup dialog ─────────────────────────────────────────────────────── */}
+      {/* ── Setup dialog ──────────────────────────────────────────────────────── */}
       <Dialog open={isSetupOpen} onOpenChange={setIsSetupOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -796,11 +971,8 @@ export default function CRMBuilder() {
               <FileSpreadsheet className="h-5 w-5" />
               Create a CRM Sheet
             </DialogTitle>
-            <DialogDescription>
-              Name your sheet and choose how many starting columns you want.
-            </DialogDescription>
+            <DialogDescription>Name your sheet and choose how many columns to start with.</DialogDescription>
           </DialogHeader>
-
           <div className="space-y-5 py-2">
             <div className="space-y-2">
               <Label htmlFor="setup-name">Sheet Name</Label>
@@ -813,7 +985,6 @@ export default function CRMBuilder() {
                 autoFocus
               />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="setup-cols">Starting Columns</Label>
               <Input
@@ -825,22 +996,20 @@ export default function CRMBuilder() {
                 onChange={(e) => setSetupCols(Number(e.target.value))}
               />
               <p className="text-xs text-muted-foreground">
-                1 – 20 columns. The first {Math.min(setupCols, 6)} use smart defaults (Name, Email, Status…).
+                1 – 20 empty columns. Click any column header to set its name and type. Starts with 2 empty rows.
               </p>
             </div>
-
             <div className="flex items-center justify-end gap-3 pt-1">
               <Button variant="outline" onClick={() => setIsSetupOpen(false)}>Cancel</Button>
               <Button className="gap-2" onClick={handleCreateSheet}>
-                <Plus className="h-4 w-4" />
-                Create Sheet
+                <Plus className="h-4 w-4" />Create Sheet
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* ── Rename dialog ────────────────────────────────────────────────────── */}
+      {/* ── Rename dialog ─────────────────────────────────────────────────────── */}
       <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
@@ -865,13 +1034,13 @@ export default function CRMBuilder() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Delete confirmation ───────────────────────────────────────────────── */}
+      {/* ── Delete confirmation ────────────────────────────────────────────────── */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Sheet</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{sheetToDelete?.name}"? This cannot be undone and all records will be lost.
+              Are you sure you want to delete "{sheetToDelete?.name}"? All records will be permanently lost.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -20,7 +20,7 @@ const creatorNavItems = [
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Deliverables", icon: Upload, route: "/deliverables" },
   { label: "Client Portal", icon: ClipboardList, route: "/onboarding" },
-  { label: "Library", icon: FileArchive, route: "/library" },
+  { label: "Docs", icon: FileArchive, route: "/library" },
   { label: "Deadlines", icon: Calendar, route: "/calendar" },
   { label: "Marketplace", icon: Users, route: "/talent" },
 ];

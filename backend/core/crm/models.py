@@ -26,6 +26,7 @@ class CRMColumn(models.Model):
         ("text", "Text"),
         ("email", "Email"),
         ("phone", "Phone"),
+        ("url", "URL"),
         ("number", "Number"),
         ("date", "Date"),
         ("single_select", "Single Select"),
