@@ -578,7 +578,10 @@ export default function CRMBuilder() {
                 <thead className="bg-secondary/50">
                   <tr>
                     {/* Row-number header — padlock toggles column stickiness */}
-                    <th className="sticky left-0 z-10 bg-secondary/50 border border-border px-2 py-2.5 text-center select-none">
+                    <th className={cn(
+                      "bg-secondary/50 border border-border px-2 py-2.5 text-center select-none",
+                      stickyRowNum && "sticky left-0 z-10"
+                    )}>
                       <button
                         onClick={() => setStickyRowNum((v) => !v)}
                         title={stickyRowNum ? "Unpin row numbers" : "Pin row numbers"}
