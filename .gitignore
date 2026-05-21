@@ -40,3 +40,5 @@ temp-landing-repo/.git.nested-backup/
 temp-landing-repo/
 
 .env*.local
+
+.claude
