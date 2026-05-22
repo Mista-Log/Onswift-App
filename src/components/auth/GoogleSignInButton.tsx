@@ -20,9 +20,10 @@ export default function GoogleSignInButton({
 
   return (
     <div className="w-full relative">
-      {/* Hidden Google Button */}
-      <div className="absolute inset-0 opacity-0">
+      {/* Invisible Google Button Overlay */}
+      <div className="absolute inset-0 z-10 opacity-0 cursor-pointer">
         <GoogleLogin
+          width="100%"
           onSuccess={async (credentialResponse) => {
             try {
               if (!credentialResponse.credential) return;
@@ -54,10 +55,7 @@ export default function GoogleSignInButton({
               });
 
             } catch (error) {
-              console.error(
-                "Google login failed:",
-                error
-              );
+              console.error("Google login failed:", error);
             }
           }}
           onError={() => {
@@ -66,7 +64,7 @@ export default function GoogleSignInButton({
         />
       </div>
 
-      {/* Your Custom UI */}
+      {/* Custom Button UI */}
       <Button
         type="button"
         variant="outline"
