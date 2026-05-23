@@ -151,7 +151,7 @@ export default function Login() {
                 </div>
               </div>
 
-              <GoogleSignInButton from={from} />
+              <GoogleSignInButton mode="login" from={from} />
             </form>
 
             <p className="text-center text-muted-foreground mt-6">

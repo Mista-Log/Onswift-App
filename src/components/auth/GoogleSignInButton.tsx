@@ -6,14 +6,17 @@ import { Button } from "@/components/ui/button";
 import { googleAuth } from "@/services/googleAuth";
 import { useAuth } from "@/contexts/AuthContext";
 
+
 interface Props {
   from?: string;
   role?: string;
+  mode?: "login" | "signup";
 }
 
 export default function GoogleSignInButton({
   from,
   role,
+  mode
 }: Props) {
   const navigate = useNavigate();
   const { getUser } = useAuth();
@@ -50,7 +53,17 @@ export default function GoogleSignInButton({
 
               await getUser();
 
-              navigate(from || "/dashboard", {
+              if (mode === "login") {
+                navigate("/dashboard", { replace: true });
+                return;
+              }
+
+              navigate("/signup", {
+                state: {
+                  fromSignup: true,
+                  prefilledEmail: data.user.email,
+                  prefilledName: data.user.full_name,
+                },
                 replace: true,
               });
 
