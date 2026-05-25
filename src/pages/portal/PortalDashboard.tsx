@@ -155,11 +155,17 @@ export default function PortalDashboard() {
 
         {/* Tabs */}
         <Tabs defaultValue="tasks">
-          <TabsList>
-            <TabsTrigger value="tasks">
+          <TabsList className="bg-primary/10 p-1">
+            <TabsTrigger
+              value="tasks"
+              className="data-[state=active]:bg-white data-[state=active]:text-primary data-[state=inactive]:bg-primary data-[state=inactive]:text-white"
+            >
               Tasks ({project.tasks?.length || 0})
             </TabsTrigger>
-            <TabsTrigger value="deliverables">
+            <TabsTrigger
+              value="deliverables"
+              className="data-[state=active]:bg-white data-[state=active]:text-primary data-[state=inactive]:bg-primary data-[state=inactive]:text-white"
+            >
               Deliverables ({project.tasks?.flatMap(t => t.deliverables || []).length || 0})
             </TabsTrigger>
           </TabsList>

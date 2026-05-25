@@ -62,9 +62,9 @@ const mockTalent = {
 export default function TalentPublicProfile() {
   const { userId } = useParams();
 
-  const handleHire = () => {
-    toast.success(`Hire request sent to ${mockTalent.name}!`);
-  };
+  // const handleHire = () => {
+  //   toast.success(`Hire request sent to ${mockTalent.name}!`);
+  // };
 
   const handleMessage = () => {
     toast.info("Opening conversation...");
@@ -93,7 +93,7 @@ export default function TalentPublicProfile() {
           
           {/* Profile Info */}
           <div className="p-6 -mt-12">
-            <div className="flex flex-col md:flex-row md:items-end gap-4">
+            {/* <div className="flex flex-col md:flex-row md:items-end gap-4">
               <Avatar className="h-24 w-24 border-4 border-background">
                 <AvatarImage src={mockTalent.avatarUrl} />
                 <AvatarFallback className="text-2xl">{getInitials(mockTalent.name)}</AvatarFallback>
@@ -123,25 +123,25 @@ export default function TalentPublicProfile() {
                   Hire {mockTalent.name.split(' ')[0]}
                 </Button>
               </div>
-            </div>
+            </div> */}
 
             {/* Stats */}
             <div className="flex flex-wrap gap-6 mt-6 pt-6 border-t border-border">
-              <div className="flex items-center gap-2">
+              {/* <div className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-success" />
                 <span className="font-medium">{mockTalent.projectsCompleted}</span>
                 <span className="text-muted-foreground">Projects Completed</span>
-              </div>
-              <div className="flex items-center gap-2">
+              </div> */}
+              {/* <div className="flex items-center gap-2">
                 <Star className="h-5 w-5 text-warning fill-warning" />
                 <span className="font-medium">{mockTalent.rating}/5.0</span>
                 <span className="text-muted-foreground">({mockTalent.reviewCount} reviews)</span>
-              </div>
-              <div className="flex items-center gap-2">
+              </div> */}
+              {/* <div className="flex items-center gap-2">
                 <Clock className="h-5 w-5 text-primary" />
                 <span className="font-medium">{mockTalent.responseTime}</span>
                 <span className="text-muted-foreground">Response Time</span>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
@@ -150,25 +150,25 @@ export default function TalentPublicProfile() {
           {/* Main Content */}
           <div className="md:col-span-2 space-y-6">
             {/* About */}
-            <section className="glass-card p-6">
+            {/* <section className="glass-card p-6">
               <h2 className="text-lg font-semibold text-foreground mb-4">About</h2>
               <p className="text-muted-foreground leading-relaxed">{mockTalent.bio}</p>
-            </section>
+            </section> */}
 
             {/* Skills */}
-            <section className="glass-card p-6">
+            {/* <section className="glass-card p-6">
               <h2 className="text-lg font-semibold text-foreground mb-4">Skills</h2>
               <div className="flex flex-wrap gap-2">
                 {mockTalent.skills.map(skill => (
                   <Badge key={skill} variant="secondary">{skill}</Badge>
                 ))}
               </div>
-            </section>
+            </section> */}
 
             {/* Portfolio */}
             <section className="glass-card p-6">
               <h2 className="text-lg font-semibold text-foreground mb-4">Portfolio</h2>
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 {mockTalent.portfolioLinks.map((link, index) => (
                   <a
                     key={index}
@@ -181,7 +181,7 @@ export default function TalentPublicProfile() {
                     <span className="text-foreground truncate">{link}</span>
                   </a>
                 ))}
-              </div>
+              </div> */}
             </section>
 
             {/* Reviews */}

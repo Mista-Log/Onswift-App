@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { ChevronLeft, ChevronRight, ChevronDown, Clock, AlertCircle, Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -33,7 +32,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { GoogleCalendarSync } from "@/components/calendar/GoogleCalendarSync";
 
 interface Task {
   id: string;
@@ -168,7 +166,6 @@ type ExpandedBranches = {
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [showGoogleSync, setShowGoogleSync] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [expandedBranches, setExpandedBranches] = useState<ExpandedBranches>({
     urgent: true,
@@ -412,7 +409,7 @@ export default function Calendar() {
     <MainLayout>
       <div className="animate-fade-in space-y-6 sm:space-y-8">
         {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground bg-gradient-to-r from-primary to-primary/50 bg-clip-text text-transparent">
               Project Deadlines
@@ -422,7 +419,7 @@ export default function Calendar() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="relative shrink-0">
             <Button
               variant={showCalendar ? "default" : "outline"}
               size="sm"
@@ -434,15 +431,78 @@ export default function Calendar() {
                 {showCalendar ? "Hide" : "Show"} Calendar
               </span>
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setShowGoogleSync(true)} 
-              className="font-semibold gap-2"
-            >
-              <CalendarIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">Google Sync</span>
-            </Button>
+
+            {/* Mobile: calendar drops down under the button */}
+            {showCalendar && (
+              <>
+                {/* Backdrop */}
+                <div
+                  className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm lg:hidden"
+                  onClick={() => setShowCalendar(false)}
+                />
+                <div className="absolute right-0 top-full mt-2 z-50 w-72 lg:hidden rounded-xl border border-border/50 bg-card shadow-xl p-4">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="font-bold text-foreground">
+                    {format(currentDate, "MMM yyyy")}
+                  </h3>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrevMonth}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNextMonth}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-7 gap-1 mb-2">
+                  {WEEKDAYS.map((day) => (
+                    <div key={day} className="text-center text-xs font-bold text-primary uppercase">
+                      {day.charAt(0)}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {calendarDays.map((day) => {
+                    const tasksForDay = getTasksForDate(day);
+                    const isCurrentMonth = isSameMonth(day, currentDate);
+                    const isCurrentDay = isToday(day);
+                    const hasEvents = tasksForDay.length > 0;
+                    const hasOverdueOrUrgent = tasksForDay.some(
+                      (t) => getTaskStatus(t) === "overdue" || getTaskStatus(t) === "urgent"
+                    );
+                    const hasDue = tasksForDay.some((t) => getTaskStatus(t) === "due");
+                    const hasCompleted = tasksForDay.some((t) => getTaskStatus(t) === "completed");
+                    return (
+                      <button
+                        key={day.toISOString()}
+                        onClick={() => handleDateClick(day)}
+                        className={cn(
+                          "relative aspect-square rounded-md flex flex-col items-center justify-center gap-px text-xs font-semibold transition-all border",
+                          isCurrentMonth
+                            ? "bg-secondary/50 border-border/50 hover:bg-secondary/70"
+                            : "bg-secondary/10 text-muted-foreground/50 border-transparent",
+                          isCurrentDay && "border-primary ring-2 ring-primary/30 shadow-glow",
+                          hasOverdueOrUrgent && "animate-pulse-border border-destructive",
+                          hasEvents && "hover:shadow-lg cursor-pointer"
+                        )}
+                      >
+                        <span className={cn(isCurrentDay && "text-primary font-bold")}>
+                          {format(day, "d")}
+                        </span>
+                        {hasEvents && (
+                          <div className="flex items-center gap-0.5">
+                            {hasOverdueOrUrgent && <div className="h-1 w-1 rounded-full bg-destructive" />}
+                            {hasDue && <div className="h-1 w-1 rounded-full bg-warning" />}
+                            {hasCompleted && <div className="h-1 w-1 rounded-full bg-success" />}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -606,7 +666,7 @@ export default function Calendar() {
 
           {/* Right: Optional Calendar Panel */}
           {showCalendar && (
-            <div className="space-y-6 h-fit sticky top-6">
+            <div className="hidden lg:block space-y-6 h-fit sticky top-6">
               {/* Calendar */}
               <div className="glass-card p-4 rounded-lg border border-border/50">
                 {/* Calendar Header */}
@@ -653,34 +713,42 @@ export default function Calendar() {
                     const isCurrentMonth = isSameMonth(day, currentDate);
                     const isCurrentDay = isToday(day);
                     const hasEvents = tasksForDay.length > 0;
-                    const hasUrgent = tasksForDay.some(
-                      (task) =>
-                        getTaskStatus(task) === "urgent" ||
-                        getTaskStatus(task) === "overdue"
+                    const hasOverdueOrUrgent = tasksForDay.some(
+                      (t) => getTaskStatus(t) === "overdue" || getTaskStatus(t) === "urgent"
                     );
+                    const hasDue = tasksForDay.some((t) => getTaskStatus(t) === "due");
+                    const hasCompleted = tasksForDay.some((t) => getTaskStatus(t) === "completed");
 
                     return (
                       <button
                         key={day.toISOString()}
                         onClick={() => handleDateClick(day)}
                         className={cn(
-                          "relative aspect-square rounded-md flex items-center justify-center text-xs font-semibold transition-all border",
+                          "relative aspect-square rounded-md flex flex-col items-center justify-center gap-px text-xs font-semibold transition-all border",
                           isCurrentMonth
                             ? "bg-secondary/50 border-border/50 hover:bg-secondary/70"
                             : "bg-secondary/10 text-muted-foreground/50 border-transparent",
-                          isCurrentDay &&
-                            "border-primary ring-2 ring-primary/30 shadow-glow",
-                          hasUrgent && "animate-pulse-border border-destructive",
-                          hasEvents && "hover:shadow-lg"
+                          isCurrentDay && "border-primary ring-2 ring-primary/30 shadow-glow",
+                          hasOverdueOrUrgent && "animate-pulse-border border-destructive",
+                          hasEvents && "hover:shadow-lg cursor-pointer"
                         )}
                       >
-                        <span
-                          className={cn(
-                            isCurrentDay && "text-primary font-bold"
-                          )}
-                        >
+                        <span className={cn(isCurrentDay && "text-primary font-bold")}>
                           {format(day, "d")}
                         </span>
+                        {hasEvents && (
+                          <div className="flex items-center gap-0.5">
+                            {hasOverdueOrUrgent && (
+                              <div className="h-1 w-1 rounded-full bg-destructive" />
+                            )}
+                            {hasDue && (
+                              <div className="h-1 w-1 rounded-full bg-warning" />
+                            )}
+                            {hasCompleted && (
+                              <div className="h-1 w-1 rounded-full bg-success" />
+                            )}
+                          </div>
+                        )}
                       </button>
                     );
                   })}
@@ -699,54 +767,75 @@ export default function Calendar() {
               </DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
               {selectedDateTasks.map((task) => {
                 const status = getTaskStatus(task);
+                const daysLeft = differenceInDays(task.dueDate, new Date());
+
+                const dotColor =
+                  status === "overdue" || status === "urgent"
+                    ? "bg-destructive"
+                    : status === "due"
+                    ? "bg-warning"
+                    : "bg-success";
+
+                const stripeColor =
+                  status === "overdue" || status === "urgent"
+                    ? "border-l-destructive bg-destructive/5"
+                    : status === "due"
+                    ? "border-l-warning bg-warning/5"
+                    : "border-l-success bg-success/5";
+
+                const dueLine =
+                  status === "completed"
+                    ? "Completed"
+                    : daysLeft < 0
+                    ? `${Math.abs(daysLeft)}d overdue`
+                    : daysLeft === 0
+                    ? "Due today"
+                    : daysLeft === 1
+                    ? "Due tomorrow"
+                    : `Due in ${daysLeft}d`;
+
                 return (
                   <div
                     key={task.id}
-                    className={cn(
-                      "glass-card cursor-pointer p-4 transition-all hover:shadow-xl border-2",
-                      status === "urgent" || status === "overdue"
-                        ? "border-destructive animate-pulse-border"
-                        : "border-border/50"
-                    )}
                     onClick={() => navigate(`/projects/${task.projectId}`)}
+                    className={cn(
+                      "cursor-pointer rounded-lg border border-border/30 border-l-4 p-3 transition-all hover:shadow-md",
+                      stripeColor,
+                      (status === "overdue" || status === "urgent") && "animate-pulse-border"
+                    )}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="text-xs text-muted-foreground font-medium">
-                          {task.projectName}
-                        </p>
-                        <h4 className="mt-1 font-bold text-foreground text-lg">
-                          {task.name}
-                        </h4>
-                      </div>
-                      <StatusBadge
-                        status={
-                          status === "completed"
-                            ? "completed"
-                            : status === "overdue"
-                            ? "overdue"
-                            : status === "urgent"
-                            ? "urgent"
-                            : task.status === "in-progress"
-                            ? "in-progress"
-                            : "todo"
-                        }
-                      />
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className={cn("h-2 w-2 rounded-full shrink-0", dotColor,
+                        (status === "overdue" || status === "urgent") && "animate-pulse"
+                      )} />
+                      <p className="text-xs text-muted-foreground font-medium truncate">
+                        {task.projectName}
+                      </p>
                     </div>
-
-                    <div className="mt-3 flex items-center gap-2">
-                      <Avatar className="h-7 w-7">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-foreground text-sm leading-snug truncate">
+                          {task.name}
+                        </p>
+                        <p className={cn(
+                          "text-xs mt-0.5 font-medium",
+                          status === "overdue" ? "text-destructive"
+                          : status === "urgent"  ? "text-destructive"
+                          : status === "due"     ? "text-warning"
+                          : "text-success"
+                        )}>
+                          {dueLine}
+                        </p>
+                      </div>
+                      <Avatar className="h-6 w-6 shrink-0">
                         <AvatarImage src={task.assignedTo.avatar} />
-                        <AvatarFallback className="text-xs">
+                        <AvatarFallback className="text-[10px]">
                           {task.assignedTo.name.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="text-sm font-medium text-muted-foreground">
-                        {task.assignedTo.name}
-                      </span>
                     </div>
                   </div>
                 );
@@ -773,11 +862,6 @@ export default function Calendar() {
         }
       `}</style>
 
-      {/* Google Calendar Sync Modal */}
-      <GoogleCalendarSync 
-        open={showGoogleSync} 
-        onClose={() => setShowGoogleSync(false)} 
-      />
     </MainLayout>
   );
 }
