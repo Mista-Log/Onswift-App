@@ -25,6 +25,7 @@ export interface Deliverable {
     avatar: string;
   };
   files: DeliverableFile[];
+  urls: string[];
   status: "pending" | "approved" | "revision";
   revisionCount: number;
   submittedAt: string;
@@ -133,7 +134,7 @@ export function DeliverableCard({ deliverable, onClick }: DeliverableCardProps) 
       {/* Revision Counter */}
       {deliverable.revisionCount > 0 && (
         <div className="mt-2 text-xs text-muted-foreground">
-          Revision {deliverable.revisionCount} of 3
+          Revision {deliverable.revisionCount}
         </div>
       )}
     </div>

@@ -250,23 +250,48 @@ class DeliverableListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         user = self.request.user
         if user.role == "creator":
-            # Creators see deliverables for their projects
-            return Deliverable.objects.filter(task__project__creator=user)
+            return Deliverable.objects.filter(
+                task__project__creator=user
+            ).prefetch_related('files', 'links')
         else:
-            # Talents see their own deliverables
-            return Deliverable.objects.filter(submitted_by=user)
+            return Deliverable.objects.filter(
+                submitted_by=user
+            ).prefetch_related('files', 'links')
+
+    def perform_create(self, serializer):
+        from .models import DeliverableFile, DeliverableLink
+        deliverable = serializer.save()
+
+        # Handle file uploads — getlist works correctly with multipart QueryDict
+        for f in self.request.FILES.getlist('files', []):
+            DeliverableFile.objects.create(
+                deliverable=deliverable,
+                file=f,
+                name=f.name,
+                size=f.size,
+                file_type=f.content_type,
+            )
+
+        # Handle URL links — getlist works correctly with multipart QueryDict
+        for url in self.request.data.getlist('urls', []):
+            if url and url.strip():
+                DeliverableLink.objects.create(deliverable=deliverable, url=url.strip())
 
 
-class DeliverableDetailView(generics.RetrieveAPIView):
+class DeliverableDetailView(generics.RetrieveDestroyAPIView):
     serializer_class = DeliverableSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
         if user.role == "creator":
-            return Deliverable.objects.filter(task__project__creator=user)
+            return Deliverable.objects.filter(
+                task__project__creator=user
+            ).prefetch_related('files', 'links')
         else:
-            return Deliverable.objects.filter(submitted_by=user)
+            return Deliverable.objects.filter(
+                submitted_by=user
+            ).prefetch_related('files', 'links')
 
 
 class DeliverableReviewView(generics.UpdateAPIView):

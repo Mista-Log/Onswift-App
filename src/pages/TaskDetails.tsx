@@ -44,8 +44,6 @@ export default function TaskDetails() {
   const [isRevisionDialogOpen, setIsRevisionDialogOpen] = useState(false);
   const [revisionFeedback, setRevisionFeedback] = useState("");
 
-  const maxRevisions = 3;
-
   const handleApprove = (deliverableId: string) => {
     setDeliverables(deliverables.map(d =>
       d.id === deliverableId ? { ...d, status: "approved" as const } : d
@@ -181,7 +179,7 @@ export default function TaskDetails() {
                       </p>
                       {deliverable.revisionCount > 0 && (
                         <p className="mt-1 text-sm text-warning">
-                          Revision {deliverable.revisionCount} of {maxRevisions}
+                          Revision {deliverable.revisionCount}
                         </p>
                       )}
                       {deliverable.feedback && deliverable.status === "revision" && (

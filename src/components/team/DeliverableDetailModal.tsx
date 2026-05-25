@@ -11,7 +11,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Download, FileText, Image, Video, File, Send, Check, RotateCcw } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Download, FileText, Image, Video, File, Send, Check, RotateCcw, Upload, X, Link, Trash2 } from "lucide-react";
 import { Deliverable, DeliverableFile } from "./DeliverableCard";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -31,7 +42,10 @@ interface DeliverableDetailModalProps {
   onOpenChange: (open: boolean) => void;
   isCreator?: boolean;
   onApprove?: (deliverableId: string) => void;
+  onUnapprove?: (deliverableId: string) => void;
   onRequestRevision?: (deliverableId: string, feedback: string) => void;
+  onResubmit?: (taskId: string, title: string, description: string, urls: string[]) => void;
+  onDelete?: (deliverableId: string) => void;
 }
 
 // Mock comments
@@ -84,7 +98,10 @@ export function DeliverableDetailModal({
   onOpenChange,
   isCreator = true,
   onApprove,
+  onUnapprove,
   onRequestRevision,
+  onResubmit,
+  onDelete,
 }: DeliverableDetailModalProps) {
   const { teamMembers } = useTeam();
   // const { fetchComments, sendComment } = useMessaging();
@@ -92,7 +109,11 @@ export function DeliverableDetailModal({
   // Local-only comments for now
   useEffect(() => {
     if (deliverable && open) {
-      setComments([]); // Reset comments when modal opens
+      setComments([]);
+      setResubmitUrls([]);
+      setResubmitNewUrl("");
+      setResubmitTitle(deliverable.title);
+      setResubmitDescription("");
     }
   }, [deliverable, open]);
   const [newComment, setNewComment] = useState("");
@@ -100,11 +121,15 @@ export function DeliverableDetailModal({
   const [mentionFilter, setMentionFilter] = useState("");
   const [revisionFeedback, setRevisionFeedback] = useState("");
   const [showRevisionInput, setShowRevisionInput] = useState(false);
+  const [resubmitUrls, setResubmitUrls] = useState<string[]>([]);
+  const [resubmitNewUrl, setResubmitNewUrl] = useState("");
+  const [resubmitTitle, setResubmitTitle] = useState("");
+  const [resubmitDescription, setResubmitDescription] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   if (!deliverable) return null;
 
-  const canRequestRevision = deliverable.revisionCount < 3;
+  const canRequestRevision = deliverable.status !== "approved";
 
   const handleCommentChange = (value: string) => {
     setNewComment(value);
@@ -235,11 +260,11 @@ export function DeliverableDetailModal({
             </div>
           )}
 
-          {/* Files */}
+          {/* Files & Links */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-medium text-foreground">
-                Attachments ({deliverable.files.length})
+                Attachments ({deliverable.files.length + (deliverable.urls?.length ?? 0)})
               </h4>
               {deliverable.files.length > 0 && (
                 <Button
@@ -252,47 +277,73 @@ export function DeliverableDetailModal({
                 </Button>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {deliverable.files.map((file, index) => {
-                const FileIcon = getFileIcon(file.type);
-                const isImage = file.type.startsWith("image/");
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center gap-3 rounded-lg bg-secondary/50 p-3"
-                  >
-                    {isImage ? (
-                      <div className="h-12 w-12 rounded-lg bg-secondary overflow-hidden">
-                        <img
-                          src={file.url}
-                          alt={file.name}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary">
-                        <FileIcon className="h-6 w-6 text-muted-foreground" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {file.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatFileSize(file.size)}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => downloadFile(file)}
+            {/* File attachments */}
+            {deliverable.files.length > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                {deliverable.files.map((file, index) => {
+                  const FileIcon = getFileIcon(file.type);
+                  const isImage = file.type.startsWith("image/");
+                  return (
+                    <div
+                      key={index}
+                      className="flex items-center gap-3 rounded-lg bg-secondary/50 p-3"
                     >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
+                      {isImage ? (
+                        <div className="h-12 w-12 rounded-lg bg-secondary overflow-hidden">
+                          <img
+                            src={file.url}
+                            alt={file.name}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary">
+                          <FileIcon className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {file.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatFileSize(file.size)}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => downloadFile(file)}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* URL attachments */}
+            {deliverable.urls && deliverable.urls.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {deliverable.urls.map((url, i) => (
+                  <a
+                    key={i}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-lg bg-secondary/50 px-3 py-2 text-sm text-primary underline-offset-2 hover:underline"
+                  >
+                    <Link className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{url}</span>
+                  </a>
+                ))}
+              </div>
+            )}
+
+            {/* Empty state */}
+            {deliverable.files.length === 0 && (!deliverable.urls || deliverable.urls.length === 0) && (
+              <p className="text-sm text-muted-foreground py-2">No attachments</p>
+            )}
           </div>
 
           {/* Comments */}
@@ -369,12 +420,11 @@ export function DeliverableDetailModal({
           </div>
 
           {/* Revision Counter */}
-          <div className="rounded-lg bg-secondary/50 p-3 text-sm">
-            Revisions: <span className="font-medium">{deliverable.revisionCount} of 3</span>
-            {deliverable.revisionCount >= 3 && (
-              <span className="ml-2 text-warning">(Maximum reached)</span>
-            )}
-          </div>
+          {deliverable.revisionCount > 0 && (
+            <div className="rounded-lg bg-secondary/50 p-3 text-sm">
+              Revisions requested: <span className="font-medium">{deliverable.revisionCount}</span>
+            </div>
+          )}
 
           {/* Revision Feedback Input */}
           {showRevisionInput && (
@@ -395,15 +445,113 @@ export function DeliverableDetailModal({
               </div>
             </div>
           )}
-                  {deliverable.feedback && (
-                    <div className="rounded-lg bg-warning/10 p-3 text-sm text-warning mt-4">
-                      <strong>Revision Feedback:</strong> {deliverable.feedback}
-                    </div>
-                  )}
+          {/* Creator revision feedback — high contrast */}
+          {deliverable.feedback && (
+            <div className="rounded-lg border border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950 p-4 text-sm">
+              <p className="mb-1 font-semibold text-orange-800 dark:text-orange-200">Revision Feedback</p>
+              <p className="text-orange-900 dark:text-orange-100 leading-relaxed">{deliverable.feedback}</p>
+            </div>
+          )}
+
+          {/* Talent: revision resubmission form */}
+          {!isCreator && deliverable.status === "revision" && onResubmit && (
+            <div className="space-y-3 rounded-lg border border-border/50 p-4">
+              <p className="text-sm font-semibold text-foreground">Your Revision</p>
+
+              {/* Title */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Title</label>
+                <input
+                  type="text"
+                  value={resubmitTitle}
+                  onChange={(e) => setResubmitTitle(e.target.value)}
+                  placeholder="Revision title…"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Notes (optional)</label>
+                <Textarea
+                  value={resubmitDescription}
+                  onChange={(e) => setResubmitDescription(e.target.value)}
+                  placeholder="Describe what you changed…"
+                  rows={2}
+                />
+              </div>
+
+              {/* URLs */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Attach URLs</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Link className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      type="url"
+                      value={resubmitNewUrl}
+                      onChange={(e) => setResubmitNewUrl(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && resubmitNewUrl.trim()) {
+                          e.preventDefault();
+                          setResubmitUrls((prev) => [...prev, resubmitNewUrl.trim()]);
+                          setResubmitNewUrl("");
+                        }
+                      }}
+                      placeholder="https://drive.google.com/…"
+                      className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!resubmitNewUrl.trim()}
+                    onClick={() => {
+                      if (resubmitNewUrl.trim()) {
+                        setResubmitUrls((prev) => [...prev, resubmitNewUrl.trim()]);
+                        setResubmitNewUrl("");
+                      }
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+                {resubmitUrls.length > 0 && (
+                  <div className="space-y-1.5 mt-1">
+                    {resubmitUrls.map((url, i) => (
+                      <div key={i} className="flex items-center justify-between rounded-md bg-secondary/50 px-3 py-2 text-sm">
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="truncate text-primary underline-offset-2 hover:underline max-w-xs">
+                          {url}
+                        </a>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setResubmitUrls((prev) => prev.filter((_, j) => j !== i))}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Actions (Creator only) */}
-        {isCreator && deliverable.status === "pending" && !showRevisionInput && (
+        {/* Talent resubmit CTA */}
+        {!isCreator && deliverable.status === "revision" && onResubmit && (
+          <div className="flex justify-end pt-4 border-t border-border/50">
+            <Button
+              disabled={!resubmitTitle.trim()}
+              onClick={() => onResubmit(deliverable.taskId, resubmitTitle.trim(), resubmitDescription.trim(), resubmitUrls)}
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Submit Revision
+            </Button>
+          </div>
+        )}
+
+        {/* Actions (Creator only) — pending/revision state */}
+        {isCreator && deliverable.status !== "approved" && !showRevisionInput && (
           <div className="flex justify-end gap-3 pt-4 border-t border-border/50">
             <Button
               variant="warning"
@@ -417,6 +565,65 @@ export function DeliverableDetailModal({
               <Check className="h-4 w-4 mr-2" />
               Approve
             </Button>
+          </div>
+        )}
+
+        {/* Unapprove (Creator only) — approved state */}
+        {isCreator && deliverable.status === "approved" && onUnapprove && (
+          <div className="flex justify-end pt-4 border-t border-border/50">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="gap-2 text-muted-foreground hover:text-foreground">
+                  <RotateCcw className="h-4 w-4" />
+                  Unapprove
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Unapprove this deliverable?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    "{deliverable.title}" will be set back to pending review and the associated task will reopen. The talent will be notified.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onUnapprove(deliverable.id)}>
+                    Yes, Unapprove
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
+
+        {/* Delete */}
+        {onDelete && (
+          <div className="flex justify-start pt-3 border-t border-border/50">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  Delete Deliverable
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this deliverable?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently remove "{deliverable.title}" and all its attachments. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => onDelete(deliverable.id)}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         )}
       </DialogContent>

@@ -264,6 +264,7 @@ class AccountStatsSerializer(serializers.Serializer):
     projects_count = serializers.IntegerField()
     team_members_count = serializers.IntegerField()
     completed_tasks_count = serializers.IntegerField()
+    added_by = serializers.CharField(allow_null=True, required=False)
 
 
 class ProfileUpdateBasicSerializer(serializers.ModelSerializer):

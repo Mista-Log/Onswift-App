@@ -505,7 +505,7 @@ export default function CRMBuilder() {
         <div className="space-y-5 animate-fade-in w-full min-w-0">
 
           {/* Header row */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <Button
                 variant="ghost"
@@ -586,12 +586,12 @@ export default function CRMBuilder() {
           </div>
 
           {/* Table */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden w-full">
+          <div className="rounded-xl border border-border bg-card overflow-hidden w-full min-w-0">
 
             {/* Horizontal-only scroll area */}
             <div
               ref={scrollRef}
-              className="overflow-x-auto w-full"
+              className="overflow-x-auto overflow-y-hidden w-full max-w-full min-w-0"
               style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(var(--border)) transparent" }}
             >
               <table
