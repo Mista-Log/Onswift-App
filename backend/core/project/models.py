@@ -174,6 +174,16 @@ class DeliverableFile(models.Model):
         return self.name
 
 
+class DeliverableLink(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    deliverable = models.ForeignKey(Deliverable, on_delete=models.CASCADE, related_name="links")
+    url = models.URLField(max_length=2048)
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.url
+
+
 class Message(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     sender = models.ForeignKey(

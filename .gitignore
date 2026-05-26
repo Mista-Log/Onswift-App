@@ -42,3 +42,5 @@ temp-landing-repo/
 .env*.local
 
 .claude
+CLAUDE.md
+ONBOARDING.md

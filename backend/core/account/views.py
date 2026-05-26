@@ -249,22 +249,33 @@ class AccountStatsView(APIView):
             # Talent
             from project.models import Task
             from notification.models import HireRequest
-            
-            # Count projects where talent is assigned tasks
+
             projects_count = Task.objects.filter(
                 assignee=user
             ).values('project').distinct().count()
-            
-            # Count creators the talent works with
-            team_members_count = HireRequest.objects.filter(
+
+            hire_requests = HireRequest.objects.filter(
                 talent=user,
                 status='accepted'
-            ).count()
-            
+            ).select_related('creator')
+
+            team_members_count = hire_requests.count()
+
             completed_tasks_count = Task.objects.filter(
                 assignee=user,
                 status='completed'
             ).count()
+
+            first_hire = hire_requests.order_by('created_at').first()
+            added_by = (first_hire.creator.full_name or first_hire.creator.email) if first_hire else None
+
+            return Response({
+                'member_since': member_since,
+                'projects_count': projects_count,
+                'team_members_count': team_members_count,
+                'completed_tasks_count': completed_tasks_count,
+                'added_by': added_by,
+            })
 
         return Response({
             'member_since': member_since,

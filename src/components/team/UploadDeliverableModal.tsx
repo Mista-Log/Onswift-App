@@ -37,8 +37,8 @@ interface UploadDeliverableModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: DeliverableFormData) => void;
-  // Optional: parent can pass deliverables to derive revision tasks (recommended)
   revisionDeliverables?: Deliverable[];
+  prefillTaskId?: string;
 }
 
 function getFileIcon(type: string) {
@@ -59,6 +59,7 @@ export function UploadDeliverableModal({
   onOpenChange,
   onSubmit,
   revisionDeliverables,
+  prefillTaskId,
 }: UploadDeliverableModalProps) {
   const { projects } = useProjects();
   const [myTasks, setMyTasks] = useState<Task[]>([]);
@@ -87,6 +88,15 @@ export function UploadDeliverableModal({
       fetchRevisionDeliverables();
     }
   }, [open]);
+
+  // Pre-select task once tasks are loaded (from navigation state)
+  useEffect(() => {
+    if (prefillTaskId && allTasks.length > 0) {
+      const match = allTasks.find((t) => t.id === prefillTaskId);
+      if (match) setTaskId(prefillTaskId);
+    }
+  }, [prefillTaskId, allTasks.length]);
+
 
   const fetchRevisionDeliverables = async () => {
     try {

@@ -103,13 +103,21 @@ interface ColPanelState {
   columnId: string | null;
   name: string;
   type: CRMFieldType;
-  options: string;
+  options: string[];
   anchor: { top: number; left: number; width: number } | null;
 }
 
 const CLOSED_PANEL: ColPanelState = {
-  open: false, columnId: null, name: "", type: "text", options: "", anchor: null,
+  open: false, columnId: null, name: "", type: "text", options: [], anchor: null,
 };
+
+interface MultiSelectEdit {
+  rowId: string;
+  colId: string;
+  colOptions: string[];
+  selected: string[];
+  anchor: { top: number; left: number; width: number };
+}
 
 // ── Auto-resize textarea cell ──────────────────────────────────────────────────
 
@@ -179,6 +187,10 @@ export default function CRMBuilder() {
 
   // Column popover
   const [colPanel, setColPanel] = useState<ColPanelState>(CLOSED_PANEL);
+  const [newOption, setNewOption] = useState("");
+
+  // Multi-select cell popover
+  const [multiSelectEdit, setMultiSelectEdit] = useState<MultiSelectEdit | null>(null);
 
   // Horizontal scroll
   const scrollRef   = useRef<HTMLDivElement>(null);
@@ -263,17 +275,40 @@ export default function CRMBuilder() {
     event: React.MouseEvent<HTMLTableCellElement>
   ) => {
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    setNewOption("");
     setColPanel({
       open: true,
       columnId: col?.id ?? null,
       name: col?.name ?? "",
       type: col?.field_type ?? "text",
-      options: (col?.options ?? []).join(", "),
+      options: col?.options ?? [],
       anchor: { top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: rect.width },
     });
   };
 
-  const closeColPanel = () => setColPanel(CLOSED_PANEL);
+  const closeColPanel = () => { setColPanel(CLOSED_PANEL); setNewOption(""); };
+
+  const openMultiSelectEdit = (
+    e: React.MouseEvent<HTMLDivElement>,
+    rowId: string,
+    colId: string,
+    col: CRMColumn,
+    currentValue: string[]
+  ) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMultiSelectEdit({
+      rowId, colId,
+      colOptions: col.options ?? [],
+      selected: currentValue,
+      anchor: { top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: rect.width },
+    });
+  };
+
+  const closeMultiSelectEdit = async () => {
+    if (!multiSelectEdit || !activeSheet) { setMultiSelectEdit(null); return; }
+    await handleCellBlur(multiSelectEdit.rowId, multiSelectEdit.colId, multiSelectEdit.selected);
+    setMultiSelectEdit(null);
+  };
 
   // ── Sheet handlers ─────────────────────────────────────────────────────────
 
@@ -357,7 +392,7 @@ export default function CRMBuilder() {
 
     const options =
       colPanel.type === "single_select" || colPanel.type === "multi_select"
-        ? colPanel.options.split(",").map((v) => v.trim()).filter(Boolean)
+        ? colPanel.options
         : [];
 
     if ((colPanel.type === "single_select" || colPanel.type === "multi_select") && options.length === 0) {
@@ -470,7 +505,7 @@ export default function CRMBuilder() {
         <div className="space-y-5 animate-fade-in w-full min-w-0">
 
           {/* Header row */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <Button
                 variant="ghost"
@@ -489,8 +524,9 @@ export default function CRMBuilder() {
               {/* Sharing — hidden behind icon popover */}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" title="Sharing access">
-                    <Share2 className="h-4 w-4" />
+                  <Button variant="outline" size="sm" className="gap-1.5" title="Sharing access">
+                    <Share2 className="h-3.5 w-3.5" />
+                    Share
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-80 p-0">
@@ -550,12 +586,12 @@ export default function CRMBuilder() {
           </div>
 
           {/* Table */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden w-full">
+          <div className="rounded-xl border border-border bg-card overflow-hidden w-full min-w-0">
 
             {/* Horizontal-only scroll area */}
             <div
               ref={scrollRef}
-              className="overflow-x-auto w-full"
+              className="overflow-x-auto overflow-y-hidden w-full max-w-full min-w-0"
               style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(var(--border)) transparent" }}
             >
               <table
@@ -668,18 +704,25 @@ export default function CRMBuilder() {
                               ))}
                             </select>
                           ) : col.field_type === "multi_select" ? (
-                            <AutoTextarea
-                              type="text"
-                              defaultValue={
-                                Array.isArray(row.values[col.id])
-                                  ? (row.values[col.id] as string[]).join(", ")
-                                  : ""
-                              }
-                              onBlur={(v) =>
-                                handleCellBlur(row.id, col.id, v.split(",").map((s) => s.trim()).filter(Boolean))
-                              }
-                              placeholder="Comma-separated"
-                            />
+                            <div
+                              className="min-h-[28px] cursor-pointer flex flex-wrap gap-1 items-center py-0.5"
+                              onClick={(e) => {
+                                const current = Array.isArray(row.values[col.id])
+                                  ? (row.values[col.id] as string[])
+                                  : [];
+                                openMultiSelectEdit(e, row.id, col.id, col, current);
+                              }}
+                            >
+                              {Array.isArray(row.values[col.id]) && (row.values[col.id] as string[]).length > 0 ? (
+                                (row.values[col.id] as string[]).map((v) => (
+                                  <span key={v} className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium">
+                                    {v}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-xs text-muted-foreground/50">Select…</span>
+                              )}
+                            </div>
                           ) : (
                             <AutoTextarea
                               type={
@@ -745,6 +788,89 @@ export default function CRMBuilder() {
             </div>
           </div>
         </div>
+
+        {/* ── Multi-select cell popover ─────────────────────────────────────── */}
+        {multiSelectEdit && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={closeMultiSelectEdit} />
+            <div
+              className="fixed z-50 w-52 rounded-xl border border-border bg-card shadow-xl overflow-hidden"
+              style={{
+                top: multiSelectEdit.anchor.top + 4,
+                left: Math.min(
+                  multiSelectEdit.anchor.left,
+                  window.innerWidth - 220
+                ),
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Select Options
+                </span>
+                <button
+                  onClick={closeMultiSelectEdit}
+                  className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="p-1.5 space-y-0.5 max-h-52 overflow-y-auto">
+                {multiSelectEdit.colOptions.length === 0 ? (
+                  <p className="text-xs text-muted-foreground px-2 py-3 text-center">
+                    No options defined. Edit the column header to add some.
+                  </p>
+                ) : (
+                  multiSelectEdit.colOptions.map((opt) => {
+                    const isSelected = multiSelectEdit.selected.includes(opt);
+                    return (
+                      <button
+                        key={opt}
+                        onClick={() =>
+                          setMultiSelectEdit((p) =>
+                            p && {
+                              ...p,
+                              selected: isSelected
+                                ? p.selected.filter((v) => v !== opt)
+                                : [...p.selected, opt],
+                            }
+                          )
+                        }
+                        className={cn(
+                          "w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors",
+                          isSelected
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "hover:bg-secondary text-foreground"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "h-3.5 w-3.5 rounded border shrink-0 flex items-center justify-center transition-colors",
+                            isSelected ? "bg-primary border-primary" : "border-border"
+                          )}
+                        >
+                          {isSelected && (
+                            <span className="text-primary-foreground text-[8px] font-bold leading-none">✓</span>
+                          )}
+                        </div>
+                        <span className="truncate">{opt}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              {multiSelectEdit.selected.length > 0 && (
+                <div className="px-2 py-1.5 border-t border-border/60 flex flex-wrap gap-1">
+                  {multiSelectEdit.selected.map((v) => (
+                    <span key={v} className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium">
+                      {v}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {/* ── Inline column popover (Notion-style) ──────────────────────────── */}
         {colPanel.open && colPanel.anchor && (
@@ -823,14 +949,58 @@ export default function CRMBuilder() {
                 {(colPanel.type === "single_select" || colPanel.type === "multi_select") && (
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">
-                      Options <span className="font-normal">(comma-separated)</span>
+                      Options
                     </label>
-                    <input
-                      value={colPanel.options}
-                      onChange={(e) => setColPanel((p) => ({ ...p, options: e.target.value }))}
-                      placeholder="Hot, Warm, Cold"
-                      className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary"
-                    />
+                    {/* Tag chips */}
+                    {colPanel.options.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {colPanel.options.map((opt, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-foreground border border-border/60"
+                          >
+                            {opt}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setColPanel((p) => ({ ...p, options: p.options.filter((_, j) => j !== i) }))
+                              }
+                              className="text-muted-foreground hover:text-destructive transition-colors"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {/* Add input */}
+                    <div className="flex items-stretch gap-1">
+                      <input
+                        value={newOption}
+                        onChange={(e) => setNewOption(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newOption.trim()) {
+                            e.preventDefault();
+                            setColPanel((p) => ({ ...p, options: [...p.options, newOption.trim()] }));
+                            setNewOption("");
+                          }
+                        }}
+                        placeholder="Type option, press Enter"
+                        className="min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newOption.trim()) {
+                            setColPanel((p) => ({ ...p, options: [...p.options, newOption.trim()] }));
+                            setNewOption("");
+                          }
+                        }}
+                        className="shrink-0 rounded-md border border-input bg-background px-2 py-1.5 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

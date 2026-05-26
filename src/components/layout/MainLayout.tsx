@@ -50,7 +50,7 @@ export function MainLayout({ children }: MainLayoutProps) {
       </div>
 
       <div
-        className={`flex-1 flex flex-col transition-all duration-300 ${
+        className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${
           isCollapsed ? 'md:ml-20' : 'md:ml-64'
         }`}
       >
@@ -60,7 +60,7 @@ export function MainLayout({ children }: MainLayoutProps) {
           isCollapsed={isCollapsed}
         />
 
-        <main className="flex-1 p-4 md:p-6">
+        <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6">
           {children}
         </main>
       </div>
