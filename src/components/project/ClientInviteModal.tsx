@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, UserPlus, ArrowRight } from "lucide-react";
 import { secureFetch } from "@/api/apiClient";
 
 interface OnboardedClient {
@@ -40,12 +41,12 @@ export function ClientInviteModal({
   onClose,
   onSuccess,
 }: ClientInviteModalProps) {
+  const navigate = useNavigate();
   const [clients, setClients] = useState<OnboardedClient[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Load onboarded clients
   useEffect(() => {
     if (isOpen) {
       loadClients();
@@ -58,31 +59,19 @@ export function ClientInviteModal({
       const response = await secureFetch("/api/v4/instances/");
       if (response.ok) {
         const data = await response.json();
-        // Extract unique clients from onboarding instances
         const clientMap = new Map<string, OnboardedClient>();
-        
-        if (Array.isArray(data)) {
-          data.forEach((instance: any) => {
-            if (instance.client) {
-              clientMap.set(instance.client, {
-                id: instance.client,
-                email: instance.client_email,
-                full_name: instance.client_name,
-              });
-            }
-          });
-        } else if (data.results && Array.isArray(data.results)) {
-          data.results.forEach((instance: any) => {
-            if (instance.client) {
-              clientMap.set(instance.client, {
-                id: instance.client,
-                email: instance.client_email,
-                full_name: instance.client_name,
-              });
-            }
-          });
-        }
-        
+
+        const items = Array.isArray(data) ? data : (data.results ?? []);
+        items.forEach((instance: any) => {
+          if (instance.client) {
+            clientMap.set(instance.client, {
+              id: instance.client,
+              email: instance.client_email,
+              full_name: instance.client_name,
+            });
+          }
+        });
+
         setClients(Array.from(clientMap.values()));
       } else {
         toast.error("Failed to load onboarded clients");
@@ -115,9 +104,7 @@ export function ClientInviteModal({
       const response = await secureFetch(`/api/v5/projects/${projectId}/add-client/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          client_id: selectedClient.id,
-        }),
+        body: JSON.stringify({ client_id: selectedClient.id }),
       });
 
       if (!response.ok) {
@@ -126,20 +113,10 @@ export function ClientInviteModal({
         return;
       }
 
-      toast.success(`${selectedClient.full_name} has been added to the project!`);
-
-      // Reset form
+      toast.success(`${selectedClient.full_name} added to ${projectName}!`);
       setSelectedClientId("");
-
-      // Callback with client data
-      if (onSuccess) {
-        onSuccess(selectedClient);
-      }
-
-      // Close after success
-      setTimeout(() => {
-        onClose();
-      }, 1000);
+      if (onSuccess) onSuccess(selectedClient);
+      setTimeout(() => onClose(), 1000);
     } catch (err) {
       console.error("Error adding client:", err);
       toast.error("Failed to add client");
@@ -148,44 +125,60 @@ export function ClientInviteModal({
     }
   };
 
+  const goToClientPortal = () => {
+    onClose();
+    navigate("/onboarding/new");
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add Client to {projectName}</DialogTitle>
           <DialogDescription>
-            Select an onboarded client to invite to this project.
+            Select a client who has completed onboarding.
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center py-10">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : clients.length === 0 ? (
-          <div className="py-8 text-center">
-            <p className="text-muted-foreground mb-4">No onboarded clients found</p>
-            <p className="text-sm text-muted-foreground">
-              Clients must complete onboarding before they can be invited to projects.
-            </p>
+          /* ── Empty state ── */
+          <div className="flex flex-col items-center gap-4 py-10 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+              <UserPlus className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <div className="space-y-1">
+              <p className="font-medium">No clients yet</p>
+              <p className="text-sm text-muted-foreground">
+                Create a client portal to onboard your first client.
+              </p>
+            </div>
+            <Button onClick={goToClientPortal} className="gap-2 mt-2">
+              <UserPlus className="h-4 w-4" />
+              Invite Your First Client
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose} className="text-muted-foreground">
+              Cancel
+            </Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Client Selection */}
+          /* ── Has clients ── */
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="client-select">Select Client *</Label>
+              <Label htmlFor="client-select">Select Client</Label>
               <Select value={selectedClientId} onValueChange={setSelectedClientId}>
                 <SelectTrigger id="client-select">
-                  <SelectValue placeholder="Choose a client..." />
+                  <SelectValue placeholder="Choose a client…" />
                 </SelectTrigger>
                 <SelectContent>
                   {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       <div className="flex items-center gap-2">
                         <span>{client.full_name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          ({client.email})
-                        </span>
+                        <span className="text-xs text-muted-foreground">({client.email})</span>
                       </div>
                     </SelectItem>
                   ))}
@@ -193,14 +186,27 @@ export function ClientInviteModal({
               </Select>
             </div>
 
-            {/* Submit */}
-            <div className="flex gap-3 justify-end pt-4">
+            {/* Portal nudge */}
+            <div className="rounded-md border border-dashed p-3 space-y-2">
+              <p className="text-sm text-muted-foreground">Don't see the right client?</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full gap-2 hover:border-primary hover:bg-primary hover:text-primary-foreground"
+                onClick={goToClientPortal}
+              >
+                Create a new client portal
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-1">
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting || !selectedClientId}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Generate & Send Invite
+                Add Client
               </Button>
             </div>
           </form>
@@ -209,4 +215,3 @@ export function ClientInviteModal({
     </Dialog>
   );
 }
-

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Project, Task, Deliverable, DeliverableFile, Message, Conversation
+from .models import Project, Task, Deliverable, DeliverableFile, DeliverableLink, Message, Conversation
 from .models import ProjectSample, TeamMember, Group, GroupMembership, GroupMessage, GroupMessageReadStatus
 from .models import GoogleCalendarToken, CalendarSyncedTask, ProjectClientMembership
 from django.conf import settings
@@ -138,8 +138,15 @@ class DeliverableFileSerializer(serializers.ModelSerializer):
         return None
 
 
+class DeliverableLinkSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DeliverableLink
+        fields = ["id", "url"]
+
+
 class DeliverableSerializer(serializers.ModelSerializer):
     files = DeliverableFileSerializer(many=True, read_only=True)
+    links = DeliverableLinkSerializer(many=True, read_only=True)
     submitted_by_name = serializers.CharField(source="submitted_by.full_name", read_only=True)
     submitted_by_avatar = serializers.SerializerMethodField()
     project_id = serializers.CharField(source="task.project.id", read_only=True)
@@ -151,7 +158,7 @@ class DeliverableSerializer(serializers.ModelSerializer):
         fields = [
             "id", "task", "title", "description", "submitted_by", "submitted_by_name",
             "submitted_by_avatar", "project_id", "project_name", "task_name",
-            "status", "feedback", "revision_count", "files", "created_at", "updated_at"
+            "status", "feedback", "revision_count", "files", "links", "created_at", "updated_at"
         ]
         read_only_fields = ["submitted_by", "revision_count", "created_at", "updated_at"]
 
@@ -166,29 +173,13 @@ class DeliverableSerializer(serializers.ModelSerializer):
 
 
 class DeliverableCreateSerializer(serializers.ModelSerializer):
-    files = serializers.ListField(
-        child=serializers.FileField(),
-        write_only=True,
-        required=False
-    )
-
     class Meta:
         model = Deliverable
-        fields = ["task", "title", "description", "files"]
+        fields = ["task", "title", "description"]
 
     def create(self, validated_data):
-        files_data = validated_data.pop("files", [])
         user = self.context["request"].user
         deliverable = Deliverable.objects.create(submitted_by=user, **validated_data)
-
-        for file in files_data:
-            DeliverableFile.objects.create(
-                deliverable=deliverable,
-                file=file,
-                name=file.name,
-                size=file.size,
-                file_type=file.content_type
-            )
 
         # Notify the project creator
         from notification.services import create_notification
@@ -216,6 +207,17 @@ class DeliverableReviewSerializer(serializers.ModelSerializer):
 
         instance = super().update(instance, validated_data)
 
+        # Auto-complete the task when approved; revert it when unapproved
+        if new_status == "approved":
+            task = instance.task
+            task.status = "completed"
+            task.save(update_fields=["status"])
+        elif new_status == "pending" and old_status == "approved":
+            task = instance.task
+            if task.status == "completed":
+                task.status = "in-progress"
+                task.save(update_fields=["status"])
+
         # Notify the talent
         from notification.services import create_notification
         if new_status == "approved":
@@ -224,6 +226,9 @@ class DeliverableReviewSerializer(serializers.ModelSerializer):
         elif new_status == "revision":
             title = "Revision Requested"
             message = f"Revision requested for '{instance.title}': {instance.feedback or 'No feedback provided'}"
+        elif new_status == "pending" and old_status == "approved":
+            title = "Approval Reversed"
+            message = f"The approval for '{instance.title}' has been reversed and is back under review."
         else:
             return instance
 

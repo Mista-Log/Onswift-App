@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,14 +21,28 @@ import { MessagingProvider } from "@/contexts/MessagingContext";
 
 function Deliverables() {
   const { user } = useAuth();
+  const location = useLocation();
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [prefillTaskId, setPrefillTaskId] = useState<string | undefined>(undefined);
   const [selectedDeliverable, setSelectedDeliverable] = useState<Deliverable | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   const isCreator = user?.role === "creator";
+
+  // Auto-open upload modal when navigated here from a task card
+  useEffect(() => {
+    const state = location.state as { prefillTaskId?: string } | null;
+    if (state?.prefillTaskId) {
+      setPrefillTaskId(state.prefillTaskId);
+      setUploadModalOpen(true);
+      // Clear state so back-navigation doesn't re-open the modal
+      window.history.replaceState({}, "", location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     fetchDeliverables();
@@ -59,6 +74,7 @@ function Deliverables() {
             size: f.size,
             type: f.file_type,
           })) || [],
+          urls: d.links?.map((l: any) => l.url) || [],
           status: d.status,
           revisionCount: d.revision_count,
           feedback: d.feedback,
@@ -68,7 +84,7 @@ function Deliverables() {
       }
     } catch (error) {
       console.error("Error fetching deliverables:", error);
-      toast.error("Hmm, I'm having trouble uploading your deliverable. Please try again.");
+      toast.error("Unable to fetch deliverables now. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -86,6 +102,12 @@ function Deliverables() {
       if (Array.isArray(files)) {
         files.forEach((file) => {
           formData.append("files", file);
+        });
+      }
+
+      if (Array.isArray(data.urls)) {
+        data.urls.forEach((url) => {
+          formData.append("urls", url);
         });
       }
 
@@ -109,7 +131,7 @@ function Deliverables() {
     }
   };
 
-  const handleReviewDeliverable = async (deliverableId: string, status: "approved" | "revision", feedback?: string) => {
+  const handleReviewDeliverable = async (deliverableId: string, status: "approved" | "revision" | "pending", feedback?: string) => {
     try {
       const response = await secureFetch(`/api/v2/deliverables/${deliverableId}/review/`, {
         method: "PATCH",
@@ -117,21 +139,39 @@ function Deliverables() {
       });
 
       if (response.ok) {
-        toast.success(status === "approved" ? "Deliverable approved!" : "Revision requested");
+        const msg = status === "approved" ? "Deliverable approved!" : status === "pending" ? "Approval reversed." : "Revision requested";
+        toast.success(msg);
         setSelectedDeliverable(null);
         fetchDeliverables();
       } else {
-        toast.error("Hmm, I'm having trouble uploading your deliverable. Please try again.");
+        toast.error("Having trouble reviewing your deliverable. Please try again.");
       }
     } catch (error) {
       console.error("Error reviewing deliverable:", error);
-      toast.error("Hmm, I'm having trouble uploading your deliverable. Please try again.");
+      toast.error("Hmm, I'm having trouble reviewing your deliverable. Please try again.");
+    }
+  };
+
+  const handleDeleteDeliverable = async (deliverableId: string) => {
+    try {
+      const response = await secureFetch(`/api/v2/deliverables/${deliverableId}/`, {
+        method: "DELETE",
+      });
+
+      if (response.ok || response.status === 204) {
+        toast.success("Deliverable deleted");
+        setSelectedDeliverable(null);
+        fetchDeliverables();
+      } else {
+        toast.error("Unable to delete deliverable. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error deleting deliverable:", error);
+      toast.error("Unable to delete deliverable. Please try again.");
     }
   };
 
   const filteredDeliverables = deliverables.filter((d) => {
-    // For talents, hide their own deliverables that are in 'revision' status
-    if (!isCreator && d.status === 'revision' && d.submittedBy.id === user?.id) return false;
     const matchesSearch =
       d.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       d.projectName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -147,13 +187,7 @@ function Deliverables() {
     revision: deliverables.filter(d => d.status === "revision").length,
   };
 
-  // Show upload button for talents if:
-  // - No deliverables (existing logic), or
-  // - Any deliverable is in 'revision' status and assigned to them
-  const canReupload = !isCreator && (
-    deliverables.length === 0 ||
-    deliverables.some(d => d.status === "revision" && d.submittedBy.id === user?.id)
-  );
+  const canReupload = !isCreator;
 
   return (
     <MessagingProvider>
@@ -178,7 +212,7 @@ function Deliverables() {
           </div>
 
           {/* Stats */}
-          <div className="grid gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="glass-card p-4">
               <p className="text-sm text-muted-foreground">Total</p>
               <p className="text-2xl font-bold text-foreground">{stats.total}</p>
@@ -198,8 +232,53 @@ function Deliverables() {
           </div>
 
           {/* Filters */}
-          <div className="glass-card p-4">
-            <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="glass-card p-3 sm:p-4">
+            {/* Mobile: icon buttons + expandable search */}
+            <div className="sm:hidden">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => setMobileSearchOpen((v) => !v)}
+                  aria-label="Search"
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-9 w-9 shrink-0 p-0 justify-center [&>svg:last-child]:hidden">
+                    <Filter className="h-4 w-4" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending Review</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="revision">Needs Revision</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(searchQuery || statusFilter !== "all") && (
+                  <span className="text-xs text-muted-foreground ml-1">
+                    {statusFilter !== "all" ? statusFilter : ""}
+                    {searchQuery ? `"${searchQuery}"` : ""}
+                  </span>
+                )}
+              </div>
+              {mobileSearchOpen && (
+                <div className="relative mt-2">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    autoFocus
+                    placeholder="Search deliverables..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Desktop: full row */}
+            <div className="hidden sm:flex gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -210,7 +289,7 @@ function Deliverables() {
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-48">
+                <SelectTrigger className="w-48">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
@@ -264,9 +343,13 @@ function Deliverables() {
           {/* Upload Modal */}
           <UploadDeliverableModal
             open={uploadModalOpen}
-            onOpenChange={setUploadModalOpen}
+            onOpenChange={(open) => {
+              setUploadModalOpen(open);
+              if (!open) setPrefillTaskId(undefined);
+            }}
             onSubmit={handleUploadDeliverable}
             revisionDeliverables={deliverables}
+            prefillTaskId={prefillTaskId}
           />
 
           {/* Detail Modal */}
@@ -276,7 +359,13 @@ function Deliverables() {
             onOpenChange={() => setSelectedDeliverable(null)}
             isCreator={isCreator}
             onApprove={isCreator ? (id) => handleReviewDeliverable(id, "approved") : undefined}
+            onUnapprove={isCreator ? (id) => handleReviewDeliverable(id, "pending") : undefined}
             onRequestRevision={isCreator ? (id, feedback) => handleReviewDeliverable(id, "revision", feedback) : undefined}
+            onResubmit={!isCreator ? (taskId, title, description, urls) => {
+              setSelectedDeliverable(null);
+              handleUploadDeliverable({ projectId: "", taskId, title, description, urls, mentionedUserIds: [] });
+            } : undefined}
+            onDelete={handleDeleteDeliverable}
           />
         </div>
       </MainLayout>

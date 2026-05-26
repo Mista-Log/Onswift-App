@@ -18,6 +18,7 @@ export function NotificationDropdown() {
     isLoading,
     markAsRead,
     markAllAsRead,
+    deleteNotification,
   } = useNotifications();
   const [open, setOpen] = useState(false);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
@@ -104,6 +105,7 @@ export function NotificationDropdown() {
                 key={notification.id}
                 notification={notification}
                 onMarkAsRead={markAsRead}
+                onDelete={deleteNotification}
                 onClose={() => setOpen(false)}
               />
             ))}

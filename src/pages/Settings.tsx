@@ -30,6 +30,7 @@ interface AccountStats {
   projects_count: number;
   team_members_count: number;
   completed_tasks_count: number;
+  added_by?: string;
 }
 
 interface NotificationSettings {
@@ -353,6 +354,12 @@ export default function Settings() {
                     <span className="text-muted-foreground">Completed tasks</span>
                     <span className="text-foreground">{stats.completed_tasks_count}</span>
                   </div>
+                  {user?.role === 'talent' && stats.added_by && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Added by</span>
+                      <span className="text-foreground">{stats.added_by}</span>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">Unable to load stats</p>

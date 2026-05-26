@@ -151,7 +151,7 @@ export default function DashboardTalent() {
         <ProfileCompletionBanner completionPercentage={profileCompletion} />
 
         {/* Quick Stats */}
-        <div className="grid gap-5 sm:gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-5 sm:gap-6 lg:grid-cols-4">
           <TalentStatCard
             title="Active Projects"
             value={activeProjectsCount}
@@ -169,13 +169,13 @@ export default function DashboardTalent() {
             icon={CheckSquare}
             colorClass="text-success"
           />
-          <TalentStatCard
+          {/* <TalentStatCard
             title="Client Rating"
             value="4.8/5.0"
-            icon={Star}
+            icon={Target}
             subValue="Based on 12 reviews"
             colorClass="text-warning"
-          />
+          /> */}
         </div>
 
         <div className="grid gap-6 sm:gap-8 lg:grid-cols-3">
@@ -245,7 +245,7 @@ export default function DashboardTalent() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Performance Overview */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* <div className="grid grid-cols-2 gap-3">
               <div className="glass-card p-5 text-center">
                 <Target className="h-8 w-8 text-primary mx-auto mb-2" />
                 <p className="text-2xl font-bold text-foreground">{completedTasksCount * 50}</p>
@@ -256,14 +256,14 @@ export default function DashboardTalent() {
                 <p className="text-2xl font-bold text-foreground">{completedTasksCount}</p>
                 <p className="text-xs text-muted-foreground">Tasks Done</p>
               </div>
-            </div>
+            </div> */}
 
             {/* Current Rank */}
-            <div className="glass-card p-5 sm:p-6 md:p-7 text-center">
+            {/* <div className="glass-card p-5 sm:p-6 md:p-7 text-center">
               <Trophy className="h-10 w-10 text-warning mx-auto mb-2" />
               <p className="text-4xl font-bold text-foreground">#3</p>
               <p className="text-sm text-muted-foreground">Current Rank</p>
-            </div>
+            </div> */}
 
             {/* Profile Strength */}
             <ProfileStrengthCard

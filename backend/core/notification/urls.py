@@ -9,6 +9,7 @@ from .views import (
     RemoveTeamMemberView,
     NotificationListView,
     NotificationReadView,
+    NotificationDeleteView,
     InviteTokenCreateView,
     InviteTokenValidateView,
 )
@@ -22,7 +23,8 @@ urlpatterns = [
     path("team/<uuid:pk>/remove/", RemoveTeamMemberView.as_view()),  # Remove team member
 
     path("notifications/", NotificationListView.as_view()),
-    path('notifications/<uuid:pk>/read/', NotificationReadView.as_view()),
+    path("notifications/<uuid:pk>/", NotificationDeleteView.as_view()),
+    path("notifications/<uuid:pk>/read/", NotificationReadView.as_view()),
 
     # Invite system
     path("invites/generate/", InviteTokenCreateView.as_view()),  # Generate invite token

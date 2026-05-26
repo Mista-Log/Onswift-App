@@ -142,6 +142,13 @@ class NotificationReadView(generics.UpdateAPIView):
         serializer.save(is_read=True)
 
 
+class NotificationDeleteView(generics.DestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return self.request.user.notifications.all()
+
+
 class InviteTokenCreateView(generics.CreateAPIView):
     """Generate an invite token for onboarding talents"""
     serializer_class = InviteTokenCreateSerializer

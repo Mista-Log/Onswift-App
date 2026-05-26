@@ -70,12 +70,14 @@ export default function OnboardingTemplates() {
             <Button
               variant="outline"
               onClick={() => navigate("/onboarding/clients")}
-              className="gap-1"
+              className="gap-1 px-2 sm:px-4"
             >
-              <Users className="h-4 w-4" /> Client History
+              <Users className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Client History</span>
             </Button>
-            <Button onClick={() => navigate("/onboarding/new")} className="gap-1">
-              <Plus className="h-4 w-4" /> New Form
+            <Button onClick={() => navigate("/onboarding/new")} className="gap-1 px-2 sm:px-4">
+              <Plus className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">New Form</span>
             </Button>
           </div>
         </div>
@@ -154,8 +156,12 @@ export default function OnboardingTemplates() {
                   Track the status of every generated link across all templates.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <OnboardingLinkTable />
+              <CardContent className="p-0 sm:p-6">
+                <div className="overflow-x-auto">
+                  <div className="min-w-[640px]">
+                    <OnboardingLinkTable />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
