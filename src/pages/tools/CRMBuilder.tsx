@@ -1056,7 +1056,7 @@ export default function CRMBuilder() {
                           ? <Lock className="h-3 w-3" />
                           : <LockOpen className="h-3 w-3" />
                         }
-                      </button> */}
+                      </button>
                     </th>
 
                     {displayedColumns.map((col) => (
