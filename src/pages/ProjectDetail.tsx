@@ -57,6 +57,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { secureFetch } from "@/api/apiClient";
 import { ClientInviteModal } from "@/components/project/ClientInviteModal";
 import { ClientInvitesTable } from "@/components/project/ClientInvitesTable";
+import { TaskDetailModal } from "@/components/project/TaskDetailModal";
+import type { TaskDetail } from "@/hooks/useTaskDetail";
 import { useProjects, type Task } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { cn } from "@/lib/utils";
@@ -92,6 +94,8 @@ export default function ProjectDetail() {
   const [sortMethod, setSortMethod] = useState<"deadline-asc" | "deadline-desc" | "alphabetical-asc" | "alphabetical-desc">("deadline-asc");
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [refreshInvitesTrigger, setRefreshInvitesTrigger] = useState(0);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
   const [showTaskCelebration, setShowTaskCelebration] = useState(false);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<"planning" | "in-progress" | "completed" | null>(null);
@@ -224,6 +228,21 @@ export default function ProjectDetail() {
       status: task.status,
       deadline: task.deadline || "",
     });
+  };
+
+  const handleOpenTaskDetail = (taskId: string) => {
+    setSelectedTaskId(taskId);
+    setIsTaskDetailOpen(true);
+  };
+
+  const handleTaskDetailUpdated = (updated: TaskDetail) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === updated.id
+          ? { ...t, name: updated.name, description: updated.description, status: updated.status, deadline: updated.deadline, assignee: updated.assignee, assignee_name: updated.assignee_name }
+          : t
+      )
+    );
   };
 
   const handleSaveEditTask = async () => {
@@ -799,7 +818,7 @@ export default function ProjectDetail() {
                       task={task}
                       isCreator={isCreator}
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
-                      onEdit={() => handleOpenEditTask(task)}
+                      onEdit={() => handleOpenTaskDetail(task.id)}
                       onDelete={() => handleDeleteTask(task.id)}
                       onAddDeliverable={!isCreator ? () => navigate("/deliverables", { state: { prefillTaskId: task.id } }) : undefined}
                       onDragStart={() => setDragTaskId(task.id)}
@@ -834,7 +853,7 @@ export default function ProjectDetail() {
                       task={task}
                       isCreator={isCreator}
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
-                      onEdit={() => handleOpenEditTask(task)}
+                      onEdit={() => handleOpenTaskDetail(task.id)}
                       onDelete={() => handleDeleteTask(task.id)}
                       onAddDeliverable={!isCreator ? () => navigate("/deliverables", { state: { prefillTaskId: task.id } }) : undefined}
                       onDragStart={() => setDragTaskId(task.id)}
@@ -869,7 +888,7 @@ export default function ProjectDetail() {
                       task={task}
                       isCreator={isCreator}
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
-                      onEdit={() => handleOpenEditTask(task)}
+                      onEdit={() => handleOpenTaskDetail(task.id)}
                       onDelete={() => handleDeleteTask(task.id)}
                       onAddDeliverable={!isCreator ? () => navigate("/deliverables", { state: { prefillTaskId: task.id } }) : undefined}
                       onDragStart={() => setDragTaskId(task.id)}
@@ -1097,6 +1116,20 @@ export default function ProjectDetail() {
           />
         )}
 
+        {/* Task Detail Modal */}
+        <TaskDetailModal
+          taskId={selectedTaskId}
+          open={isTaskDetailOpen}
+          onOpenChange={(open) => {
+            setIsTaskDetailOpen(open);
+            if (!open) setSelectedTaskId(null);
+          }}
+          onTaskUpdated={handleTaskDetailUpdated}
+          availableAssignees={availableAssignees}
+          currentUserId={user?.id ?? ""}
+          isCreator={isCreator}
+        />
+
         {/* First task celebration */}
         <CelebrationModal
           open={showTaskCelebration}
@@ -1148,12 +1181,17 @@ function TaskCard({ task, isCreator, onStatusChange, onEdit, onDelete, onAddDeli
 
   return (
     <div
-      className={`glass-card p-4 rounded-lg border space-y-3 cursor-grab active:cursor-grabbing select-none ${STATUS_COLORS[task.status] || "border-border/50"}`}
+      className={`glass-card p-4 rounded-lg border space-y-3 cursor-pointer select-none ${STATUS_COLORS[task.status] || "border-border/50"}`}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onClick={(e) => {
+        // Don't open modal when clicking the dropdown menu
+        if ((e.target as HTMLElement).closest("[data-radix-popper-content-wrapper]")) return;
+        onEdit();
+      }}
     >
       <div className="flex items-start justify-between gap-2">
         <h4 className="font-medium text-sm flex-1">{task.name}</h4>

@@ -86,6 +86,14 @@ class Task(models.Model):
         ("in-progress", "In Progress"),
         ("completed", "Completed"),
     ]
+    PRIORITY_CHOICES = [
+        ("highest", "Highest"),
+        ("high", "High"),
+        ("medium", "Medium"),
+        ("low", "Low"),
+        ("lowest", "Lowest"),
+        ("not_sure", "Not Sure"),
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="tasks")
@@ -93,6 +101,7 @@ class Task(models.Model):
     description = models.TextField(blank=True, null=True)
     assignee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="planning")
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, null=True, blank=True)
     deadline = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -341,6 +350,65 @@ class GoogleCalendarToken(models.Model):
     class Meta:
         verbose_name = "Google Calendar Token"
         verbose_name_plural = "Google Calendar Tokens"
+
+
+class TaskComment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="task_comments")
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.author} on {self.task.name}: {self.content[:50]}"
+
+
+class TaskAttachment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="attachments")
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="task_attachments")
+    name = models.CharField(max_length=255)
+    file = models.FileField(upload_to="task_attachments/", null=True, blank=True)
+    url = models.URLField(max_length=2048, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} on {self.task.name}"
+
+
+class TaskChecklist(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="checklists")
+    title = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.title} on {self.task.name}"
+
+
+class TaskChecklistItem(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    checklist = models.ForeignKey(TaskChecklist, on_delete=models.CASCADE, related_name="items")
+    content = models.CharField(max_length=500)
+    is_checked = models.BooleanField(default=False)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "created_at"]
+
+    def __str__(self):
+        return f"{'✓' if self.is_checked else '○'} {self.content}"
 
 
 class CalendarSyncedTask(models.Model):
