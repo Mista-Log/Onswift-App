@@ -4,6 +4,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.http import Http404
 from django.db.models import Q
 
 from .models import CRMSheet, CRMColumn, CRMRow, CRMAccess
@@ -27,11 +28,11 @@ def _get_user_role(user, sheet):
 
 
 def _get_accessible_sheet(user, sheet_id):
-    """Return (sheet, role) or raise 404 / PermissionDenied."""
+    """Return (sheet, role) or raise Http404 if the sheet doesn't exist or the user has no access."""
     sheet = get_object_or_404(CRMSheet, id=sheet_id)
     role = _get_user_role(user, sheet)
     if role is None:
-        raise PermissionDenied("You do not have access to this CRM sheet.")
+        raise Http404
     return sheet, role
 
 
