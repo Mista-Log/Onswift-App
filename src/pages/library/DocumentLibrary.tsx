@@ -9,6 +9,7 @@
  * - Trash view
  */
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { secureFetch } from "@/api/apiClient";
 import { toast } from "sonner";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -64,6 +65,7 @@ import {
   Eye,
   Edit,
   AlertCircle,
+  Wrench,
 } from "lucide-react";
 import { format } from "date-fns";
 import type {
@@ -85,6 +87,7 @@ const colorLabels: { value: ColorLabel; label: string; color: string }[] = [
 ];
 
 export default function DocumentLibrary() {
+  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // State
@@ -450,6 +453,10 @@ export default function DocumentLibrary() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/library/crm")}>
+              <Wrench className="h-4 w-4 mr-1" />
+              CRM Builder
+            </Button>
             <Button
               variant={showTrash ? "default" : "outline"}
               size="sm"

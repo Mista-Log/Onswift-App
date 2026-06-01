@@ -1,14 +1,10 @@
-/**
- * PortalMessages — Client messaging page within a project scope.
- * Real-time-ish via polling. Supports text and file attachments.
- */
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { secureFetch } from "@/api/apiClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { PortalLayout } from "@/components/portal/PortalLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -26,9 +22,9 @@ import {
 import { format, isToday, isYesterday } from "date-fns";
 import type { PortalMessage } from "@/types/portal";
 
-const POLL_INTERVAL = 5000; // 5 seconds
+const POLL_INTERVAL = 5000;
 
-export default function PortalMessages() {
+export default function ClientMessages() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -41,29 +37,19 @@ export default function PortalMessages() {
   const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const [cursor, setCursor] = useState<string | null>(null);
 
-  // Initial load
   useEffect(() => {
     loadMessages();
   }, [projectId]);
 
-  // Polling for new messages
   useEffect(() => {
-    const interval = setInterval(() => {
-      pollNewMessages();
-    }, POLL_INTERVAL);
+    const interval = setInterval(pollNewMessages, POLL_INTERVAL);
     return () => clearInterval(interval);
   }, [projectId, messages]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
-    scrollToBottom();
-  }, [messages.length]);
-
-  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  }, [messages.length]);
 
   const loadMessages = async () => {
     try {
@@ -72,11 +58,10 @@ export default function PortalMessages() {
         const data = await response.json();
         setMessages(data.messages || []);
         setHasMore(!!data.has_more);
-        // Mark as read
         markMessagesRead();
       } else if (response.status === 403) {
         toast.error("You don't have access to this project");
-        navigate("/portal");
+        navigate("/messages");
       }
     } catch {
       toast.error("Failed to load messages");
@@ -97,31 +82,27 @@ export default function PortalMessages() {
         }
       }
     } catch {
-      // Silent fail for polling
+      // silent
     }
   };
 
   const markMessagesRead = async () => {
     try {
-      await secureFetch(`/api/v5/projects/${projectId}/messages/read/`, {
-        method: "POST",
-      });
+      await secureFetch(`/api/v5/projects/${projectId}/messages/read/`, { method: "POST" });
     } catch {
-      // Silent
+      // silent
     }
   };
 
   const loadOlderMessages = async () => {
     if (!hasMore || messages.length === 0) return;
     try {
-      const oldestMessage = messages[0];
       const response = await secureFetch(
-        `/api/v5/projects/${projectId}/messages/?before=${oldestMessage.id}&limit=50`
+        `/api/v5/projects/${projectId}/messages/?before=${messages[0].id}&limit=50`
       );
       if (response.ok) {
         const data = await response.json();
-        const olderMessages = data.messages || [];
-        setMessages((prev) => [...olderMessages, ...prev]);
+        setMessages((prev) => [...(data.messages || []), ...prev]);
         setHasMore(!!data.has_more);
       }
     } catch {
@@ -131,7 +112,6 @@ export default function PortalMessages() {
 
   const sendMessage = async () => {
     if (!content.trim() && !file) return;
-
     setSending(true);
     try {
       const formData = new FormData();
@@ -141,7 +121,7 @@ export default function PortalMessages() {
       const response = await secureFetch(`/api/v5/projects/${projectId}/messages/send/`, {
         method: "POST",
         body: formData,
-        headers: {}, // Let browser set content-type for FormData
+        headers: {},
       });
 
       if (response.ok) {
@@ -174,37 +154,29 @@ export default function PortalMessages() {
   };
 
   const getInitials = (name: string) =>
-    name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+    name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
   if (loading) {
     return (
-      <PortalLayout>
+      <MainLayout>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      </PortalLayout>
+      </MainLayout>
     );
   }
 
   return (
-    <PortalLayout>
+    <MainLayout>
       <div className="max-w-3xl mx-auto">
-        {/* Header */}
         <div className="flex items-center gap-3 mb-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(`/portal/${projectId}`)}>
+          <Button variant="ghost" size="icon" onClick={() => navigate(`/projects/${projectId}`)}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-xl font-bold">Project Messages</h1>
         </div>
 
-        {/* Messages area */}
         <Card className="flex flex-col" style={{ height: "calc(100vh - 240px)", minHeight: "400px" }}>
-          {/* Message list */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {hasMore && (
               <div className="text-center">
@@ -222,10 +194,7 @@ export default function PortalMessages() {
               messages.map((msg) => {
                 const isMine = msg.sender === user?.id;
                 return (
-                  <div
-                    key={msg.id}
-                    className={cn("flex gap-2", isMine ? "flex-row-reverse" : "flex-row")}
-                  >
+                  <div key={msg.id} className={cn("flex gap-2", isMine ? "flex-row-reverse" : "flex-row")}>
                     {!isMine && (
                       <Avatar className="h-8 w-8 shrink-0">
                         <AvatarFallback className="text-xs bg-primary/10 text-primary">
@@ -266,11 +235,9 @@ export default function PortalMessages() {
                           {formatMessageDate(msg.created_at)}
                         </span>
                         {isMine && (
-                          msg.is_read ? (
-                            <CheckCheck className="h-3 w-3 text-primary" />
-                          ) : (
-                            <Check className="h-3 w-3 text-muted-foreground" />
-                          )
+                          msg.is_read
+                            ? <CheckCheck className="h-3 w-3 text-primary" />
+                            : <Check className="h-3 w-3 text-muted-foreground" />
                         )}
                       </div>
                     </div>
@@ -281,7 +248,6 @@ export default function PortalMessages() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* File preview */}
           {file && (
             <div className="mx-4 mb-2 flex items-center gap-2 rounded-lg bg-muted p-2 text-sm">
               <FileIcon className="h-4 w-4 text-muted-foreground" />
@@ -292,7 +258,6 @@ export default function PortalMessages() {
             </div>
           )}
 
-          {/* Input area */}
           <div className="border-t p-3 flex items-center gap-2">
             <input
               ref={fileInputRef}
@@ -304,12 +269,7 @@ export default function PortalMessages() {
                 e.target.value = "";
               }}
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0"
-              onClick={() => fileInputRef.current?.click()}
-            >
+            <Button variant="ghost" size="icon" className="shrink-0" onClick={() => fileInputRef.current?.click()}>
               <Paperclip className="h-4 w-4" />
             </Button>
             <Input
@@ -319,20 +279,12 @@ export default function PortalMessages() {
               placeholder="Type a message..."
               className="flex-1"
             />
-            <Button
-              size="icon"
-              disabled={sending || (!content.trim() && !file)}
-              onClick={sendMessage}
-            >
-              {sending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
+            <Button size="icon" disabled={sending || (!content.trim() && !file)} onClick={sendMessage}>
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
         </Card>
       </div>
-    </PortalLayout>
+    </MainLayout>
   );
 }

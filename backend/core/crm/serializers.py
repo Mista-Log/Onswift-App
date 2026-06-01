@@ -31,23 +31,51 @@ class CRMSheetListSerializer(serializers.ModelSerializer):
     column_count = serializers.IntegerField(source="columns.count", read_only=True)
     row_count = serializers.IntegerField(source="rows.count", read_only=True)
     column_names = serializers.SerializerMethodField()
+    user_role = serializers.SerializerMethodField()
 
     class Meta:
         model = CRMSheet
-        fields = ["id", "name", "column_count", "row_count", "column_names", "created_at", "updated_at"]
+        fields = [
+            "id", "name", "column_count", "row_count",
+            "column_names", "user_role", "created_at", "updated_at",
+        ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def get_column_names(self, obj):
         return list(obj.columns.values_list("name", flat=True)[:6])
 
+    def get_user_role(self, obj):
+        request = self.context.get("request")
+        if not request:
+            return None
+        user = request.user
+        if obj.owner == user:
+            return "owner"
+        access = CRMAccess.objects.filter(sheet=obj, user=user).first()
+        return access.role if access else None
+
 
 class CRMSheetDetailSerializer(serializers.ModelSerializer):
-    """Full serializer — includes nested columns, rows, and access list."""
+    """Full serializer — includes nested columns, rows, access list, and caller's role."""
     columns = CRMColumnSerializer(many=True, read_only=True)
     rows = CRMRowSerializer(many=True, read_only=True)
     access_list = CRMAccessSerializer(many=True, read_only=True)
+    user_role = serializers.SerializerMethodField()
 
     class Meta:
         model = CRMSheet
-        fields = ["id", "name", "columns", "rows", "access_list", "created_at", "updated_at"]
+        fields = [
+            "id", "name", "columns", "rows", "access_list",
+            "user_role", "created_at", "updated_at",
+        ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_user_role(self, obj):
+        request = self.context.get("request")
+        if not request:
+            return None
+        user = request.user
+        if obj.owner == user:
+            return "owner"
+        access = CRMAccess.objects.filter(sheet=obj, user=user).first()
+        return access.role if access else None

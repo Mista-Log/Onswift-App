@@ -49,28 +49,34 @@ export default function ClientOnboard() {
     loadForm();
   }, [slug]);
 
-  const loadForm = async () => {
+  const loadForm = async (attempt = 0) => {
     try {
       const response = await publicFetch(`/api/v4/onboard/${slug}/`);
       if (response.ok) {
         const data: OnboardingPublicData = await response.json();
         setFormData(data);
-        // Initialize responses array
-        setResponses(
-          data.blocks.map((_, index) => ({ block_index: index, value: null }))
-        );
+        setResponses(data.blocks.map((_, index) => ({ block_index: index, value: null })));
       } else if (response.status === 410) {
         setErrorState({ type: "expired", message: "This onboarding link has expired." });
       } else if (response.status === 409) {
         setErrorState({ type: "completed", message: "This onboarding form has already been completed." });
+      } else if (response.status === 404) {
+        setErrorState({ type: "not_found", message: "Onboarding link not found." });
+      } else if (attempt < 2) {
+        // Transient server error — retry silently before surfacing an error
+        setTimeout(() => loadForm(attempt + 1), 1200);
+        return;
       } else {
         setErrorState({ type: "not_found", message: "Onboarding link not found." });
       }
-    } catch (error) {
+    } catch {
+      if (attempt < 2) {
+        setTimeout(() => loadForm(attempt + 1), 1200);
+        return;
+      }
       setErrorState({ type: "error", message: "Something went wrong. Please try again." });
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   const updateResponse = (index: number, value: BlockResponse["value"]) => {
@@ -126,9 +132,7 @@ export default function ClientOnboard() {
         await getUser();
 
         toast.success("Welcome! Your account has been created.");
-
-        // Redirect to portal
-        navigate("/portal");
+        navigate("/dashboard");
       } else {
         const error = await response.json();
         toast.error(error?.email?.[0] || error?.error || "Failed to submit form");

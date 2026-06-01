@@ -8,6 +8,7 @@ export type CRMFieldType =
   | "date" | "single_select" | "multi_select" | "checkbox";
 
 export type AccessRole = "viewer" | "editor" | "admin";
+export type UserRole = "owner" | AccessRole;
 
 export interface CRMColumn {
   id: string;
@@ -40,6 +41,7 @@ export interface CRMSheetSummary {
   column_count: number;
   row_count: number;
   column_names: string[];
+  user_role: UserRole;
   created_at: string;
   updated_at: string;
 }
@@ -50,8 +52,16 @@ export interface CRMSheetFull {
   columns: CRMColumn[];
   rows: CRMRow[];
   access_list: CRMAccessEntry[];
+  user_role: UserRole;
   created_at: string;
   updated_at: string;
+}
+
+export interface SharableUser {
+  user_id: string;
+  name: string;
+  email: string;
+  type: "team" | "client";
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -251,7 +261,6 @@ export function useCRM() {
     rowId: string,
     values: Record<string, string | number | boolean | string[]>
   ) => {
-    // Optimistic update first so UI stays snappy
     setActiveSheet((prev) => {
       if (!prev || prev.id !== sheetId) return prev;
       return {
@@ -304,6 +313,26 @@ export function useCRM() {
     }
   }, []);
 
+  const revokeAccess = useCallback(async (sheetId: string, accessId: string) => {
+    const res = await secureFetch(`/api/v7/sheets/${sheetId}/access/${accessId}/`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to revoke access");
+    setActiveSheet((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        access_list: prev.access_list.filter((a) => a.id !== accessId),
+      };
+    });
+  }, []);
+
+  const fetchSharableUsers = useCallback(async (): Promise<SharableUser[]> => {
+    const res = await secureFetch("/api/v7/sharable-users/");
+    if (!res.ok) return [];
+    return res.json();
+  }, []);
+
   return {
     sheets,
     activeSheet,
@@ -323,5 +352,7 @@ export function useCRM() {
     deleteRow,
     updateRowValues,
     upsertAccess,
+    revokeAccess,
+    fetchSharableUsers,
   };
 }

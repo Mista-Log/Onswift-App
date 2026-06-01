@@ -25,12 +25,25 @@ const creatorNavItems = [
   { label: "Marketplace", icon: Users, route: "/talent" },
 ];
 
+const clientNavItems = [
+  { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
+  { label: "Projects", icon: FolderKanban, route: "/projects" },
+  { label: "Chats", icon: MessageCircle, route: "/messages" },
+  { label: "Deliverables", icon: Upload, route: "/deliverables" },
+  { label: "Client Portal", icon: ClipboardList, route: "/onboarding" },
+  { label: "Docs", icon: FileArchive, route: "/library" },
+  { label: "CRM", icon: Wrench, route: "/library/crm" },
+  { label: "Deadlines", icon: Calendar, route: "/calendar" },
+];
+
 const talentNavItems = [
   { label: "Dashboard", icon: LayoutGrid, route: "/dashboard" },
   { label: "My Profile", icon: User, route: "/profile/edit" },
   { label: "My Projects", icon: FolderKanban, route: "/projects" },
   { label: "Deliverables", icon: Upload, route: "/deliverables" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
+  { label: "Docs", icon: FileArchive, route: "/library" },
+  { label: "CRM", icon: Wrench, route: "/library/crm" },
   { label: "Deadlines", icon: Calendar, route: "/calendar" },
 ];
 
@@ -39,7 +52,7 @@ const bottomNavItems = [
 ];
 
 const toolNavItems = [
-  { label: "CRM Builder", icon: Wrench, route: "/tools/crm" },
+  { label: "CRM Builder", icon: Wrench, route: "/library/crm" },
 ];
 
 interface AppSidebarProps {
@@ -52,7 +65,10 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
   const { user } = useAuth();
   const { resolvedTheme } = useTheme();
 
-  const navItems = user?.role === 'talent' ? talentNavItems : creatorNavItems;
+  const navItems =
+    user?.role === 'talent' ? talentNavItems :
+    user?.role === 'client' ? clientNavItems :
+    creatorNavItems;
   const showTools = user?.role === "creator";
 
   return (
