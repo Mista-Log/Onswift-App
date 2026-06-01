@@ -240,6 +240,92 @@ export function useCRM() {
     return created;
   }, []);
 
+  const insertRowAt = useCallback(async (
+    sheetId: string,
+    columns: CRMColumn[],
+    currentRows: CRMRow[],
+    atIndex: number,
+  ) => {
+    const values: Record<string, string | number | boolean | string[]> = {};
+    for (const col of columns) {
+      values[col.id] = col.field_type === "checkbox" ? false
+        : col.field_type === "multi_select" ? []
+        : "";
+    }
+
+    // Shift orders of rows that will follow the new row (fire-and-forget)
+    currentRows.slice(atIndex).forEach((row, i) => {
+      secureFetch(`/api/v7/sheets/${sheetId}/rows/${row.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ order: atIndex + 1 + i }),
+      }).catch(() => {});
+    });
+
+    const res = await secureFetch(`/api/v7/sheets/${sheetId}/rows/`, {
+      method: "POST",
+      body: JSON.stringify({ values, order: atIndex }),
+    });
+    if (!res.ok) throw new Error("Failed to add row");
+    const created: CRMRow = await res.json();
+
+    setActiveSheet((prev) => {
+      if (!prev || prev.id !== sheetId) return prev;
+      const newRows = [...prev.rows];
+      newRows.splice(atIndex, 0, created);
+      return { ...prev, rows: newRows };
+    });
+
+    setSheets((prev) =>
+      prev.map((s) => s.id === sheetId ? { ...s, row_count: s.row_count + 1 } : s)
+    );
+
+    return created;
+  }, []);
+
+  const insertColumnAt = useCallback(async (
+    sheetId: string,
+    col: { name: string; field_type: CRMFieldType; options?: string[] },
+    currentColumns: CRMColumn[],
+    atIndex: number,
+  ) => {
+    // Shift orders of columns that will follow the new column (fire-and-forget)
+    currentColumns.slice(atIndex).forEach((c, i) => {
+      secureFetch(`/api/v7/sheets/${sheetId}/columns/${c.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ order: atIndex + 1 + i }),
+      }).catch(() => {});
+    });
+
+    const res = await secureFetch(`/api/v7/sheets/${sheetId}/columns/`, {
+      method: "POST",
+      body: JSON.stringify({ ...col, order: atIndex }),
+    });
+    if (!res.ok) throw new Error("Failed to add column");
+    const created: CRMColumn = await res.json();
+
+    setActiveSheet((prev) => {
+      if (!prev || prev.id !== sheetId) return prev;
+      const newCols = [...prev.columns];
+      newCols.splice(atIndex, 0, created);
+      const rows = prev.rows.map((r) => ({
+        ...r,
+        values: {
+          ...r.values,
+          [created.id]: created.field_type === "checkbox" ? false
+            : created.field_type === "multi_select" ? []
+            : "",
+        },
+      }));
+      return { ...prev, columns: newCols, rows };
+    });
+
+    setSheets((prev) =>
+      prev.map((s) => s.id === sheetId ? { ...s, column_count: s.column_count + 1 } : s)
+    );
+
+    return created;
+  }, []);
+
   const deleteRow = useCallback(async (sheetId: string, rowId: string) => {
     const res = await secureFetch(`/api/v7/sheets/${sheetId}/rows/${rowId}/`, {
       method: "DELETE",
@@ -345,10 +431,12 @@ export function useCRM() {
     renameSheet,
     deleteSheet,
     addColumn,
+    insertColumnAt,
     renameColumn,
     updateColumn,
     deleteColumn,
     addRow,
+    insertRowAt,
     deleteRow,
     updateRowValues,
     upsertAccess,

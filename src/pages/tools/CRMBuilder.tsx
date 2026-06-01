@@ -101,14 +101,12 @@ const INSERT_SECTIONS: InsertSection[] = [
       { id: "rows",    label: "Rows",    icon: Rows3,       sub: [{ id: "row-above", label: "Above" }, { id: "row-below", label: "Below" }] },
       { id: "columns", label: "Columns", icon: Columns3,    sub: [{ id: "col-left",  label: "Left"  }, { id: "col-right", label: "Right" }] },
       { id: "cells",   label: "Cells",   icon: LayoutGrid,  sub: [{ id: "cell-shift-right", label: "Shift right" }, { id: "cell-shift-down", label: "Shift down" }] },
-      { id: "new-sheet", label: "Sheet", icon: Sheet },
     ],
   },
   {
     items: [
       { id: "chart",   label: "Chart",   icon: BarChart2 },
       { id: "image",   label: "Image",   icon: ImageIcon, sub: [{ id: "image-in-cell", label: "In cell" }, { id: "image-over-cells", label: "Over cells" }] },
-      { id: "drawing", label: "Drawing", icon: PenLine },
     ],
   },
   {
@@ -169,10 +167,11 @@ interface ColPanelState {
   type: CRMFieldType;
   options: string[];
   anchor: { top: number; left: number; width: number } | null;
+  insertAtIndex: number | null;
 }
 
 const CLOSED_PANEL: ColPanelState = {
-  open: false, columnId: null, name: "", type: "text", options: [], anchor: null,
+  open: false, columnId: null, name: "", type: "text", options: [], anchor: null, insertAtIndex: null,
 };
 
 interface MultiSelectEdit {
@@ -575,6 +574,7 @@ export default function CRMBuilder() {
       type: col?.field_type ?? "text",
       options: col?.options ?? [],
       anchor: { top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: rect.width },
+      insertAtIndex: null,
     });
   };
 
@@ -696,6 +696,14 @@ export default function CRMBuilder() {
       if (colPanel.columnId) {
         await crm.updateColumn(activeSheet.id, colPanel.columnId, { name, field_type: colPanel.type, options });
         toast.success("Column updated");
+      } else if (colPanel.insertAtIndex !== null && colPanel.insertAtIndex < activeSheet.columns.length) {
+        await crm.insertColumnAt(
+          activeSheet.id,
+          { name, field_type: colPanel.type, options },
+          activeSheet.columns,
+          colPanel.insertAtIndex,
+        );
+        toast.success(`Column "${name}" added`);
       } else {
         await crm.addColumn(activeSheet.id, {
           name, field_type: colPanel.type, options, order: activeSheet.columns.length,
@@ -736,24 +744,40 @@ export default function CRMBuilder() {
     if (!activeSheet) return;
 
     switch (actionId) {
-      case "row-above":
-      case "row-below": {
+      case "row-above": {
+        const idx = selectedRowId
+          ? activeSheet.rows.findIndex((r) => r.id === selectedRowId)
+          : -1;
+        const insertIndex = idx >= 0 ? idx : 0;
         try {
-          await crm.addRow(activeSheet.id, activeSheet.columns);
-          toast.success("Row added");
+          await crm.insertRowAt(activeSheet.id, activeSheet.columns, activeSheet.rows, insertIndex);
+          toast.success("Row added above");
+        } catch { toast.error("Failed to add row"); }
+        break;
+      }
+      case "row-below": {
+        const idx = selectedRowId
+          ? activeSheet.rows.findIndex((r) => r.id === selectedRowId)
+          : -1;
+        const insertIndex = idx >= 0 ? idx + 1 : activeSheet.rows.length;
+        try {
+          await crm.insertRowAt(activeSheet.id, activeSheet.columns, activeSheet.rows, insertIndex);
+          toast.success("Row added below");
         } catch { toast.error("Failed to add row"); }
         break;
       }
       case "col-left":
       case "col-right": {
-        // Open the column panel for a new column
-        const fakeEvent = { currentTarget: document.querySelector("table thead tr th:last-of-type") } as unknown as React.MouseEvent<HTMLTableCellElement>;
-        if (fakeEvent.currentTarget) openColPanel(null, fakeEvent);
-        else toast.info("Click a column header to insert beside it");
-        break;
-      }
-      case "new-sheet": {
-        setIsSetupOpen(true);
+        const refIdx = colPanel.columnId
+          ? activeSheet.columns.findIndex((c) => c.id === colPanel.columnId)
+          : -1;
+        const insertIndex = actionId === "col-left"
+          ? (refIdx >= 0 ? refIdx : 0)
+          : (refIdx >= 0 ? refIdx + 1 : activeSheet.columns.length);
+        const anchor = insertMenuPos
+          ? { top: insertMenuPos.top, left: insertMenuPos.left, width: 208 }
+          : null;
+        setColPanel({ open: true, columnId: null, name: "", type: "text", options: [], anchor, insertAtIndex: insertIndex });
         break;
       }
       case "checkbox": {
@@ -778,6 +802,7 @@ export default function CRMBuilder() {
           anchor: insertMenuPos
             ? { top: insertMenuPos.top, left: insertMenuPos.left, width: 208 }
             : null,
+          insertAtIndex: null,
         });
         break;
       }
@@ -848,9 +873,9 @@ export default function CRMBuilder() {
           <div className="rounded-2xl bg-muted/50 p-5 mb-5">
             <Lock className="h-14 w-14 text-muted-foreground/60" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">CRM Builder</h1>
+          <h1 className="text-2xl font-bold text-foreground">No sheets shared with you yet</h1>
           <p className="mt-2 text-sm text-muted-foreground max-w-xs leading-relaxed">
-            You don't have access to any CRM sheets yet. Ask your creator to share one with you.
+            Once your creator shares a CRM sheet with you, it'll show up right here.
           </p>
         </div>
       </MainLayout>

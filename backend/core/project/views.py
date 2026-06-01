@@ -6,8 +6,9 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from .models import Project, Task, ProjectSample, Deliverable, Message, Conversation, Group, GroupMembership, GroupMessage, GroupMessageReadStatus
 from .models import GoogleCalendarToken, CalendarSyncedTask, ProjectClientMembership
+from .models import TaskComment, TaskAttachment, TaskChecklist, TaskChecklistItem
 from .serializers import (
-    ProjectSerializer, TaskSerializer, ProjectSampleSerializer,
+    ProjectSerializer, TaskSerializer, TaskDetailSerializer, ProjectSampleSerializer,
     DeliverableSerializer, DeliverableCreateSerializer, DeliverableReviewSerializer,
     MessageSerializer, ConversationSerializer,
     GroupSerializer, GroupCreateSerializer, GroupUpdateSerializer,
@@ -15,6 +16,8 @@ from .serializers import (
     GroupAddMembersSerializer,
     GoogleCalendarStatusSerializer, GoogleCalendarConnectSerializer,
     TaskSyncSerializer, CalendarSyncedTaskSerializer,
+    TaskCommentSerializer, TaskAttachmentSerializer,
+    TaskChecklistSerializer, TaskChecklistItemSerializer,
 )
 from .permissions import IsCreator
 from rest_framework import permissions
@@ -188,25 +191,197 @@ class TaskListCreateView(generics.ListCreateAPIView):
 
 
 class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method in ("GET", "HEAD"):
+            return TaskDetailSerializer
+        return TaskSerializer
 
     def get_queryset(self):
         user = self.request.user
         if user.role == "creator":
-            # Creators can access tasks in their projects
             return Task.objects.filter(project__creator=user)
+        elif user.role == "client":
+            return Task.objects.filter(
+                project__client_memberships__client=user
+            )
         else:
-            # Talents can only access tasks assigned to them
             return Task.objects.filter(assignee=user)
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        # Only creators can delete tasks
-        if request.method == 'DELETE':
+        if request.method in ("PUT", "PATCH", "DELETE"):
             if request.user.role != "creator":
                 from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("Only creators can delete tasks.")
+                raise PermissionDenied("Only creators can modify tasks.")
+
+
+def _get_task_for_user(user, task_id):
+    """Return task if user has access, else raise Http404."""
+    from django.http import Http404
+    try:
+        task = Task.objects.select_related("project__creator").get(id=task_id)
+    except Task.DoesNotExist:
+        raise Http404
+    if user.role == "creator" and task.project.creator == user:
+        return task
+    if user.role == "talent" and task.assignee == user:
+        return task
+    if user.role == "client":
+        if ProjectClientMembership.objects.filter(project=task.project, client=user).exists():
+            return task
+    raise Http404
+
+
+class TaskCommentListCreateView(generics.ListCreateAPIView):
+    serializer_class = TaskCommentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def _task(self):
+        return _get_task_for_user(self.request.user, self.kwargs["task_id"])
+
+    def get_queryset(self):
+        return self._task().comments.select_related("author")
+
+    def perform_create(self, serializer):
+        serializer.save(task=self._task(), author=self.request.user)
+
+
+class TaskCommentDeleteView(generics.DestroyAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        from django.http import Http404
+        from rest_framework.exceptions import PermissionDenied
+        task = _get_task_for_user(self.request.user, self.kwargs["task_id"])
+        try:
+            comment = TaskComment.objects.get(id=self.kwargs["comment_id"], task=task)
+        except TaskComment.DoesNotExist:
+            raise Http404
+        if comment.author != self.request.user and task.project.creator != self.request.user:
+            raise PermissionDenied("You cannot delete this comment.")
+        return comment
+
+
+class TaskAttachmentListCreateView(generics.ListCreateAPIView):
+    serializer_class = TaskAttachmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def _task(self):
+        return _get_task_for_user(self.request.user, self.kwargs["task_id"])
+
+    def get_queryset(self):
+        return self._task().attachments.select_related("uploaded_by")
+
+    def perform_create(self, serializer):
+        from rest_framework.exceptions import ValidationError
+        task = self._task()
+        uploaded_file = self.request.FILES.get("file")
+        url = self.request.data.get("url", "").strip()
+        name = self.request.data.get("name", "").strip()
+        if not uploaded_file and not url:
+            raise ValidationError("Either a file or a URL is required.")
+        if not name:
+            name = uploaded_file.name if uploaded_file else url
+        serializer.save(task=task, uploaded_by=self.request.user, name=name,
+                        file=uploaded_file or None, url=url or None)
+
+
+class TaskAttachmentDeleteView(generics.DestroyAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        from django.http import Http404
+        from rest_framework.exceptions import PermissionDenied
+        task = _get_task_for_user(self.request.user, self.kwargs["task_id"])
+        try:
+            attachment = TaskAttachment.objects.get(id=self.kwargs["attachment_id"], task=task)
+        except TaskAttachment.DoesNotExist:
+            raise Http404
+        if attachment.uploaded_by != self.request.user and task.project.creator != self.request.user:
+            raise PermissionDenied("You cannot delete this attachment.")
+        return attachment
+
+
+class TaskChecklistListCreateView(generics.ListCreateAPIView):
+    serializer_class = TaskChecklistSerializer
+    permission_classes = [IsAuthenticated]
+
+    def _task(self):
+        return _get_task_for_user(self.request.user, self.kwargs["task_id"])
+
+    def get_queryset(self):
+        return self._task().checklists.prefetch_related("items")
+
+    def perform_create(self, serializer):
+        from rest_framework.exceptions import PermissionDenied
+        task = self._task()
+        if task.project.creator != self.request.user:
+            raise PermissionDenied("Only the project creator can add checklists.")
+        serializer.save(task=task)
+
+
+class TaskChecklistDetailView(generics.UpdateAPIView, generics.DestroyAPIView):
+    serializer_class = TaskChecklistSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        from django.http import Http404
+        from rest_framework.exceptions import PermissionDenied
+        task = _get_task_for_user(self.request.user, self.kwargs["task_id"])
+        try:
+            checklist = TaskChecklist.objects.get(id=self.kwargs["checklist_id"], task=task)
+        except TaskChecklist.DoesNotExist:
+            raise Http404
+        if task.project.creator != self.request.user:
+            raise PermissionDenied("Only the project creator can modify checklists.")
+        return checklist
+
+
+class TaskChecklistItemListCreateView(generics.ListCreateAPIView):
+    serializer_class = TaskChecklistItemSerializer
+    permission_classes = [IsAuthenticated]
+
+    def _checklist(self):
+        from django.http import Http404
+        task = _get_task_for_user(self.request.user, self.kwargs["task_id"])
+        try:
+            return TaskChecklist.objects.get(id=self.kwargs["checklist_id"], task=task)
+        except TaskChecklist.DoesNotExist:
+            raise Http404
+
+    def get_queryset(self):
+        return self._checklist().items.all()
+
+    def perform_create(self, serializer):
+        from rest_framework.exceptions import PermissionDenied
+        checklist = self._checklist()
+        if checklist.task.project.creator != self.request.user:
+            raise PermissionDenied("Only the project creator can add checklist items.")
+        order = checklist.items.count()
+        serializer.save(checklist=checklist, order=order)
+
+
+class TaskChecklistItemDetailView(generics.UpdateAPIView, generics.DestroyAPIView):
+    serializer_class = TaskChecklistItemSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        from django.http import Http404
+        from rest_framework.exceptions import PermissionDenied
+        task = _get_task_for_user(self.request.user, self.kwargs["task_id"])
+        try:
+            checklist = TaskChecklist.objects.get(id=self.kwargs["checklist_id"], task=task)
+            item = TaskChecklistItem.objects.get(id=self.kwargs["item_id"], checklist=checklist)
+        except (TaskChecklist.DoesNotExist, TaskChecklistItem.DoesNotExist):
+            raise Http404
+        # Creator can do anything; talents/clients can only toggle is_checked
+        is_patch = self.request.method == "PATCH"
+        is_toggle_only = is_patch and set(self.request.data.keys()) <= {"is_checked"}
+        if not is_toggle_only and task.project.creator != self.request.user:
+            raise PermissionDenied("Only the project creator can edit or delete checklist items.")
+        return item
 
 
 class ProjectSampleListCreateView(generics.ListCreateAPIView):

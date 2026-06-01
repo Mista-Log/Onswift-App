@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Project, Task, Deliverable, DeliverableFile, DeliverableLink, Message, Conversation
 from .models import ProjectSample, TeamMember, Group, GroupMembership, GroupMessage, GroupMessageReadStatus
 from .models import GoogleCalendarToken, CalendarSyncedTask, ProjectClientMembership
+from .models import TaskComment, TaskAttachment, TaskChecklist, TaskChecklistItem
 from django.conf import settings
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -9,7 +10,7 @@ class TaskSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Task
-        fields = ["id", "project", "name", "description", "assignee", "assignee_name", "status", "deadline", "created_at"]
+        fields = ["id", "project", "name", "description", "assignee", "assignee_name", "status", "priority", "deadline", "created_at"]
         read_only_fields = ["project", "created_at"]
 
     def create(self, validated_data):
@@ -51,6 +52,87 @@ class TaskSerializer(serializers.ModelSerializer):
             message=message,
             notification_type="system",
         )
+
+class TaskCommentSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source="author.full_name", read_only=True)
+    author_role = serializers.CharField(source="author.role", read_only=True)
+    author_avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TaskComment
+        fields = ["id", "author", "author_name", "author_role", "author_avatar", "content", "created_at"]
+        read_only_fields = ["id", "author", "author_name", "author_role", "author_avatar", "created_at"]
+
+    def get_author_avatar(self, obj):
+        if obj.author.profile_picture:
+            try:
+                return obj.author.profile_picture.url
+            except Exception:
+                return None
+        return None
+
+
+class TaskAttachmentSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.CharField(source="uploaded_by.full_name", read_only=True)
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TaskAttachment
+        fields = ["id", "uploaded_by", "uploaded_by_name", "name", "file", "file_url", "url", "created_at"]
+        read_only_fields = ["id", "uploaded_by", "uploaded_by_name", "file_url", "created_at"]
+
+    def get_file_url(self, obj):
+        if obj.file:
+            try:
+                request = self.context.get("request")
+                return request.build_absolute_uri(obj.file.url) if request else obj.file.url
+            except Exception:
+                return None
+        return None
+
+
+class TaskChecklistItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaskChecklistItem
+        fields = ["id", "content", "is_checked", "order", "created_at"]
+        read_only_fields = ["id", "created_at"]
+
+
+class TaskChecklistSerializer(serializers.ModelSerializer):
+    items = TaskChecklistItemSerializer(many=True, read_only=True)
+    progress = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TaskChecklist
+        fields = ["id", "title", "items", "progress", "created_at"]
+        read_only_fields = ["id", "created_at"]
+
+    def get_progress(self, obj):
+        items = obj.items.all()
+        total = items.count()
+        if total == 0:
+            return 0
+        checked = items.filter(is_checked=True).count()
+        return round((checked / total) * 100)
+
+
+class TaskDetailSerializer(TaskSerializer):
+    comments = TaskCommentSerializer(many=True, read_only=True)
+    attachments = TaskAttachmentSerializer(many=True, read_only=True)
+    checklists = TaskChecklistSerializer(many=True, read_only=True)
+    assignee_avatar = serializers.SerializerMethodField()
+
+    class Meta(TaskSerializer.Meta):
+        fields = list(TaskSerializer.Meta.fields) + ["comments", "attachments", "checklists", "assignee_avatar"]
+
+    def get_assignee_avatar(self, obj):
+        if obj.assignee and obj.assignee.profile_picture:
+            try:
+                return obj.assignee.profile_picture.url
+            except Exception:
+                return None
+        return None
+
 
 class TeamMemberSerializer(serializers.ModelSerializer):
     class Meta:
