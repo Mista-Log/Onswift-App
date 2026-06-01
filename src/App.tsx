@@ -3,13 +3,14 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { TeamProvider } from "@/contexts/TeamContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Public pages
 import Landing from "./pages/Landing";
@@ -43,22 +44,54 @@ import ClientHistoryPage from "./pages/onboarding/ClientHistoryPage";
 // Onboarding (public client-facing)
 import ClientOnboard from "./pages/onboarding/ClientOnboard";
 
-// Portal (client)
-import { PortalRouteGuard } from "@/components/portal/PortalRouteGuard";
-import PortalProjectSelector from "./pages/portal/PortalProjectSelector";
-import PortalDashboard from "./pages/portal/PortalDashboard";
-import PortalMessages from "./pages/portal/PortalMessages";
-import InviteAccept from "./pages/portal/InviteAccept";
+// Client workspace pages (unified shell)
+import ClientProjects from "./pages/client/ClientProjects";
+import ClientProjectDetail from "./pages/client/ClientProjectDetail";
+import ClientMessages from "./pages/client/ClientMessages";
+import ClientPortalView from "./pages/client/ClientPortalView";
 
-// Library (creator)
+// Invite acceptance
+import InviteAccept from "./pages/client/InviteAccept";
+
+// Library & CRM
 import DocumentLibrary from "./pages/library/DocumentLibrary";
 import CRMBuilder from "./pages/tools/CRMBuilder";
 
 // Analytics
 import { PageTracker } from "./components/analytics/PageTracker";
 
+/** Role-based router for /projects */
+function ProjectsRoute() {
+  const { user } = useAuth();
+  if (user?.role === 'client') return <ClientProjects />;
+  return <Projects />;
+}
 
+/** Role-based router for /projects/:id */
+function ProjectDetailRoute() {
+  const { user } = useAuth();
+  if (user?.role === 'client') return <ClientProjectDetail />;
+  return <ProjectDetail />;
+}
 
+/** Role-based router for /onboarding */
+function OnboardingRoute() {
+  const { user } = useAuth();
+  if (user?.role === 'client') return <ClientPortalView />;
+  return <OnboardingTemplates />;
+}
+
+/** Redirects /portal/:projectId → /projects/:projectId */
+function PortalDetailRedirect() {
+  const { projectId } = useParams<{ projectId: string }>();
+  return <Navigate to={`/projects/${projectId}`} replace />;
+}
+
+/** Redirects /portal/:projectId/messages → /projects/:projectId/messages */
+function PortalMessagesRedirect() {
+  const { projectId } = useParams<{ projectId: string }>();
+  return <Navigate to={`/projects/${projectId}/messages`} replace />;
+}
 
 const queryClient = new QueryClient();
 
@@ -76,54 +109,58 @@ const App = () => (
                 <BrowserRouter>
                   <PageTracker />
                   <Routes>
-              {/* Public routes */}
-              <Route path="/" element={<Landing />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<SignUp />} />
-              <Route path="/signup/creator" element={<SignUpCreator />} />
-              <Route path="/signup/talent" element={<SignUpTalent />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
+                    {/* Public routes */}
+                    <Route path="/" element={<Landing />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/signup" element={<SignUp />} />
+                    <Route path="/signup/creator" element={<SignUpCreator />} />
+                    <Route path="/signup/talent" element={<SignUpTalent />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
 
-              {/* Protected routes */}
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/talent" element={<ProtectedRoute><TalentMarketplace /></ProtectedRoute>} />
-              <Route path="/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
-              <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
-              <Route path="/projects/:id" element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
-              <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-              <Route path="/profile/edit" element={<ProtectedRoute><TalentProfileEdit /></ProtectedRoute>} />
-              <Route path="/profile/creator/edit" element={<ProtectedRoute><CreatorProfileEdit /></ProtectedRoute>} />
-              <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-              <Route path="/deliverables" element={<ProtectedRoute><Deliverables /></ProtectedRoute>} />
-              <Route path="/talent/:userId" element={<ProtectedRoute><TalentPublicProfile /></ProtectedRoute>} />
-              <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
-              <Route path="/auth/google/callback" element={<GoogleOAuthCallback />} />
+                    {/* Protected routes — unified shell, role-filtered nav */}
+                    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                    <Route path="/talent" element={<ProtectedRoute><TalentMarketplace /></ProtectedRoute>} />
+                    <Route path="/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
+                    <Route path="/projects" element={<ProtectedRoute><ProjectsRoute /></ProtectedRoute>} />
+                    {/* Client messages route must precede /:id to avoid param collision */}
+                    <Route path="/projects/:projectId/messages" element={<ProtectedRoute><ClientMessages /></ProtectedRoute>} />
+                    <Route path="/projects/:id" element={<ProtectedRoute><ProjectDetailRoute /></ProtectedRoute>} />
+                    <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
+                    <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+                    <Route path="/profile/edit" element={<ProtectedRoute><TalentProfileEdit /></ProtectedRoute>} />
+                    <Route path="/profile/creator/edit" element={<ProtectedRoute><CreatorProfileEdit /></ProtectedRoute>} />
+                    <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+                    <Route path="/deliverables" element={<ProtectedRoute><Deliverables /></ProtectedRoute>} />
+                    <Route path="/talent/:userId" element={<ProtectedRoute><TalentPublicProfile /></ProtectedRoute>} />
+                    <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
+                    <Route path="/auth/google/callback" element={<GoogleOAuthCallback />} />
 
-              {/* Onboarding — creator (protected) */}
-              <Route path="/onboarding" element={<ProtectedRoute><OnboardingTemplates /></ProtectedRoute>} />
-              <Route path="/onboarding/new" element={<ProtectedRoute><OnboardingBuilder /></ProtectedRoute>} />
-              <Route path="/onboarding/clients" element={<ProtectedRoute><ClientHistoryPage /></ProtectedRoute>} />
-              <Route path="/onboarding/:id" element={<ProtectedRoute><OnboardingBuilder /></ProtectedRoute>} />
+                    {/* Onboarding — role-aware (creator builds, client previews their submission) */}
+                    <Route path="/onboarding" element={<ProtectedRoute><OnboardingRoute /></ProtectedRoute>} />
+                    <Route path="/onboarding/new" element={<ProtectedRoute><OnboardingBuilder /></ProtectedRoute>} />
+                    <Route path="/onboarding/clients" element={<ProtectedRoute><ClientHistoryPage /></ProtectedRoute>} />
+                    <Route path="/onboarding/:id" element={<ProtectedRoute><OnboardingBuilder /></ProtectedRoute>} />
 
-              {/* Onboarding — public client page */}
-              <Route path="/onboard/:slug" element={<ClientOnboard />} />
+                    {/* Onboarding — public client page */}
+                    <Route path="/onboard/:slug" element={<ClientOnboard />} />
 
-              {/* Invite acceptance — public, token-based */}
-              <Route path="/invite/:token" element={<InviteAccept />} />
+                    {/* Invite acceptance — public, token-based */}
+                    <Route path="/invite/:token" element={<InviteAccept />} />
 
-              {/* Portal — client only */}
-              <Route path="/portal" element={<PortalRouteGuard><PortalProjectSelector /></PortalRouteGuard>} />
-              <Route path="/portal/:projectId" element={<PortalRouteGuard><PortalDashboard /></PortalRouteGuard>} />
-              <Route path="/portal/:projectId/messages" element={<PortalRouteGuard><PortalMessages /></PortalRouteGuard>} />
+                    {/* Legacy portal routes — hard redirect to unified shell */}
+                    <Route path="/portal" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="/portal/:projectId/messages" element={<PortalMessagesRedirect />} />
+                    <Route path="/portal/:projectId" element={<PortalDetailRedirect />} />
 
-              {/* Document Library — creator (protected) */}
-              <Route path="/library" element={<ProtectedRoute><DocumentLibrary /></ProtectedRoute>} />
-              <Route path="/tools/crm" element={<ProtectedRoute><CRMBuilder /></ProtectedRoute>} />
+                    {/* Library & CRM — all roles */}
+                    <Route path="/library" element={<ProtectedRoute><DocumentLibrary /></ProtectedRoute>} />
+                    <Route path="/library/crm" element={<ProtectedRoute><CRMBuilder /></ProtectedRoute>} />
+                    {/* Legacy CRM path redirect */}
+                    <Route path="/tools/crm" element={<Navigate to="/library/crm" replace />} />
 
-              {/* Catch-all */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+                    {/* Catch-all */}
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
                 </BrowserRouter>
               </ThemeProvider>
             </NotificationProvider>

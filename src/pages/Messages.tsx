@@ -104,7 +104,7 @@ export default function Messages() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+
   // Mention state
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);

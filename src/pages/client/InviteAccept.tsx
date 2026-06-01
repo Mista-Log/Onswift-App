@@ -81,7 +81,6 @@ const InviteAccept = () => {
         const data = await response.json();
         setInvite(data);
 
-        // Initialize responses object with empty values for each question
         const initialResponses: FormResponses = {};
         data.onboarding_form.questions?.forEach((q: Question) => {
           initialResponses[q.id] = "";
@@ -113,7 +112,6 @@ const InviteAccept = () => {
       return;
     }
 
-    // Validate required fields
     if (invite?.onboarding_form.questions) {
       for (const q of invite.onboarding_form.questions) {
         if (q.required && !responses[q.id]) {
@@ -154,7 +152,6 @@ const InviteAccept = () => {
         description: "Your information has been submitted.",
       });
 
-      // Save invite state for post-signup use
       if (invite) {
         saveInviteState({
           inviteToken: token,
@@ -165,10 +162,7 @@ const InviteAccept = () => {
         });
       }
 
-      // Handle different response actions
       if (data.action === "signup") {
-        // New client - redirect to signup with email pre-filled
-        // SignUp component will detect the invite and handle accordingly
         navigate("/signup", {
           state: {
             prefilledEmail: invite?.client_email,
@@ -178,8 +172,7 @@ const InviteAccept = () => {
           },
         });
       } else if (data.action === "redirect") {
-        // Existing client - redirect to project portal
-        navigate(`/portal/${data.project_id}`);
+        navigate(`/projects/${data.project_id}`);
       }
     } catch (err) {
       console.error("Error accepting invite:", err);
@@ -241,9 +234,7 @@ const InviteAccept = () => {
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">{invite.project_name}</CardTitle>
-            <CardDescription>
-              Invited by {invite.creator_name}
-            </CardDescription>
+            <CardDescription>Invited by {invite.creator_name}</CardDescription>
             <p className="text-sm text-slate-500 mt-2">
               Please complete this form to get started on your project.
             </p>
