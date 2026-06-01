@@ -6,23 +6,27 @@ import { Button } from "@/components/ui/button";
 import { googleAuth } from "@/services/googleAuth";
 import { useAuth } from "@/contexts/AuthContext";
 
+
 interface Props {
   from?: string;
   role?: string;
+  mode?: "login" | "signup";
 }
 
 export default function GoogleSignInButton({
   from,
   role,
+  mode
 }: Props) {
   const navigate = useNavigate();
   const { getUser } = useAuth();
 
   return (
     <div className="w-full relative">
-      {/* Hidden Google Button */}
-      <div className="absolute inset-0 opacity-0">
+      {/* Invisible Google Button Overlay */}
+      <div className="absolute inset-0 z-10 opacity-0 cursor-pointer">
         <GoogleLogin
+          width="100%"
           onSuccess={async (credentialResponse) => {
             try {
               if (!credentialResponse.credential) return;
@@ -49,15 +53,22 @@ export default function GoogleSignInButton({
 
               await getUser();
 
-              navigate(from || "/dashboard", {
+              if (mode === "login") {
+                navigate("/dashboard", { replace: true });
+                return;
+              }
+
+              navigate("/signup", {
+                state: {
+                  fromSignup: true,
+                  prefilledEmail: data.user.email,
+                  prefilledName: data.user.full_name,
+                },
                 replace: true,
               });
 
             } catch (error) {
-              console.error(
-                "Google login failed:",
-                error
-              );
+              console.error("Google login failed:", error);
             }
           }}
           onError={() => {
@@ -66,7 +77,7 @@ export default function GoogleSignInButton({
         />
       </div>
 
-      {/* Your Custom UI */}
+      {/* Custom Button UI */}
       <Button
         type="button"
         variant="outline"
