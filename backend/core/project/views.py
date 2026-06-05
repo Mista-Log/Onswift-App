@@ -173,7 +173,6 @@ class TaskListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user
-        # Only creators can create tasks
         if user.role != "creator":
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("Only creators can create tasks.")
@@ -183,10 +182,19 @@ class TaskListCreateView(generics.ListCreateAPIView):
                 id=self.kwargs["project_id"],
                 creator=user
             )
-            serializer.save(project=project)
+            task = serializer.save(project=project)
         except Project.DoesNotExist:
             from rest_framework.exceptions import NotFound
             raise NotFound("Project not found.")
+
+        if task.assignee:
+            from notification.services import create_notification
+            create_notification(
+                user=task.assignee,
+                title="New Task Assigned",
+                message=f"{user.full_name} assigned you \"{task.title}\" in {project.name}.",
+                notification_type="system",
+            )
 
 
 
@@ -208,6 +216,19 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
             )
         else:
             return Task.objects.filter(assignee=user)
+
+    def perform_update(self, serializer):
+        old_assignee = serializer.instance.assignee
+        task = serializer.save()
+        new_assignee = task.assignee
+        if new_assignee and new_assignee != old_assignee:
+            from notification.services import create_notification
+            create_notification(
+                user=new_assignee,
+                title="New Task Assigned",
+                message=f"{self.request.user.full_name} assigned you \"{task.title}\" in {task.project.name}.",
+                notification_type="system",
+            )
 
     def check_permissions(self, request):
         super().check_permissions(request)
@@ -282,6 +303,8 @@ class TaskAttachmentListCreateView(generics.ListCreateAPIView):
         name = self.request.data.get("name", "").strip()
         if not uploaded_file and not url:
             raise ValidationError("Either a file or a URL is required.")
+        if url and not url.startswith(("http://", "https://")):
+            url = "https://" + url
         if not name:
             name = uploaded_file.name if uploaded_file else url
         serializer.save(task=task, uploaded_by=self.request.user, name=name,
@@ -437,7 +460,6 @@ class DeliverableListCreateView(generics.ListCreateAPIView):
         from .models import DeliverableFile, DeliverableLink
         deliverable = serializer.save()
 
-        # Handle file uploads — getlist works correctly with multipart QueryDict
         for f in self.request.FILES.getlist('files', []):
             DeliverableFile.objects.create(
                 deliverable=deliverable,
@@ -447,10 +469,19 @@ class DeliverableListCreateView(generics.ListCreateAPIView):
                 file_type=f.content_type,
             )
 
-        # Handle URL links — getlist works correctly with multipart QueryDict
         for url in self.request.data.getlist('urls', []):
             if url and url.strip():
                 DeliverableLink.objects.create(deliverable=deliverable, url=url.strip())
+
+        creator = deliverable.task.project.creator
+        submitter = self.request.user
+        from notification.services import create_notification
+        create_notification(
+            user=creator,
+            title="Deliverable Submitted",
+            message=f"{submitter.full_name} submitted a deliverable for \"{deliverable.task.title}\".",
+            notification_type="system",
+        )
 
 
 class DeliverableDetailView(generics.RetrieveDestroyAPIView):

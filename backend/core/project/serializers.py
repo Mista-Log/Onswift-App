@@ -5,30 +5,127 @@ from .models import GoogleCalendarToken, CalendarSyncedTask, ProjectClientMember
 from .models import TaskComment, TaskAttachment, TaskChecklist, TaskChecklistItem
 from django.conf import settings
 
+
+def spawn_recurring_task(task):
+    """
+    Create the next occurrence of a recurring task and notify both the creator
+    and the assignee. Called whenever a recurring task reaches 'completed',
+    regardless of whether that happened via the task serializer or the
+    deliverable-approval path.
+    Returns the newly created Task, or None if recurrence cannot be computed.
+    """
+    from datetime import date, timedelta
+    from dateutil.relativedelta import relativedelta
+    from notification.services import create_notification
+
+    base = task.deadline or date.today()
+
+    if task.recurrence_type == "daily":
+        next_date = base + timedelta(days=1)
+        interval_label = "daily"
+    elif task.recurrence_type == "weekly":
+        next_date = base + timedelta(weeks=1)
+        interval_label = "weekly"
+    elif task.recurrence_type == "monthly":
+        next_date = base + relativedelta(months=1)
+        interval_label = "monthly"
+    elif task.recurrence_type == "custom" and task.recurrence_days:
+        next_date = base + timedelta(days=task.recurrence_days)
+        interval_label = f"every {task.recurrence_days} days"
+    else:
+        return None
+
+    new_task = Task.objects.create(
+        project=task.project,
+        name=task.name,
+        description=task.description,
+        assignee=task.assignee,
+        status="planning",
+        priority=task.priority,
+        deadline=next_date,
+        task_time=task.task_time,
+        recurrence_type=task.recurrence_type,
+        recurrence_days=task.recurrence_days,
+    )
+
+    # Copy checklists — items start unchecked for the new occurrence
+    for checklist in task.checklists.prefetch_related("items").all():
+        new_cl = TaskChecklist.objects.create(task=new_task, title=checklist.title)
+        for item in checklist.items.order_by("order"):
+            TaskChecklistItem.objects.create(
+                checklist=new_cl,
+                content=item.content,
+                is_checked=False,
+                order=item.order,
+            )
+
+    # Copy link attachments only (files are binary uploads and cannot be cloned)
+    for att in task.attachments.filter(url__isnull=False):
+        if not att.file:
+            TaskAttachment.objects.create(
+                task=new_task,
+                uploaded_by=att.uploaded_by,
+                name=att.name,
+                url=att.url,
+            )
+
+    due_str = next_date.strftime("%b %d, %Y")
+
+    create_notification(
+        user=task.project.creator,
+        title="Recurring Task Reset",
+        message=(
+            f"'{task.name}' completed and reset to Planning ({interval_label}). "
+            f"Next due: {due_str}."
+        ),
+        notification_type="system",
+    )
+
+    if task.assignee and task.assignee != task.project.creator:
+        create_notification(
+            user=task.assignee,
+            title="Recurring Task Reset",
+            message=(
+                f"'{task.name}' has been reset to Planning ({interval_label}). "
+                f"Your next deadline: {due_str}."
+            ),
+            notification_type="system",
+        )
+
+    return new_task
+
+
 class TaskSerializer(serializers.ModelSerializer):
     assignee_name = serializers.CharField(source="assignee.full_name", read_only=True)
 
     class Meta:
         model = Task
-        fields = ["id", "project", "name", "description", "assignee", "assignee_name", "status", "priority", "deadline", "created_at"]
+        fields = [
+            "id", "project", "name", "description", "assignee", "assignee_name",
+            "status", "priority", "deadline", "task_time",
+            "recurrence_type", "recurrence_days",
+            "created_at",
+        ]
         read_only_fields = ["project", "created_at"]
 
     def create(self, validated_data):
         task = super().create(validated_data)
-        # Create notification if task is assigned to someone
         if task.assignee:
             self._notify_assignee(task, is_new=True)
         return task
 
     def update(self, instance, validated_data):
         old_assignee = instance.assignee
-        new_assignee = validated_data.get('assignee', old_assignee)
+        old_status   = instance.status
+        new_assignee = validated_data.get("assignee", old_assignee)
 
         task = super().update(instance, validated_data)
 
-        # Notify if assignee changed
         if new_assignee and new_assignee != old_assignee:
             self._notify_assignee(task, is_new=False)
+
+        if old_status != "completed" and task.status == "completed" and task.recurrence_type:
+            spawn_recurring_task(task)
 
         return task
 
@@ -75,6 +172,7 @@ class TaskCommentSerializer(serializers.ModelSerializer):
 class TaskAttachmentSerializer(serializers.ModelSerializer):
     uploaded_by_name = serializers.CharField(source="uploaded_by.full_name", read_only=True)
     file_url = serializers.SerializerMethodField()
+    url = serializers.CharField(max_length=2048, allow_null=True, allow_blank=True, required=False)
 
     class Meta:
         model = TaskAttachment
@@ -150,6 +248,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     task_count = serializers.SerializerMethodField()
     completed_tasks = serializers.SerializerMethodField()
     progress = serializers.SerializerMethodField()
+    has_clients = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -164,7 +263,15 @@ class ProjectSerializer(serializers.ModelSerializer):
             "task_count",
             "completed_tasks",
             "progress",
+            "has_clients",
             "created_at",
+        )
+
+    def get_has_clients(self, obj):
+        from portal.models import ClientInvite
+        return (
+            ProjectClientMembership.objects.filter(project=obj).exists()
+            or ClientInvite.objects.filter(project=obj).exists()
         )
 
     def create(self, validated_data):
@@ -289,11 +396,13 @@ class DeliverableReviewSerializer(serializers.ModelSerializer):
 
         instance = super().update(instance, validated_data)
 
-        # Auto-complete the task when approved; revert it when unapproved
+        # Auto-complete the task when approved; trigger recurrence spawn if set
         if new_status == "approved":
             task = instance.task
             task.status = "completed"
             task.save(update_fields=["status"])
+            if task.recurrence_type:
+                spawn_recurring_task(task)
         elif new_status == "pending" and old_status == "approved":
             task = instance.task
             if task.status == "completed":

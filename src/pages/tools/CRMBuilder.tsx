@@ -112,7 +112,7 @@ const INSERT_SECTIONS: InsertSection[] = [
   {
     items: [
       { id: "checkbox", label: "Checkbox", icon: CheckSquare },
-      { id: "dropdown", label: "Dropdown", icon: List },
+      { id: "dropdown", label: "Drop  down", icon: List },
       {
         id: "smart-chips", label: "Smart chips", icon: Tag,
         sub: [
@@ -122,7 +122,7 @@ const INSERT_SECTIONS: InsertSection[] = [
           { id: "chip-finance",  label: "Finance"        },
         ],
       },
-      { id: "link", label: "Link", icon: Link2 },
+      { id: "link", label: "Link", icon: Link2 }, 
     ],
   },
   {

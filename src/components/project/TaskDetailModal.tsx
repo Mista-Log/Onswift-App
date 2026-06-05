@@ -10,16 +10,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import {
-  Plus, CalendarIcon, Paperclip, Send, Trash2, Link as LinkIcon,
-  FileText, X, Loader2, ExternalLink, CheckSquare, Tag,
+  Plus, Paperclip, Send, Trash2, Link as LinkIcon,
+  FileText, X, Loader2, ExternalLink, CheckSquare, Tag, Repeat,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   useTaskDetail,
-  type TaskDetail, type TaskChecklist, type TaskPriority,
+  type TaskDetail, type TaskChecklist, type TaskPriority, type RecurrenceType,
 } from "@/hooks/useTaskDetail";
 
 interface Assignee { id: string; name: string }
@@ -29,6 +30,7 @@ interface TaskDetailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onTaskUpdated?: (task: TaskDetail) => void;
+  onTaskDeleted?: () => void;
   availableAssignees: Assignee[];
   currentUserId: string;
   isCreator: boolean;
@@ -181,11 +183,11 @@ function ChecklistBlock({
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function TaskDetailModal({
-  taskId, open, onOpenChange, onTaskUpdated,
+  taskId, open, onOpenChange, onTaskUpdated, onTaskDeleted,
   availableAssignees, currentUserId, isCreator,
 }: TaskDetailModalProps) {
   const {
-    task, isLoading, fetchTask, updateTask,
+    task, isLoading, fetchTask, updateTask, deleteTask,
     addComment, deleteComment,
     addAttachment, deleteAttachment,
     createChecklist, deleteChecklist,
@@ -202,7 +204,9 @@ export function TaskDetailModal({
   const [linkDraft, setLinkDraft]           = useState("");
   const [linkNameDraft, setLinkNameDraft]   = useState("");
   const [isSavingLink, setIsSavingLink]     = useState(false);
-  const [calendarOpen, setCalendarOpen]     = useState(false);
+  const [recurringDaysDraft, setRecurringDaysDraft] = useState<number>(2);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [addMenuOpen, setAddMenuOpen]       = useState(false);
   const [newChecklistTitle, setNewChecklistTitle] = useState("");
   const [showChecklistInput, setShowChecklistInput] = useState(false);
@@ -219,11 +223,16 @@ export function TaskDetailModal({
       setCommentDraft("");
       setIsAddingLink(false);
       setShowChecklistInput(false);
+      setShowDeleteConfirm(false);
     }
   }, [open, taskId]);
 
   useEffect(() => {
-    if (task) { setTitleDraft(task.name); setDescDraft(task.description ?? ""); }
+    if (task) {
+      setTitleDraft(task.name);
+      setDescDraft(task.description ?? "");
+      setRecurringDaysDraft(task.recurrence_days ?? 2);
+    }
   }, [task?.id]);
 
   useEffect(() => {
@@ -245,7 +254,7 @@ export function TaskDetailModal({
     catch { toast.error("Failed to update description"); }
   };
 
-  const handleField = async (updates: Partial<Pick<TaskDetail, "status" | "priority" | "deadline" | "assignee">>) => {
+  const handleField = async (updates: Partial<Pick<TaskDetail, "status" | "priority" | "deadline" | "task_time" | "recurrence_type" | "recurrence_days" | "assignee">>) => {
     if (!task) return;
     try { const u = await updateTask(task.id, updates); onTaskUpdated?.(u); }
     catch { toast.error("Failed to update task"); }
@@ -301,11 +310,23 @@ export function TaskDetailModal({
     finally { setIsCreatingChecklist(false); }
   };
 
+  const handleDeleteConfirmed = async () => {
+    if (!task) return;
+    setIsDeleting(true);
+    try {
+      await deleteTask(task.id);
+      toast.success("Task deleted");
+      onOpenChange(false);
+      onTaskDeleted?.();
+    } catch { toast.error("Failed to delete task"); }
+    finally { setIsDeleting(false); }
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl w-full p-0 gap-0 overflow-hidden max-h-[90vh]">
+      <DialogContent className="max-w-[90vw] w-full p-0 gap-0 overflow-hidden max-h-[92vh]">
         {isLoading || !task ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
@@ -314,56 +335,47 @@ export function TaskDetailModal({
           <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
 
             {/* ── Left panel ──────────────────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto scrollbar-hide p-8 space-y-7 border-b md:border-b-0 md:border-r border-border/50">
+            <div className="flex-1 overflow-y-auto scrollbar-hide p-10 space-y-7 border-b md:border-b-0 md:border-r border-border/50">
 
-              {/* Status + "+ Add" row */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {isCreator ? (
-                  <Select value={task.status} onValueChange={(v) => handleField({ status: v as TaskDetail["status"] })}>
-                    <SelectTrigger className="w-36 h-7 text-xs font-medium rounded-full px-3 border">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="planning">Planning</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Badge variant="outline" className={cn("text-xs font-medium rounded-full px-3", STATUS_CONFIG[task.status].cls)}>
-                    {STATUS_CONFIG[task.status].label}
-                  </Badge>
-                )}
-
-                {/* + Add button */}
-                <Popover open={addMenuOpen} onOpenChange={setAddMenuOpen}>
-                  <PopoverTrigger asChild>
-                    <Button size="sm" variant="outline" className="h-7 gap-1 text-xs rounded-full px-3 font-medium">
-                      <Plus className="h-3.5 w-3.5" />
-                      Add
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-72 p-2" align="start">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-2">Add to card</p>
-                    {ADD_MENU_ITEMS.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => handleAddMenuSelect(item.id)}
-                        className="w-full flex items-start gap-3 px-2 py-2.5 rounded-lg hover:bg-secondary/60 transition-colors text-left"
-                      >
-                        <item.icon className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium text-foreground leading-none">
-                            {item.label}
-                            {item.soon && <span className="ml-2 text-[10px] text-muted-foreground font-normal">(coming soon)</span>}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{item.sub}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </PopoverContent>
-                </Popover>
-              </div>
+              {/* Recurring reminder banner — visible to all roles */}
+              {task.recurrence_type && (() => {
+                const labels: Record<string, string> = {
+                  daily: "every 24 hours",
+                  weekly: "every week",
+                  monthly: "every month",
+                  custom: `every ${task.recurrence_days ?? "?"} days`,
+                };
+                const nextLabel = task.deadline
+                  ? (() => {
+                      try {
+                        const base = parseISO(task.deadline);
+                        const next =
+                          task.recurrence_type === "daily"   ? new Date(base.setDate(base.getDate() + 1)) :
+                          task.recurrence_type === "weekly"  ? new Date(base.setDate(base.getDate() + 7)) :
+                          task.recurrence_type === "monthly" ? new Date(base.setMonth(base.getMonth() + 1)) :
+                          new Date(base.setDate(base.getDate() + (task.recurrence_days ?? 1)));
+                        return format(next, "MMM d, yyyy");
+                      } catch { return null; }
+                    })()
+                  : null;
+                return (
+                  <div className="flex items-start gap-3 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 px-4 py-3">
+                    <Repeat className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-purple-800 dark:text-purple-300">
+                        Recurring task — resets {labels[task.recurrence_type]}
+                      </p>
+                      <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">
+                        {task.status === "completed"
+                          ? "This task has been completed. A new occurrence has been scheduled."
+                          : nextLabel
+                            ? `When completed, the next occurrence will appear on ${nextLabel}${task.task_time ? ` at ${task.task_time.slice(0, 5)}` : ""}.`
+                            : "When completed, the next occurrence will automatically appear in Planning."}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Title */}
               {editingTitle && isCreator ? (
@@ -411,28 +423,23 @@ export function TaskDetailModal({
                   )}
                 </div>
 
-                {/* Deadline */}
+                {/* Deadline + Time */}
                 <div className="space-y-2.5">
                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Due date</p>
                   {isCreator ? (
-                    <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-sm font-normal">
-                          <CalendarIcon className="h-3.5 w-3.5" />
-                          {task.deadline ? format(parseISO(task.deadline), "MMM d, yyyy") : "Set date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={task.deadline ? parseISO(task.deadline) : undefined}
-                          onSelect={(d) => { setCalendarOpen(false); handleField({ deadline: d ? format(d, "yyyy-MM-dd") : null }); }}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <DateTimePicker
+                      date={task.deadline ? parseISO(task.deadline) : undefined}
+                      time={task.task_time ? task.task_time.slice(0, 5) : "09:00"}
+                      onDateChange={(d) => handleField({ deadline: d ? format(d, "yyyy-MM-dd") : null })}
+                      onTimeChange={(t) => handleField({ task_time: t })}
+                      placeholder="Set date & time"
+                      className="h-8 text-sm font-normal"
+                    />
                   ) : (
-                    <span>{task.deadline ? format(parseISO(task.deadline), "MMM d, yyyy") : "—"}</span>
+                    <span className="text-sm">
+                      {task.deadline ? format(parseISO(task.deadline), "MMM d, yyyy") : "—"}
+                      {task.task_time && <span className="text-muted-foreground ml-1.5">· {task.task_time.slice(0, 5)}</span>}
+                    </span>
                   )}
                 </div>
 
@@ -493,6 +500,189 @@ export function TaskDetailModal({
                   </p>
                 )}
               </div>
+
+              {/* Recurring */}
+              {isCreator && (
+                <div className="rounded-xl border border-border/50 bg-secondary/10 px-4 py-3 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Repeat className="h-4 w-4 text-purple-500" />
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Recurring task</p>
+                        <p className="text-xs text-muted-foreground">Auto-respawns when completed</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={!!task.recurrence_type}
+                      onCheckedChange={(v) => handleField({ recurrence_type: v ? "daily" : null, recurrence_days: null })}
+                      className="data-[state=checked]:bg-purple-600"
+                    />
+                  </div>
+
+                  {task.recurrence_type && (
+                    <div className="space-y-3 pt-1 border-t border-border/40">
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Repeat every</p>
+                        <Select
+                          value={task.recurrence_type}
+                          onValueChange={(v) => handleField({ recurrence_type: v as RecurrenceType })}
+                        >
+                          <SelectTrigger className="h-8 text-sm hover:border-purple-400 hover:text-purple-700 transition-colors">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="daily">Daily (every 24 hrs)</SelectItem>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                            <SelectItem value="custom">Custom interval</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {task.recurrence_type === "custom" && (
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-muted-foreground whitespace-nowrap">Every</p>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={365}
+                            value={recurringDaysDraft}
+                            onChange={(e) => setRecurringDaysDraft(Math.max(1, parseInt(e.target.value) || 1))}
+                            onBlur={() => handleField({ recurrence_days: recurringDaysDraft })}
+                            className="w-20 h-8 text-sm"
+                          />
+                          <span className="text-sm text-muted-foreground">days</span>
+                        </div>
+                      )}
+
+                      <p className="text-xs text-purple-600 bg-purple-50 dark:bg-purple-950/30 dark:text-purple-400 rounded-md px-3 py-2">
+                        When completed, the next occurrence drops back into Planning at{" "}
+                        {task.task_time ? task.task_time.slice(0, 5) : "09:00"}.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action toolbar: Status · File · Link · + Add */}
+              <div className="flex items-center gap-2 flex-wrap rounded-xl border border-border/50 bg-secondary/10 px-4 py-3">
+                <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+                {isCreator ? (
+                  <Select value={task.status} onValueChange={(v) => handleField({ status: v as TaskDetail["status"] })}>
+                    <SelectTrigger className="w-36 h-8 text-xs font-medium rounded-lg px-3 border hover:border-purple-400 hover:text-purple-700 transition-colors">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="planning">Planning</SelectItem>
+                      <SelectItem value="in-progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge variant="outline" className={cn("text-xs font-medium rounded-full px-3", STATUS_CONFIG[task.status].cls)}>
+                    {STATUS_CONFIG[task.status].label}
+                  </Badge>
+                )}
+                <div className="h-4 w-px bg-border/60 mx-1 shrink-0" />
+                {/*This should be hidden for now */}
+                {/* <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8 px-3 hover:bg-purple-50 hover:border-purple-400 hover:text-purple-700 transition-colors" onClick={() => fileInputRef.current?.click()}>
+                  <Paperclip className="h-3.5 w-3.5" />File
+                </Button> */}
+                <Button
+                  variant="outline" size="sm"
+                  className={cn("gap-1.5 text-xs h-8 px-3 transition-colors", isAddingLink ? "bg-purple-50 border-purple-400 text-purple-700" : "hover:bg-purple-50 hover:border-purple-400 hover:text-purple-700")}
+                  onClick={() => setIsAddingLink((v) => !v)}
+                >
+                  <LinkIcon className="h-3.5 w-3.5" />Link
+                </Button>
+                <div className="flex-1" />
+                <Popover open={addMenuOpen} onOpenChange={setAddMenuOpen}>
+                  <PopoverTrigger asChild>
+                    <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs rounded-lg px-3 font-medium hover:bg-purple-50 hover:border-purple-400 hover:text-purple-700 transition-colors">
+                      <Plus className="h-3.5 w-3.5" />
+                      Add
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-2" align="start">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-2">Add to card</p>
+                    {ADD_MENU_ITEMS.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => handleAddMenuSelect(item.id)}
+                        className="w-full flex items-start gap-3 px-2 py-2.5 rounded-lg hover:bg-purple-50 hover:text-purple-700 transition-colors text-left"
+                      >
+                        <item.icon className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-foreground leading-none">
+                            {item.label}
+                            {item.soon && <span className="ml-2 text-[10px] text-muted-foreground font-normal">(coming soon)</span>}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{item.sub}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
+
+                {/* Delete task — creator only */}
+                {isCreator && (
+                  <>
+                    <div className="h-4 w-px bg-border/60 mx-1 shrink-0" />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      onClick={() => setShowDeleteConfirm((v) => !v)}
+                      title="Delete task"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              {/* Delete confirmation bar */}
+              {showDeleteConfirm && isCreator && (
+                <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5">
+                  <p className="text-sm text-destructive flex-1">
+                    Delete <span className="font-medium">"{task.name}"</span>? This can't be undone.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-7 text-xs px-3"
+                    onClick={handleDeleteConfirmed}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Delete"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs px-3"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    disabled={isDeleting}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+
+              {/* Link input form */}
+              {isAddingLink && (
+                <div className="space-y-2 rounded-lg border border-purple-200 bg-purple-50/50 p-3">
+                  <Input autoFocus placeholder="https://..." value={linkDraft} onChange={(e) => setLinkDraft(e.target.value)} className="h-8 text-sm" />
+                  <Input placeholder="Display name (optional)" value={linkNameDraft} onChange={(e) => setLinkNameDraft(e.target.value)} className="h-8 text-sm" />
+                  <div className="flex gap-2">
+                    <Button size="sm" className="h-7 text-xs" onClick={handleSaveLink} disabled={!linkDraft.trim() || isSavingLink}>
+                      {isSavingLink ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setIsAddingLink(false); setLinkDraft(""); setLinkNameDraft(""); }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {/* Checklists */}
               {((task.checklists ?? []).length > 0 || showChecklistInput) && (
@@ -566,36 +756,11 @@ export function TaskDetailModal({
                 {(task.attachments ?? []).length === 0 && (
                   <p className="text-sm text-muted-foreground italic">No attachments yet.</p>
                 )}
-
-                <div className="flex gap-2 pt-3">
-                  <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
-                  <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7" onClick={() => fileInputRef.current?.click()}>
-                    <Paperclip className="h-3.5 w-3.5" />File
-                  </Button>
-                  <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7" onClick={() => setIsAddingLink((v) => !v)}>
-                    <LinkIcon className="h-3.5 w-3.5" />Link
-                  </Button>
-                </div>
-
-                {isAddingLink && (
-                  <div className="space-y-2 rounded-lg border border-border/50 bg-secondary/10 p-3">
-                    <Input autoFocus placeholder="https://..." value={linkDraft} onChange={(e) => setLinkDraft(e.target.value)} className="h-8 text-sm" />
-                    <Input placeholder="Display name (optional)" value={linkNameDraft} onChange={(e) => setLinkNameDraft(e.target.value)} className="h-8 text-sm" />
-                    <div className="flex gap-2">
-                      <Button size="sm" className="h-7 text-xs" onClick={handleSaveLink} disabled={!linkDraft.trim() || isSavingLink}>
-                        {isSavingLink ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setIsAddingLink(false); setLinkDraft(""); setLinkNameDraft(""); }}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
             {/* ── Right panel: Comments ──────────────────────────────── */}
-            <div className="w-full md:w-80 lg:w-96 flex flex-col shrink-0 max-h-[50vh] md:max-h-[90vh]">
+            <div className="w-full md:w-96 lg:w-[26rem] flex flex-col shrink-0 max-h-[50vh] md:max-h-[92vh]">
               <div className="px-6 py-5 border-b border-border/50 shrink-0">
                 <h3 className="font-semibold text-sm text-foreground">Comments</h3>
                 <p className="text-xs text-muted-foreground mt-1">{(task.comments ?? []).length} comment{(task.comments ?? []).length !== 1 ? "s" : ""}</p>

@@ -16,6 +16,7 @@ from .serializers import (
     OnboardingInstanceCreateSerializer,
     OnboardingPublicSerializer,
     ClientSignupSerializer,
+    ClientSubmissionSerializer,
 )
 
 
@@ -364,3 +365,18 @@ class ClientOnboardingSubmitView(APIView):
         except ImportError:
             # Library app not yet migrated — skip auto-filing silently
             pass
+
+
+class ClientMySubmissionsView(generics.ListAPIView):
+    """
+    GET /api/v4/my-submissions/
+    Returns all completed onboarding submissions for the authenticated client.
+    """
+    serializer_class = ClientSubmissionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return OnboardingInstance.objects.filter(
+            client=self.request.user,
+            status="COMPLETED",
+        ).select_related("template", "template__creator")

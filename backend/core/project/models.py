@@ -95,6 +95,13 @@ class Task(models.Model):
         ("not_sure", "Not Sure"),
     ]
 
+    RECURRENCE_CHOICES = [
+        ("daily",   "Daily"),
+        ("weekly",  "Weekly"),
+        ("monthly", "Monthly"),
+        ("custom",  "Custom"),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="tasks")
     name = models.CharField(max_length=255)
@@ -103,6 +110,9 @@ class Task(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="planning")
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, null=True, blank=True)
     deadline = models.DateField(null=True, blank=True)
+    task_time = models.TimeField(null=True, blank=True)
+    recurrence_type = models.CharField(max_length=10, choices=RECURRENCE_CHOICES, null=True, blank=True)
+    recurrence_days = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

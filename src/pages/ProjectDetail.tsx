@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Switch } from "@/components/ui/switch";
 import { useParams, useNavigate } from "react-router-dom";
 import { CelebrationModal } from "@/components/CelebrationModal";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -16,6 +17,7 @@ import {
   CheckCircle2,
   Circle,
   Clock,
+  Repeat,
   Trash2,
   Edit,
   Loader2,
@@ -62,7 +64,8 @@ import type { TaskDetail } from "@/hooks/useTaskDetail";
 import { useProjects, type Task } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -90,7 +93,11 @@ export default function ProjectDetail() {
     assignee: "unassigned",
     status: "planning" as "planning" | "in-progress" | "completed",
     deadline: "",
+    task_time: "09:00",
+    recurrence_type: null as "daily" | "weekly" | "monthly" | "custom" | null,
+    recurrence_days: 2,
   });
+  const [taskRecurring, setTaskRecurring] = useState(false);
   const [sortMethod, setSortMethod] = useState<"deadline-asc" | "deadline-desc" | "alphabetical-asc" | "alphabetical-desc">("deadline-asc");
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [refreshInvitesTrigger, setRefreshInvitesTrigger] = useState(0);
@@ -177,6 +184,9 @@ export default function ProjectDetail() {
         assignee: taskFormData.assignee && taskFormData.assignee !== "unassigned" ? taskFormData.assignee : null,
         status: taskFormData.status,
         deadline: taskFormData.deadline || null,
+        task_time: taskFormData.task_time || null,
+        recurrence_type: taskRecurring ? taskFormData.recurrence_type : null,
+        recurrence_days: taskRecurring && taskFormData.recurrence_type === "custom" ? taskFormData.recurrence_days : null,
       });
 
       toast.success("Task created successfully!");
@@ -186,7 +196,11 @@ export default function ProjectDetail() {
         assignee: "unassigned",
         status: "planning",
         deadline: "",
+        task_time: "09:00",
+        recurrence_type: null,
+        recurrence_days: 2,
       });
+      setTaskRecurring(false);
       setIsTaskDialogOpen(false);
       await loadTasks();
 
@@ -200,6 +214,13 @@ export default function ProjectDetail() {
   };
 
   const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
+    if (!isCreator) {
+      toast.info(
+        "Task stages are managed by your project creator. To show progress on a task, submit a deliverable.",
+        { duration: 4000 }
+      );
+      return;
+    }
     try {
       await updateTask(taskId, updates);
       toast.success("Task updated successfully!");
@@ -682,52 +703,41 @@ export default function ProjectDetail() {
                     <span className="hidden sm:inline">New Task</span>
                   </Button>
                 </DialogTrigger>
-              <DialogContent className="glass-card border-border/50 sm:max-w-md">
+              <DialogContent className="glass-card border-border/50 sm:max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Create New Task</DialogTitle>
-                  <DialogDescription>
-                    Add a new task to this project
-                  </DialogDescription>
+                  <DialogDescription>Add a new task to this project</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <div className="space-y-5 py-4">
+
+                  {/* Name */}
                   <div className="space-y-2">
                     <Label htmlFor="task-name">Task Name</Label>
                     <Input
                       id="task-name"
                       placeholder="Enter task name"
                       value={taskFormData.name}
-                      onChange={(e) =>
-                        setTaskFormData((prev) => ({
-                          ...prev,
-                          name: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => setTaskFormData((prev) => ({ ...prev, name: e.target.value }))}
                     />
                   </div>
+
+                  {/* Description */}
                   <div className="space-y-2">
                     <Label htmlFor="task-description">Description</Label>
                     <Textarea
                       id="task-description"
                       placeholder="Describe the task"
                       value={taskFormData.description}
-                      onChange={(e) =>
-                        setTaskFormData((prev) => ({
-                          ...prev,
-                          description: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => setTaskFormData((prev) => ({ ...prev, description: e.target.value }))}
                     />
                   </div>
+
+                  {/* Assignee */}
                   <div className="space-y-2">
                     <Label htmlFor="task-assignee">Assign To</Label>
                     <Select
                       value={taskFormData.assignee}
-                      onValueChange={(value) =>
-                        setTaskFormData((prev) => ({
-                          ...prev,
-                          assignee: value,
-                        }))
-                      }
+                      onValueChange={(value) => setTaskFormData((prev) => ({ ...prev, assignee: value }))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select team member" />
@@ -742,44 +752,86 @@ export default function ProjectDetail() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Deadline + Time */}
                   <div className="space-y-2">
                     <Label>Deadline</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !taskFormData.deadline && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {taskFormData.deadline ? format(new Date(taskFormData.deadline), "PPP") : "Pick a deadline"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={taskFormData.deadline ? new Date(taskFormData.deadline) : undefined}
-                          onSelect={(date) =>
-                            setTaskFormData((prev) => ({
-                              ...prev,
-                              deadline: date ? format(date, "yyyy-MM-dd") : "",
-                            }))
+                    <DateTimePicker
+                      date={taskFormData.deadline ? new Date(taskFormData.deadline) : undefined}
+                      time={taskFormData.task_time}
+                      onDateChange={(d) => setTaskFormData((prev) => ({ ...prev, deadline: d ? format(d, "yyyy-MM-dd") : "" }))}
+                      onTimeChange={(t) => setTaskFormData((prev) => ({ ...prev, task_time: t }))}
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* Recurring */}
+                  <div className="rounded-lg border border-border/50 bg-secondary/10 p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Repeat className="h-4 w-4 text-purple-500" />
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Recurring task</p>
+                          <p className="text-xs text-muted-foreground">Auto-respawns when completed</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={taskRecurring}
+                        onCheckedChange={(v) => {
+                          setTaskRecurring(v);
+                          if (v && !taskFormData.recurrence_type) {
+                            setTaskFormData((prev) => ({ ...prev, recurrence_type: "daily" }));
                           }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                        }}
+                        className="data-[state=checked]:bg-purple-600"
+                      />
+                    </div>
+
+                    {taskRecurring && (
+                      <div className="space-y-3 pt-1 border-t border-border/40">
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Repeat every</Label>
+                          <Select
+                            value={taskFormData.recurrence_type ?? "daily"}
+                            onValueChange={(v) => setTaskFormData((prev) => ({ ...prev, recurrence_type: v as "daily" | "weekly" | "monthly" | "custom" }))}
+                          >
+                            <SelectTrigger className="hover:border-purple-400 hover:text-purple-700 transition-colors">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="daily">Daily (every 24 hrs)</SelectItem>
+                              <SelectItem value="weekly">Weekly</SelectItem>
+                              <SelectItem value="monthly">Monthly</SelectItem>
+                              <SelectItem value="custom">Custom interval</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {taskFormData.recurrence_type === "custom" && (
+                          <div className="flex items-center gap-2">
+                            <Label className="text-sm whitespace-nowrap">Every</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={365}
+                              value={taskFormData.recurrence_days}
+                              onChange={(e) => setTaskFormData((prev) => ({ ...prev, recurrence_days: Math.max(1, parseInt(e.target.value) || 1) }))}
+                              className="w-20"
+                            />
+                            <span className="text-sm text-muted-foreground">days</span>
+                          </div>
+                        )}
+
+                        <p className="text-xs text-purple-600 bg-purple-50 dark:bg-purple-950/30 dark:text-purple-400 rounded-md px-3 py-2">
+                          When completed, the next occurrence drops back into Planning automatically at {taskFormData.task_time}.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="flex justify-end gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsTaskDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button variant="outline" onClick={() => setIsTaskDialogOpen(false)}>Cancel</Button>
                   <Button onClick={handleCreateTask}>Create Task</Button>
                 </div>
               </DialogContent>
@@ -915,13 +967,13 @@ export default function ProjectDetail() {
           </div>
         )} */}
 
-        {/* Messages Section — hidden from talent; these are creator↔client conversations */}
-        {id && user?.role !== 'talent' && (
+        {/* Messages Section — only shown once the project has at least one invited/linked client */}
+        {id && user?.role !== 'talent' && project?.has_clients && (
           <div className="mt-8 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold flex items-center gap-2">
                 <MessageCircle className="h-5 w-5" />
-                Project Messages
+                Client Chats
               </h2>
               <div className="flex items-center gap-2">
                 <Button 
@@ -1112,7 +1164,7 @@ export default function ProjectDetail() {
             projectName={project.name}
             isOpen={isInviteModalOpen}
             onClose={() => setIsInviteModalOpen(false)}
-            onSuccess={() => setRefreshInvitesTrigger(prev => prev + 1)}
+            onSuccess={() => { setRefreshInvitesTrigger(prev => prev + 1); fetchProjectTasks(id); }}
           />
         )}
 
@@ -1125,6 +1177,7 @@ export default function ProjectDetail() {
             if (!open) setSelectedTaskId(null);
           }}
           onTaskUpdated={handleTaskDetailUpdated}
+          onTaskDeleted={() => { setIsTaskDetailOpen(false); setSelectedTaskId(null); loadTasks(); }}
           availableAssignees={availableAssignees}
           currentUserId={user?.id ?? ""}
           isCreator={isCreator}
@@ -1194,7 +1247,14 @@ function TaskCard({ task, isCreator, onStatusChange, onEdit, onDelete, onAddDeli
       }}
     >
       <div className="flex items-start justify-between gap-2">
-        <h4 className="font-medium text-sm flex-1">{task.name}</h4>
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <h4 className="font-medium text-sm truncate">{task.name}</h4>
+          {task.recurrence_type && (
+            <span title={`Repeats ${task.recurrence_type}`} className="shrink-0">
+              <Repeat className="h-3 w-3 text-purple-500" />
+            </span>
+          )}
+        </div>
 
         {/* Creator menu: Edit + Delete */}
         {isCreator && (
