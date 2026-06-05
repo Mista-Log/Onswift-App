@@ -120,10 +120,17 @@ class TeamMemberSerializer(serializers.ModelSerializer):
 class InviteTokenCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating invite tokens"""
     invite_url = serializers.SerializerMethodField(read_only=True)
+    expires_in_days = serializers.IntegerField(
+        write_only=True,
+        required=False,
+        default=7,
+        min_value=1,
+        max_value=365,
+    )
 
     class Meta:
         model = InviteToken
-        fields = ['token', 'invited_email', 'expires_at', 'created_at', 'invite_url']
+        fields = ['token', 'invited_email', 'expires_at', 'created_at', 'invite_url', 'expires_in_days']
         read_only_fields = ['token', 'expires_at', 'created_at', 'invite_url']
 
     def validate(self, attrs):
@@ -133,16 +140,18 @@ class InviteTokenCreateSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        from django.utils import timezone
+        from datetime import timedelta
+        expires_in_days = validated_data.pop('expires_in_days', 7)
         creator = self.context['request'].user
         invite = InviteToken.objects.create(
             creator=creator,
+            expires_at=timezone.now() + timedelta(days=expires_in_days),
             **validated_data
         )
         return invite
 
     def get_invite_url(self, obj):
-        """Generate the full invite URL"""
-        # Use FRONTEND_URL from settings, fallback to localhost:8080 for local dev
         frontend_url = settings.FRONTEND_URL or 'http://localhost:8080'
         frontend_url = frontend_url.rstrip('/')
         return f"{frontend_url}/signup/talent?invite={obj.token}"

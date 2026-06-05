@@ -170,11 +170,15 @@ class InviteTokenCreateView(generics.CreateAPIView):
             company = getattr(getattr(creator, "creatorprofile", None), "company_name", None)
             company_line = f" at {company}" if company else ""
 
+            from django.utils import timezone as tz
+            expires_days = max(1, (invite.expires_at - tz.now()).days + 1)
+            expires_label = "1 day" if expires_days == 1 else f"{expires_days} days"
+
             body = (
                 f"Hi,\n\n"
                 f"You've been invited by {creator_label}{company_line} to join their team on OnSwift.\n\n"
                 f"Accept your invite and set up your account here:\n{invite_link}\n\n"
-                f"This link expires in 7 days.\n\n"
+                f"This link expires in {expires_label}.\n\n"
                 f"— The OnSwift Team"
             )
             send_email(

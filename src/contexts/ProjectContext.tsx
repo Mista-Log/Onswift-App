@@ -18,6 +18,9 @@ export interface Task {
   assignee_name: string | null;
   status: "planning" | "in-progress" | "completed";
   deadline: string | null;
+  task_time?: string | null;
+  recurrence_type?: "daily" | "weekly" | "monthly" | "custom" | null;
+  recurrence_days?: number | null;
   created_at: string;
 }
 
@@ -35,6 +38,7 @@ export interface Project {
   task_count: number;
   completed_tasks: number;
   progress?: number;
+  has_clients?: boolean;
 }
 
 interface ProjectContextType {
@@ -183,6 +187,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           assignee: taskData.assignee || null,
           status: taskData.status || "planning",
           deadline: taskData.deadline || null,
+          task_time: taskData.task_time || null,
+          recurrence_type: taskData.recurrence_type || null,
+          recurrence_days: taskData.recurrence_days || null,
         }),
       });
 

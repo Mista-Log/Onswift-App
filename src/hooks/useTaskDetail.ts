@@ -40,6 +40,8 @@ export interface TaskChecklist {
   created_at: string;
 }
 
+export type RecurrenceType = "daily" | "weekly" | "monthly" | "custom";
+
 export interface TaskDetail {
   id: string;
   project: string;
@@ -51,6 +53,9 @@ export interface TaskDetail {
   status: "planning" | "in-progress" | "completed";
   priority: TaskPriority | null;
   deadline: string | null;
+  task_time: string | null;
+  recurrence_type: RecurrenceType | null;
+  recurrence_days: number | null;
   created_at: string;
   comments: TaskComment[];
   attachments: TaskAttachment[];
@@ -73,7 +78,7 @@ export function useTaskDetail() {
 
   const updateTask = useCallback(async (
     taskId: string,
-    updates: Partial<Pick<TaskDetail, "name" | "description" | "status" | "priority" | "deadline" | "assignee">>,
+    updates: Partial<Pick<TaskDetail, "name" | "description" | "status" | "priority" | "deadline" | "task_time" | "recurrence_type" | "recurrence_days" | "assignee">>,
   ) => {
     const res = await secureFetch(`/api/v2/tasks/${taskId}/`, {
       method: "PATCH",
@@ -211,6 +216,12 @@ export function useTaskDetail() {
     });
   }, []);
 
+  const deleteTask = useCallback(async (taskId: string) => {
+    const res = await secureFetch(`/api/v2/tasks/${taskId}/`, { method: "DELETE" });
+    if (!res.ok) throw new Error("Failed to delete task");
+    setTask(null);
+  }, []);
+
   const clearTask = useCallback(() => setTask(null), []);
 
   return {
@@ -218,6 +229,7 @@ export function useTaskDetail() {
     isLoading,
     fetchTask,
     updateTask,
+    deleteTask,
     addComment,
     deleteComment,
     addAttachment,
