@@ -321,11 +321,10 @@ export default function CRMBuilder() {
   const [redoStack, setRedoStack] = useState<HistoryEntry[]>([]);
 
   const isOwner = user?.role === "creator";
-  // write access: owner/admin/editor on the active sheet (or list-level for the creator)
   const sheetRole = crm.activeSheet?.user_role ?? null;
-  const canWrite = isOwner
-    ? (sheetRole === "owner" || sheetRole === "admin" || sheetRole === "editor" || sheetRole === null)
-    : (sheetRole === "admin" || sheetRole === "editor");
+  // canWrite: sheet owner/admin/editor can write; creator in list view (no active sheet) can write
+  const canWrite = sheetRole === "owner" || sheetRole === "admin" || sheetRole === "editor"
+    || (isOwner && sheetRole === null);
   const { activeSheet } = crm;
 
   // Reset per-sheet local state when a different sheet is opened
@@ -864,23 +863,6 @@ export default function CRMBuilder() {
     toast.success("JSON backup exported");
   };
 
-  // ── Guard: non-creators with no shared sheets ──────────────────────────────
-
-  if (!isOwner && !crm.isLoading && crm.sheets.length === 0) {
-    return (
-      <MainLayout>
-        <div className="flex flex-col items-center justify-center min-h-[480px] text-center p-8">
-          <div className="rounded-2xl bg-muted/50 p-5 mb-5">
-            <Lock className="h-14 w-14 text-muted-foreground/60" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">No sheets shared with you yet</h1>
-          <p className="mt-2 text-sm text-muted-foreground max-w-xs leading-relaxed">
-            Once your creator shares a CRM sheet with you, it'll show up right here.
-          </p>
-        </div>
-      </MainLayout>
-    );
-  }
 
   if (crm.isDetailLoading) {
     return (
@@ -1619,17 +1601,13 @@ export default function CRMBuilder() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">Spreadsheet</h1>
             <p className="mt-1 text-muted-foreground">
-              {isOwner
-                ? "Manage your Spreadsheets, click any card to open it."
-                : "Sheets shared with you — click any card to open it."}
+              Manage your spreadsheets and shared sheets.
             </p>
           </div>
-          {isOwner && (
-            <Button className="gap-2 w-full sm:w-auto" onClick={() => setIsSetupOpen(true)}>
-              <Plus className="h-4 w-4" />
-              New Spreadsheet
-            </Button>
-          )}
+          <Button className="gap-2 w-full sm:w-auto" onClick={() => setIsSetupOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New Spreadsheet
+          </Button>
         </div>
 
         {crm.isLoading ? (

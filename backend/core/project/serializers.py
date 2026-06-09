@@ -227,9 +227,10 @@ class TaskDetailSerializer(TaskSerializer):
     attachments = TaskAttachmentSerializer(many=True, read_only=True)
     checklists = TaskChecklistSerializer(many=True, read_only=True)
     assignee_avatars = serializers.SerializerMethodField()
+    deliverables = serializers.SerializerMethodField()
 
     class Meta(TaskSerializer.Meta):
-        fields = list(TaskSerializer.Meta.fields) + ["comments", "attachments", "checklists", "assignee_avatars"]
+        fields = list(TaskSerializer.Meta.fields) + ["comments", "attachments", "checklists", "assignee_avatars", "deliverables"]
 
     def get_assignee_avatars(self, obj):
         avatars = []
@@ -240,6 +241,13 @@ class TaskDetailSerializer(TaskSerializer):
                 url = None
             avatars.append(url)
         return avatars
+
+    def get_deliverables(self, obj):
+        request = self.context.get('request')
+        qs = obj.deliverables.prefetch_related('links', 'files').select_related('submitted_by')
+        if request and request.user.role == 'talent':
+            qs = qs.filter(submitted_by=request.user)
+        return TaskDeliverableSerializer(qs, many=True, context=self.context).data
 
 
 class TeamMemberSerializer(serializers.ModelSerializer):
@@ -341,6 +349,17 @@ class DeliverableLinkSerializer(serializers.ModelSerializer):
     class Meta:
         model = DeliverableLink
         fields = ["id", "url"]
+
+
+class TaskDeliverableSerializer(serializers.ModelSerializer):
+    """Slim read-only serializer used inside TaskDetailSerializer.get_deliverables."""
+    links = DeliverableLinkSerializer(many=True, read_only=True)
+    files = DeliverableFileSerializer(many=True, read_only=True)
+    submitted_by_name = serializers.CharField(source="submitted_by.full_name", read_only=True)
+
+    class Meta:
+        model = Deliverable
+        fields = ["id", "title", "description", "submitted_by_name", "status", "feedback", "links", "files", "created_at"]
 
 
 class DeliverableSerializer(serializers.ModelSerializer):

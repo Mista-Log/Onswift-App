@@ -14,7 +14,7 @@ import { Upload, Search, Filter, Loader2 } from "lucide-react";
 import { DeliverableCard, Deliverable } from "@/components/team/DeliverableCard";
 import { UploadDeliverableModal, DeliverableFormData } from "@/components/team/UploadDeliverableModal";
 import { DeliverableDetailModal } from "@/components/team/DeliverableDetailModal";
-import { secureFetch } from "@/api/apiClient";
+import { secureFetch, isNetworkError } from "@/api/apiClient";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { MessagingProvider } from "@/contexts/MessagingContext";
@@ -127,7 +127,12 @@ function Deliverables() {
       }
     } catch (error) {
       console.error("Error uploading deliverable:", error);
-      toast.error("Hmm, I'm having trouble uploading your deliverable. Please try again.");
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection — your upload may have gone through. Refreshing...");
+        setTimeout(fetchDeliverables, 2000);
+      } else {
+        toast.error("Hmm, I'm having trouble uploading your deliverable. Please try again.");
+      }
     }
   };
 
@@ -148,7 +153,12 @@ function Deliverables() {
       }
     } catch (error) {
       console.error("Error reviewing deliverable:", error);
-      toast.error("Hmm, I'm having trouble reviewing your deliverable. Please try again.");
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection — your review may have been saved. Refreshing...");
+        setTimeout(fetchDeliverables, 2000);
+      } else {
+        toast.error("Hmm, I'm having trouble reviewing your deliverable. Please try again.");
+      }
     }
   };
 
@@ -167,7 +177,12 @@ function Deliverables() {
       }
     } catch (error) {
       console.error("Error deleting deliverable:", error);
-      toast.error("Unable to delete deliverable. Please try again.");
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection — checking status...");
+        setTimeout(fetchDeliverables, 2000);
+      } else {
+        toast.error("Unable to delete deliverable. Please try again.");
+      }
     }
   };
 

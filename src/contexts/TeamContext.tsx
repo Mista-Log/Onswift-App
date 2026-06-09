@@ -6,6 +6,7 @@ import {
   useEffect,
 } from "react";
 import { secureFetch } from "../api/apiClient";
+import { readCache, writeCache } from "../lib/cache";
 
 export interface TeamMember {
   id: string;       // HireRequest ID (for removal)
@@ -28,7 +29,9 @@ interface TeamContextType {
 const TeamContext = createContext<TeamContextType | undefined>(undefined);
 
 export function TeamProvider({ children }: { children: ReactNode }) {
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(
+    () => readCache<TeamMember[]>("team") ?? []
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch team members
@@ -40,6 +43,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
       if (response.ok) {
         const data = await response.json();
         setTeamMembers(data);
+        writeCache("team", data);
       } else {
         console.error("Failed to fetch team members");
       }
