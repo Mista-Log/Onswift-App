@@ -36,7 +36,7 @@ class ProjectListCreateView(generics.ListCreateAPIView):
             return Project.objects.filter(creator=user)
         else:
             # Talents see projects where they are assigned to tasks
-            return Project.objects.filter(tasks__assignee=user).distinct()
+            return Project.objects.filter(tasks__assignees=user).distinct()
 
     def perform_create(self, serializer):
         # Automatically assign creator
@@ -54,7 +54,7 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
             return Project.objects.filter(creator=user)
         else:
             # Talents can view projects where they have assigned tasks
-            return Project.objects.filter(tasks__assignee=user).distinct()
+            return Project.objects.filter(tasks__assignees=user).distinct()
 
     def check_permissions(self, request):
         super().check_permissions(request)
@@ -168,7 +168,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
             # Talents see only tasks assigned to them in this project
             return Task.objects.filter(
                 project_id=project_id,
-                assignee=user
+                assignees=user
             )
 
     def perform_create(self, serializer):
@@ -187,12 +187,12 @@ class TaskListCreateView(generics.ListCreateAPIView):
             from rest_framework.exceptions import NotFound
             raise NotFound("Project not found.")
 
-        if task.assignee:
-            from notification.services import create_notification
+        from notification.services import create_notification
+        for assignee in task.assignees.all():
             create_notification(
-                user=task.assignee,
+                user=assignee,
                 title="New Task Assigned",
-                message=f"{user.full_name} assigned you \"{task.title}\" in {project.name}.",
+                message=f"{user.full_name} assigned you \"{task.name}\" in {project.name}.",
                 notification_type="system",
             )
 
@@ -215,20 +215,10 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
                 project__client_memberships__client=user
             )
         else:
-            return Task.objects.filter(assignee=user)
+            return Task.objects.filter(assignees=user)
 
     def perform_update(self, serializer):
-        old_assignee = serializer.instance.assignee
-        task = serializer.save()
-        new_assignee = task.assignee
-        if new_assignee and new_assignee != old_assignee:
-            from notification.services import create_notification
-            create_notification(
-                user=new_assignee,
-                title="New Task Assigned",
-                message=f"{self.request.user.full_name} assigned you \"{task.title}\" in {task.project.name}.",
-                notification_type="system",
-            )
+        serializer.save()
 
     def check_permissions(self, request):
         super().check_permissions(request)
@@ -247,7 +237,7 @@ def _get_task_for_user(user, task_id):
         raise Http404
     if user.role == "creator" and task.project.creator == user:
         return task
-    if user.role == "talent" and task.assignee == user:
+    if user.role == "talent" and task.assignees.filter(id=user.id).exists():
         return task
     if user.role == "client":
         if ProjectClientMembership.objects.filter(project=task.project, client=user).exists():
@@ -433,7 +423,7 @@ class TalentTasksListView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Task.objects.filter(assignee=user).select_related('project')
+        return Task.objects.filter(assignees=user).select_related('project').distinct()
 
 
 # Deliverable Views

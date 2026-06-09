@@ -1,9 +1,12 @@
 from rest_framework import serializers
+from django.contrib.auth import get_user_model
 from .models import Project, Task, Deliverable, DeliverableFile, DeliverableLink, Message, Conversation
 from .models import ProjectSample, TeamMember, Group, GroupMembership, GroupMessage, GroupMessageReadStatus
 from .models import GoogleCalendarToken, CalendarSyncedTask, ProjectClientMembership
 from .models import TaskComment, TaskAttachment, TaskChecklist, TaskChecklistItem
 from django.conf import settings
+
+User = get_user_model()
 
 
 def spawn_recurring_task(task):
@@ -39,7 +42,6 @@ def spawn_recurring_task(task):
         project=task.project,
         name=task.name,
         description=task.description,
-        assignee=task.assignee,
         status="planning",
         priority=task.priority,
         deadline=next_date,
@@ -47,6 +49,7 @@ def spawn_recurring_task(task):
         recurrence_type=task.recurrence_type,
         recurrence_days=task.recurrence_days,
     )
+    new_task.assignees.set(task.assignees.all())
 
     # Copy checklists — items start unchecked for the new occurrence
     for checklist in task.checklists.prefetch_related("items").all():
@@ -81,9 +84,9 @@ def spawn_recurring_task(task):
         notification_type="system",
     )
 
-    if task.assignee and task.assignee != task.project.creator:
+    for assignee in task.assignees.exclude(id=task.project.creator.id):
         create_notification(
-            user=task.assignee,
+            user=assignee,
             title="Recurring Task Reset",
             message=(
                 f"'{task.name}' has been reset to Planning ({interval_label}). "
@@ -96,59 +99,64 @@ def spawn_recurring_task(task):
 
 
 class TaskSerializer(serializers.ModelSerializer):
-    assignee_name = serializers.CharField(source="assignee.full_name", read_only=True)
+    assignees = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=User.objects.all(),
+        required=False,
+    )
+    assignee_names = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
         fields = [
-            "id", "project", "name", "description", "assignee", "assignee_name",
+            "id", "project", "name", "description", "assignees", "assignee_names",
             "status", "priority", "deadline", "task_time",
             "recurrence_type", "recurrence_days",
             "created_at",
         ]
         read_only_fields = ["project", "created_at"]
 
+    def get_assignee_names(self, obj):
+        return [u.full_name for u in obj.assignees.all()]
+
     def create(self, validated_data):
+        assignees = validated_data.pop("assignees", [])
         task = super().create(validated_data)
-        if task.assignee:
-            self._notify_assignee(task, is_new=True)
+        task.assignees.set(assignees)
+        if assignees:
+            self._notify_assignees(task, assignees, is_new=True)
         return task
 
     def update(self, instance, validated_data):
-        old_assignee = instance.assignee
-        old_status   = instance.status
-        new_assignee = validated_data.get("assignee", old_assignee)
+        old_assignee_ids = set(instance.assignees.values_list("id", flat=True))
+        old_status = instance.status
+        new_assignees = validated_data.pop("assignees", None)
 
         task = super().update(instance, validated_data)
 
-        if new_assignee and new_assignee != old_assignee:
-            self._notify_assignee(task, is_new=False)
+        if new_assignees is not None:
+            task.assignees.set(new_assignees)
+            new_assignee_ids = {u.id for u in new_assignees}
+            added = [u for u in new_assignees if u.id not in old_assignee_ids]
+            if added:
+                self._notify_assignees(task, added, is_new=False)
 
         if old_status != "completed" and task.status == "completed" and task.recurrence_type:
             spawn_recurring_task(task)
 
         return task
 
-    def _notify_assignee(self, task, is_new=True):
-        """Send notification to the task assignee"""
+    def _notify_assignees(self, task, assignees, is_new=True):
         from notification.services import create_notification
-
         project_name = task.project.name
         creator_name = task.project.creator.full_name
-
+        title = "New Task Assigned" if is_new else "Task Reassigned"
         if is_new:
-            title = "New Task Assigned"
             message = f"{creator_name} assigned you to '{task.name}' in project '{project_name}'."
         else:
-            title = "Task Reassigned"
             message = f"You've been assigned to '{task.name}' in project '{project_name}'."
-
-        create_notification(
-            user=task.assignee,
-            title=title,
-            message=message,
-            notification_type="system",
-        )
+        for user in assignees:
+            create_notification(user=user, title=title, message=message, notification_type="system")
 
 class TaskCommentSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source="author.full_name", read_only=True)
@@ -218,18 +226,20 @@ class TaskDetailSerializer(TaskSerializer):
     comments = TaskCommentSerializer(many=True, read_only=True)
     attachments = TaskAttachmentSerializer(many=True, read_only=True)
     checklists = TaskChecklistSerializer(many=True, read_only=True)
-    assignee_avatar = serializers.SerializerMethodField()
+    assignee_avatars = serializers.SerializerMethodField()
 
     class Meta(TaskSerializer.Meta):
-        fields = list(TaskSerializer.Meta.fields) + ["comments", "attachments", "checklists", "assignee_avatar"]
+        fields = list(TaskSerializer.Meta.fields) + ["comments", "attachments", "checklists", "assignee_avatars"]
 
-    def get_assignee_avatar(self, obj):
-        if obj.assignee and obj.assignee.profile_picture:
+    def get_assignee_avatars(self, obj):
+        avatars = []
+        for user in obj.assignees.all():
             try:
-                return obj.assignee.profile_picture.url
+                url = user.profile_picture.url if user.profile_picture else None
             except Exception:
-                return None
-        return None
+                url = None
+            avatars.append(url)
+        return avatars
 
 
 class TeamMemberSerializer(serializers.ModelSerializer):

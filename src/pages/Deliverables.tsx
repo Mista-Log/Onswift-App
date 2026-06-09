@@ -187,7 +187,7 @@ function Deliverables() {
     revision: deliverables.filter(d => d.status === "revision").length,
   };
 
-  const canReupload = !isCreator;
+  const canReupload = true;
 
   return (
     <MessagingProvider>

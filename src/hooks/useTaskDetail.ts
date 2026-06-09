@@ -47,9 +47,9 @@ export interface TaskDetail {
   project: string;
   name: string;
   description: string | null;
-  assignee: string | null;
-  assignee_name: string | null;
-  assignee_avatar: string | null;
+  assignees: string[];
+  assignee_names: string[];
+  assignee_avatars: string[];
   status: "planning" | "in-progress" | "completed";
   priority: TaskPriority | null;
   deadline: string | null;
@@ -78,7 +78,7 @@ export function useTaskDetail() {
 
   const updateTask = useCallback(async (
     taskId: string,
-    updates: Partial<Pick<TaskDetail, "name" | "description" | "status" | "priority" | "deadline" | "task_time" | "recurrence_type" | "recurrence_days" | "assignee">>,
+    updates: Partial<Pick<TaskDetail, "name" | "description" | "status" | "priority" | "deadline" | "task_time" | "recurrence_type" | "recurrence_days" | "assignees">>,
   ) => {
     const res = await secureFetch(`/api/v2/tasks/${taskId}/`, {
       method: "PATCH",

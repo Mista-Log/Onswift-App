@@ -221,9 +221,9 @@ export default function Calendar() {
                 dueDate: new Date(task.deadline!),
                 status: task.status === "completed" ? "done" : task.status === "in-progress" ? "in-progress" : "todo",
                 assignedTo: {
-                  id: task.assignee || "unknown",
-                  name: task.assignee_name || "Unassigned",
-                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${task.assignee_name || "default"}`,
+                  id: task.assignees?.[0] || "unknown",
+                  name: task.assignee_names?.[0] || "Unassigned",
+                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${task.assignee_names?.[0] || "default"}`,
                 },
               }));
             

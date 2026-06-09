@@ -14,8 +14,8 @@ export interface Task {
   project: string;
   name: string;
   description: string;
-  assignee: string | null;
-  assignee_name: string | null;
+  assignees: string[];
+  assignee_names: string[];
   status: "planning" | "in-progress" | "completed";
   deadline: string | null;
   task_time?: string | null;
@@ -52,7 +52,7 @@ interface ProjectContextType {
 
   // Task management
   fetchProjectTasks: (projectId: string) => Promise<Task[]>;
-  addTask: (projectId: string, task: Omit<Task, "id" | "project" | "assignee_name" | "created_at">) => Promise<void>;
+  addTask: (projectId: string, task: Omit<Task, "id" | "project" | "assignee_names" | "created_at">) => Promise<void>;
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
 }
@@ -177,14 +177,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   // ---------------- ADD TASK ----------------
-  const addTask = async (projectId: string, taskData: Omit<Task, "id" | "project" | "assignee_name" | "created_at">) => {
+  const addTask = async (projectId: string, taskData: Omit<Task, "id" | "project" | "assignee_names" | "created_at">) => {
     try {
       const res = await secureFetch(`/api/v2/projects/${projectId}/tasks/`, {
         method: "POST",
         body: JSON.stringify({
           name: taskData.name,
           description: taskData.description,
-          assignee: taskData.assignee || null,
+          assignees: taskData.assignees ?? [],
           status: taskData.status || "planning",
           deadline: taskData.deadline || null,
           task_time: taskData.task_time || null,
@@ -215,7 +215,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({
           name: updates.name,
           description: updates.description,
-          assignee: updates.assignee,
+          assignees: updates.assignees,
           status: updates.status,
           deadline: updates.deadline,
         }),

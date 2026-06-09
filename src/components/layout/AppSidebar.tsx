@@ -1,4 +1,7 @@
-import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, Upload, ClipboardList, FileArchive, Wrench } from "lucide-react";
+import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, Upload, ClipboardList, FileArchive, Wrench, NotebookPen, Loader2 } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { useGlobalSearch } from "@/hooks/useGlobalSearch";
+import type { SearchResult } from "@/hooks/useGlobalSearch";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,7 +23,8 @@ const creatorNavItems = [
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Deliverables", icon: Upload, route: "/deliverables" },
   { label: "Client Portal", icon: ClipboardList, route: "/onboarding" },
-  { label: "Docs", icon: FileArchive, route: "/library" },
+  { label: "Files", icon: FileArchive, route: "/library" },
+  { label: "Docs Editor", icon: NotebookPen, route: "/docs" },
   { label: "Deadlines", icon: Calendar, route: "/calendar" },
   { label: "Marketplace", icon: Users, route: "/talent" },
 ];
@@ -42,7 +46,8 @@ const talentNavItems = [
   { label: "My Projects", icon: FolderKanban, route: "/projects" },
   { label: "Deliverables", icon: Upload, route: "/deliverables" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
-  { label: "Docs", icon: FileArchive, route: "/library" },
+  { label: "Files", icon: FileArchive, route: "/library" },
+  { label: "Docs Editor", icon: NotebookPen, route: "/docs" },
   { label: "CRM", icon: Wrench, route: "/library/crm" },
   { label: "Deadlines", icon: Calendar, route: "/calendar" },
 ];
@@ -52,7 +57,7 @@ const bottomNavItems = [
 ];
 
 const toolNavItems = [
-  { label: "CRM Builder", icon: Wrench, route: "/library/crm" },
+  { label: "Spreadsheet", icon: Wrench, route: "/library/crm" },
 ];
 
 interface AppSidebarProps {
@@ -236,11 +241,101 @@ interface TopBarProps {
   isCollapsed?: boolean;
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  docs: "Pages",
+  files: "Files",
+  projects: "Projects",
+  talents: "Talents",
+  crm: "CRM Sheets",
+};
+
+function SearchDropdown({
+  results,
+  loading,
+  query,
+  onSelect,
+}: {
+  results: import("@/hooks/useGlobalSearch").SearchResults;
+  loading: boolean;
+  query: string;
+  onSelect: (r: SearchResult) => void;
+}) {
+  const categories = (["docs", "files", "projects", "talents", "crm"] as const).filter(
+    (k) => results[k]?.length > 0
+  );
+
+  return (
+    <div className="absolute top-full left-0 mt-1 w-full rounded-xl border border-border bg-popover shadow-xl z-50 max-h-[420px] overflow-y-auto">
+      {loading && (
+        <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+          <Loader2 size={14} className="animate-spin" />
+          Searching…
+        </div>
+      )}
+      {!loading && categories.length === 0 && (
+        <p className="px-4 py-3 text-sm text-muted-foreground">
+          No results for "{query}"
+        </p>
+      )}
+      {categories.map((cat) => (
+        <div key={cat}>
+          <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {CATEGORY_LABELS[cat]}
+          </p>
+          {results[cat].map((r) => (
+            <button
+              key={r.id}
+              className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/60 transition-colors text-left"
+              onClick={() => onSelect(r)}
+            >
+              <span className="text-base flex-shrink-0">{r.icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{r.title}</p>
+                <p className="text-xs text-muted-foreground truncate">{r.subtitle}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function TopBar({ onToggleSidebar, onToggleMobileSidebar, isCollapsed }: TopBarProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { query, setQuery, results, loading, open, setOpen, clear } = useGlobalSearch();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const profilePicture = user?.profilePicture;
+  // Cmd+K / Ctrl+K focuses the search input
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [setOpen]);
+
+  const handleSelect = (r: SearchResult) => {
+    clear();
+    navigate(r.route);
+  };
 
   const handleLogout = () => {
     logout();
@@ -270,13 +365,34 @@ export function TopBar({ onToggleSidebar, onToggleMobileSidebar, isCollapsed }: 
           )}
         </button>
 
-        {/* Search */}
-        <div className="relative w-full max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        {/* Global Search */}
+        <div ref={containerRef} className="relative w-full max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search projects, team..."
-            className="h-10 w-full rounded-full border-border/50 bg-secondary/50 pl-10 text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-primary"
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => { if (query.length >= 2) setOpen(true); }}
+            onKeyDown={(e) => { if (e.key === "Escape") { clear(); inputRef.current?.blur(); } }}
+            placeholder="Search docs, projects, talents… ⌘K"
+            className="h-10 w-full rounded-full border-border/50 bg-secondary/50 pl-10 pr-8 text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-primary"
           />
+          {query && (
+            <button
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={clear}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {open && (
+            <SearchDropdown
+              results={results}
+              loading={loading}
+              query={query}
+              onSelect={handleSelect}
+            />
+          )}
         </div>
       </div>
 
