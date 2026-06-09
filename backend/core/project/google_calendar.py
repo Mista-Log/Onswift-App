@@ -189,7 +189,7 @@ def sync_all_tasks(user) -> Dict[str, int]:
     else:
         # Talent - get tasks assigned to them
         tasks = Task.objects.filter(
-            assignee=user,
+            assignees=user,
             deadline__isnull=False
         )
     

@@ -1617,17 +1617,17 @@ export default function CRMBuilder() {
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">CRM Builder</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">Spreadsheet</h1>
             <p className="mt-1 text-muted-foreground">
               {isOwner
-                ? "Manage your CRM sheets, click any card to open it."
+                ? "Manage your Spreadsheets, click any card to open it."
                 : "Sheets shared with you — click any card to open it."}
             </p>
           </div>
           {isOwner && (
             <Button className="gap-2 w-full sm:w-auto" onClick={() => setIsSetupOpen(true)}>
               <Plus className="h-4 w-4" />
-              New CRM Sheet
+              New Spreadsheet
             </Button>
           )}
         </div>

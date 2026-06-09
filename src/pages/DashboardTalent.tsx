@@ -47,7 +47,7 @@ export default function DashboardTalent() {
             try {
               if (
                 task.status === "planning" &&
-                task.assignee === user.id &&
+                task.assignees?.includes(user.id) &&
                 task.created_at &&
                 now - new Date(task.created_at).getTime() <= RECENT_MS
               ) {

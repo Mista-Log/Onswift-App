@@ -104,7 +104,7 @@ export default function Projects() {
 
 
   const handleCreateProject = async () => {
-    if (!formData.name || !formData.description || !formData.due_date) {
+    if (!formData.name || !formData.due_date) {
       toast.error("Please fill in all fields");
       return;
     }
@@ -172,7 +172,7 @@ export default function Projects() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
+                    <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(Optional)</span></Label>
                     <Textarea
                       id="description"
                       placeholder="Describe your project"

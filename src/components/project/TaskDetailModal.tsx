@@ -254,7 +254,7 @@ export function TaskDetailModal({
     catch { toast.error("Failed to update description"); }
   };
 
-  const handleField = async (updates: Partial<Pick<TaskDetail, "status" | "priority" | "deadline" | "task_time" | "recurrence_type" | "recurrence_days" | "assignee">>) => {
+  const handleField = async (updates: Partial<Pick<TaskDetail, "status" | "priority" | "deadline" | "task_time" | "recurrence_type" | "recurrence_days" | "assignees">>) => {
     if (!task) return;
     try { const u = await updateTask(task.id, updates); onTaskUpdated?.(u); }
     catch { toast.error("Failed to update task"); }
@@ -399,26 +399,64 @@ export function TaskDetailModal({
 
               {/* Meta: Assignee + Deadline + Priority */}
               <div className="flex flex-wrap gap-8 text-sm">
-                {/* Assignee */}
+                {/* Assignees */}
                 <div className="space-y-2.5">
                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Assigned to</p>
                   {isCreator ? (
-                    <Select value={task.assignee ?? "unassigned"} onValueChange={(v) => handleField({ assignee: v === "unassigned" ? null : v })}>
-                      <SelectTrigger className="h-8 w-44 text-sm"><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unassigned">Unassigned</SelectItem>
-                        {availableAssignees.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>{a.id === currentUserId ? "Self" : a.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 min-w-[11rem] justify-start text-sm font-normal gap-1.5">
+                          {task.assignees.length === 0 ? (
+                            <span className="text-muted-foreground">Unassigned</span>
+                          ) : (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {task.assignee_names.map((name, i) => (
+                                <span key={i} className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-xs">{name}</span>
+                              ))}
+                            </div>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-2" align="start">
+                        <p className="text-xs text-muted-foreground mb-2 px-1">Select assignees</p>
+                        <div className="space-y-1">
+                          {availableAssignees.map((a) => {
+                            const checked = task.assignees.includes(a.id);
+                            const toggle = () => {
+                              const next = checked
+                                ? task.assignees.filter((id) => id !== a.id)
+                                : [...task.assignees, a.id];
+                              handleField({ assignees: next });
+                            };
+                            return (
+                              <button
+                                key={a.id}
+                                onClick={toggle}
+                                className="flex items-center gap-2 w-full px-2 py-1.5 rounded hover:bg-muted text-sm text-left"
+                              >
+                                <div className={cn("h-4 w-4 rounded border flex items-center justify-center flex-shrink-0", checked ? "bg-primary border-primary" : "border-border")}>
+                                  {checked && <svg className="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                </div>
+                                {a.id === currentUserId ? "Self" : a.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-6 w-6">
-                        <AvatarImage src={task.assignee_avatar ?? undefined} />
-                        <AvatarFallback className="text-[10px] bg-primary/15 text-primary">{task.assignee_name?.charAt(0) ?? "?"}</AvatarFallback>
-                      </Avatar>
-                      <span>{task.assignee_name ?? "Unassigned"}</span>
+                    <div className="flex flex-wrap gap-2">
+                      {task.assignees.length === 0 ? (
+                        <span className="text-sm text-muted-foreground">Unassigned</span>
+                      ) : task.assignees.map((id, i) => (
+                        <div key={id} className="flex items-center gap-1.5">
+                          <Avatar className="h-6 w-6">
+                            <AvatarImage src={task.assignee_avatars?.[i] ?? undefined} />
+                            <AvatarFallback className="text-[10px] bg-primary/15 text-primary">{task.assignee_names[i]?.charAt(0) ?? "?"}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm">{task.assignee_names[i]}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

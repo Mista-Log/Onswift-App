@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'portal',
     'library',
     'crm',
+    'docs',
     "corsheaders",
     "rest_framework",
     "rest_framework.authtoken",

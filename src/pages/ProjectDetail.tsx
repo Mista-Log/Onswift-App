@@ -83,14 +83,14 @@ export default function ProjectDetail() {
   const [editFormData, setEditFormData] = useState({
     name: "",
     description: "",
-    assignee: "unassigned",
+    assignees: [] as string[],
     status: "planning" as "planning" | "in-progress" | "completed",
     deadline: "",
   });
   const [taskFormData, setTaskFormData] = useState({
     name: "",
     description: "",
-    assignee: "unassigned",
+    assignees: [] as string[],
     status: "planning" as "planning" | "in-progress" | "completed",
     deadline: "",
     task_time: "09:00",
@@ -181,7 +181,7 @@ export default function ProjectDetail() {
       await addTask(id, {
         name: taskFormData.name,
         description: taskFormData.description,
-        assignee: taskFormData.assignee && taskFormData.assignee !== "unassigned" ? taskFormData.assignee : null,
+        assignees: taskFormData.assignees,
         status: taskFormData.status,
         deadline: taskFormData.deadline || null,
         task_time: taskFormData.task_time || null,
@@ -193,7 +193,7 @@ export default function ProjectDetail() {
       setTaskFormData({
         name: "",
         description: "",
-        assignee: "unassigned",
+        assignees: [],
         status: "planning",
         deadline: "",
         task_time: "09:00",
@@ -245,7 +245,7 @@ export default function ProjectDetail() {
     setEditFormData({
       name: task.name,
       description: task.description || "",
-      assignee: task.assignee || "unassigned",
+      assignees: task.assignees ?? [],
       status: task.status,
       deadline: task.deadline || "",
     });
@@ -260,7 +260,7 @@ export default function ProjectDetail() {
     setTasks((prev) =>
       prev.map((t) =>
         t.id === updated.id
-          ? { ...t, name: updated.name, description: updated.description, status: updated.status, deadline: updated.deadline, assignee: updated.assignee, assignee_name: updated.assignee_name }
+          ? { ...t, name: updated.name, description: updated.description, status: updated.status, deadline: updated.deadline, assignees: updated.assignees, assignee_names: updated.assignee_names }
           : t
       )
     );
@@ -275,7 +275,7 @@ export default function ProjectDetail() {
       await updateTask(editingTask.id, {
         name: editFormData.name.trim(),
         description: editFormData.description,
-        assignee: editFormData.assignee !== "unassigned" ? editFormData.assignee : null,
+        assignees: editFormData.assignees,
         status: editFormData.status,
         deadline: editFormData.deadline || null,
       });
@@ -549,22 +549,41 @@ export default function ProjectDetail() {
               </div>
               <div className="space-y-2">
                 <Label>Assign To</Label>
-                <Select
-                  value={editFormData.assignee}
-                  onValueChange={(value) => setEditFormData((prev) => ({ ...prev, assignee: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select team member" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {availableAssignees.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.id === user?.id ? "Self" : member.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start font-normal">
+                      {editFormData.assignees.length === 0
+                        ? <span className="text-muted-foreground">Unassigned</span>
+                        : availableAssignees.filter(m => editFormData.assignees.includes(m.id)).map(m => m.id === user?.id ? "Self" : m.name).join(", ")
+                      }
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-2" align="start">
+                    <div className="space-y-1">
+                      {availableAssignees.map((member) => {
+                        const checked = editFormData.assignees.includes(member.id);
+                        return (
+                          <button
+                            key={member.id}
+                            type="button"
+                            onClick={() => setEditFormData(prev => ({
+                              ...prev,
+                              assignees: checked
+                                ? prev.assignees.filter(id => id !== member.id)
+                                : [...prev.assignees, member.id],
+                            }))}
+                            className="flex items-center gap-2 w-full px-2 py-1.5 rounded hover:bg-muted text-sm text-left"
+                          >
+                            <div className={cn("h-4 w-4 rounded border flex items-center justify-center flex-shrink-0", checked ? "bg-primary border-primary" : "border-border")}>
+                              {checked && <svg className="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                            </div>
+                            {member.id === user?.id ? "Self" : member.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
@@ -732,25 +751,44 @@ export default function ProjectDetail() {
                     />
                   </div>
 
-                  {/* Assignee */}
+                  {/* Assignees */}
                   <div className="space-y-2">
-                    <Label htmlFor="task-assignee">Assign To</Label>
-                    <Select
-                      value={taskFormData.assignee}
-                      onValueChange={(value) => setTaskFormData((prev) => ({ ...prev, assignee: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select team member" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unassigned">Unassigned</SelectItem>
-                        {availableAssignees.map((member) => (
-                          <SelectItem key={member.id} value={member.id}>
-                            {member.id === user?.id ? "Self" : member.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>Assign To</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start font-normal">
+                          {taskFormData.assignees.length === 0
+                            ? <span className="text-muted-foreground">Unassigned</span>
+                            : availableAssignees.filter(m => taskFormData.assignees.includes(m.id)).map(m => m.id === user?.id ? "Self" : m.name).join(", ")
+                          }
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-2" align="start">
+                        <div className="space-y-1">
+                          {availableAssignees.map((member) => {
+                            const checked = taskFormData.assignees.includes(member.id);
+                            return (
+                              <button
+                                key={member.id}
+                                type="button"
+                                onClick={() => setTaskFormData(prev => ({
+                                  ...prev,
+                                  assignees: checked
+                                    ? prev.assignees.filter(id => id !== member.id)
+                                    : [...prev.assignees, member.id],
+                                }))}
+                                className="flex items-center gap-2 w-full px-2 py-1.5 rounded hover:bg-muted text-sm text-left"
+                              >
+                                <div className={cn("h-4 w-4 rounded border flex items-center justify-center flex-shrink-0", checked ? "bg-primary border-primary" : "border-border")}>
+                                  {checked && <svg className="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                </div>
+                                {member.id === user?.id ? "Self" : member.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   {/* Deadline + Time */}
@@ -1304,8 +1342,8 @@ function TaskCard({ task, isCreator, onStatusChange, onEdit, onDelete, onAddDeli
       )}
 
       <div className="flex items-center justify-between text-xs">
-        <span className={task.assignee_name ? "text-muted-foreground" : "text-muted-foreground/50"}>
-          {task.assignee_name ? `Assigned to ${task.assignee_name}` : "Unassigned"}
+        <span className={task.assignee_names?.length ? "text-muted-foreground" : "text-muted-foreground/50"}>
+          {task.assignee_names?.length ? `Assigned to ${task.assignee_names.join(", ")}` : "Unassigned"}
         </span>
         {task.deadline && <span className="text-muted-foreground">{task.deadline}</span>}
       </div>

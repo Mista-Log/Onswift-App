@@ -106,7 +106,7 @@ class Task(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="tasks")
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
-    assignee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    assignees = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="assigned_tasks")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="planning")
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, null=True, blank=True)
     deadline = models.DateField(null=True, blank=True)

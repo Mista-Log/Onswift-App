@@ -57,6 +57,9 @@ import InviteAccept from "./pages/client/InviteAccept";
 import DocumentLibrary from "./pages/library/DocumentLibrary";
 import CRMBuilder from "./pages/tools/CRMBuilder";
 
+// Docs editor
+import DocsPage from "./pages/docs/DocsPage";
+
 // Analytics
 import { PageTracker } from "./components/analytics/PageTracker";
 
@@ -157,6 +160,10 @@ const App = () => (
                     <Route path="/library/crm" element={<ProtectedRoute><CRMBuilder /></ProtectedRoute>} />
                     {/* Legacy CRM path redirect */}
                     <Route path="/tools/crm" element={<Navigate to="/library/crm" replace />} />
+
+                    {/* Docs editor — creator + talent */}
+                    <Route path="/docs" element={<ProtectedRoute><DocsPage /></ProtectedRoute>} />
+                    <Route path="/docs/:docId" element={<ProtectedRoute><DocsPage /></ProtectedRoute>} />
 
                     {/* Catch-all */}
                     <Route path="*" element={<NotFound />} />
