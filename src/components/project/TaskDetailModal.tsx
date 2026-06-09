@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   useTaskDetail,
-  type TaskDetail, type TaskChecklist, type TaskPriority, type RecurrenceType,
+  type TaskDetail, type TaskChecklist, type TaskPriority, type RecurrenceType, type TaskDeliverable,
 } from "@/hooks/useTaskDetail";
 
 interface Assignee { id: string; name: string }
@@ -363,7 +363,7 @@ export function TaskDetailModal({
                     <Repeat className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-purple-800 dark:text-purple-300">
-                        Recurring task — resets {labels[task.recurrence_type]}
+                        Recurring task resets {labels[task.recurrence_type]}
                       </p>
                       <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">
                         {task.status === "completed"
@@ -760,6 +760,67 @@ export function TaskDetailModal({
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Deliverables (read-only sync from Deliverables page) */}
+              {(task.deliverables ?? []).length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Deliverables</p>
+                  <div className="space-y-2">
+                    {(task.deliverables ?? []).map((del: TaskDeliverable) => (
+                      <div key={del.id} className="rounded-lg border border-border/50 bg-secondary/20 px-4 py-3 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-medium text-foreground leading-snug">{del.title}</span>
+                          <Badge
+                            variant="secondary"
+                            className={cn(
+                              "shrink-0 text-[10px] capitalize",
+                              del.status === "approved" && "bg-green-500/15 text-green-600 border-green-500/20",
+                              del.status === "revision" && "bg-yellow-500/15 text-yellow-600 border-yellow-500/20",
+                            )}
+                          >
+                            {del.status}
+                          </Badge>
+                        </div>
+                        {del.submitted_by_name && (
+                          <p className="text-xs text-muted-foreground">By {del.submitted_by_name}</p>
+                        )}
+                        {del.links.length > 0 && (
+                          <div className="space-y-1">
+                            {del.links.map((link) => (
+                              <a
+                                key={link.id}
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+                              >
+                                <LinkIcon className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{link.url}</span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                        {del.files.length > 0 && (
+                          <div className="space-y-1">
+                            {del.files.map((f) => (
+                              <a
+                                key={f.id}
+                                href={f.url ?? "#"}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                              >
+                                <FileText className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{f.name}</span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

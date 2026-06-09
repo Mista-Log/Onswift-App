@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { publicFetch, secureFetch } from '@/api/apiClient'; // Import both
 import posthog from 'posthog-js';
+import { clearAllCache } from '@/lib/cache';
 
 export type UserRole = 'creator' | 'talent' | 'client';
 
@@ -224,6 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("onswift_user");
     localStorage.removeItem("onswift_access");
     localStorage.removeItem("onswift_refresh");
+    clearAllCache();
   };
 
   // UPDATE CREATOR PROFILE (requires auth)

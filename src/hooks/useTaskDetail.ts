@@ -42,6 +42,31 @@ export interface TaskChecklist {
 
 export type RecurrenceType = "daily" | "weekly" | "monthly" | "custom";
 
+export interface TaskDeliverableLink {
+  id: string;
+  url: string;
+}
+
+export interface TaskDeliverableFile {
+  id: string;
+  name: string;
+  url: string | null;
+  size: number;
+  file_type: string;
+}
+
+export interface TaskDeliverable {
+  id: string;
+  title: string;
+  description: string | null;
+  submitted_by_name: string;
+  status: "pending" | "approved" | "revision";
+  feedback: string | null;
+  links: TaskDeliverableLink[];
+  files: TaskDeliverableFile[];
+  created_at: string;
+}
+
 export interface TaskDetail {
   id: string;
   project: string;
@@ -60,6 +85,7 @@ export interface TaskDetail {
   comments: TaskComment[];
   attachments: TaskAttachment[];
   checklists: TaskChecklist[];
+  deliverables: TaskDeliverable[];
 }
 
 export function useTaskDetail() {

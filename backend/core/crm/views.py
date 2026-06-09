@@ -51,8 +51,6 @@ class CRMSheetListCreateView(generics.ListCreateAPIView):
         return _accessible_sheets_qs(self.request.user)
 
     def perform_create(self, serializer):
-        if self.request.user.role != "creator":
-            raise PermissionDenied("Only creators can create CRM sheets.")
         serializer.save(owner=self.request.user)
 
 

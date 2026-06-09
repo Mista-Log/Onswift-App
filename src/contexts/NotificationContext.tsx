@@ -8,6 +8,7 @@ import {
 } from "react";
 import { secureFetch } from "../api/apiClient";
 import { Notification } from "@/types/notification";
+import { readCache, writeCache } from "../lib/cache";
 
 interface NotificationContextType {
   notifications: Notification[];
@@ -24,7 +25,9 @@ const NotificationContext = createContext<NotificationContextType | undefined>(
 );
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>(
+    () => readCache<Notification[]>("notifications") ?? []
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch notifications
@@ -43,6 +46,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (response.ok) {
         const data = await response.json();
         setNotifications(data);
+        writeCache("notifications", data, 2 * 60 * 1000); // 2-min TTL — notifications are time-sensitive
       } else {
         console.error("Failed to fetch notifications");
       }

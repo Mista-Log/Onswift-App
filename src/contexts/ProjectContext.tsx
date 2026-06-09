@@ -7,7 +7,8 @@ import {
 } from "react";
 import { mapFromBackend } from "../lib/api";
 import { useAuth } from "./AuthContext";
-import { secureFetch } from '../api/apiClient';
+import { secureFetch, isNetworkError } from '../api/apiClient';
+import { readCache, writeCache } from "../lib/cache";
 
 export interface Task {
   id: string;
@@ -68,7 +69,9 @@ const deriveStatus = (p: Project): Project["status"] => {
 };
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(
+    () => readCache<Project[]>("projects") ?? []
+  );
 
   const getToken = () => localStorage.getItem("onswift_access");
 
@@ -79,7 +82,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const response = await secureFetch('/api/v2/projects/');
       if (response.ok) {
         const data = await response.json();
-        setProjects(data.map((p: Project) => ({ ...p, status: deriveStatus(p) })));
+        const mapped = data.map((p: Project) => ({ ...p, status: deriveStatus(p) }));
+        setProjects(mapped);
+        writeCache("projects", mapped);
       }
     } catch (error) {
       console.error("Error loading projects:", error);

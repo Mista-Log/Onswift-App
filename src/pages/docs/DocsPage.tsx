@@ -44,9 +44,8 @@ export default function DocsPage() {
       const doc = await createDoc({ parent: parentId ?? null });
       if (doc) {
         navigate(`/docs/${doc.id}`);
-      } else {
-        toast.error("Failed to create page");
       }
+      // errors are toasted inside createDoc
     },
     [createDoc, navigate]
   );
@@ -57,9 +56,8 @@ export default function DocsPage() {
       if (ok) {
         toast.success("Page deleted");
         if (docId === id) navigate("/docs");
-      } else {
-        toast.error("Failed to delete page");
       }
+      // errors are toasted inside deleteDoc
     },
     [deleteDoc, docId, navigate]
   );

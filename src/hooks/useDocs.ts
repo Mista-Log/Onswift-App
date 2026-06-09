@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { secureFetch } from "@/api/apiClient";
+import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,7 @@ export function useDocs() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
+    if (!localStorage.getItem("onswift_access")) { setLoading(false); return; }
     setLoading(true);
     setError(null);
     try {
@@ -90,11 +92,16 @@ export function useDocs() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Untitled", ...payload }),
       });
-      if (!res.ok) throw new Error("Failed to create doc");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body.detail || "Couldn't create the page. Please try again.");
+        return null;
+      }
       const doc: DocDetail = await res.json();
       await fetchAll();
       return doc;
     } catch {
+      toast.error("Connection issue — couldn't create the page. Check your network and try again.");
       return null;
     }
   }, [fetchAll]);
@@ -102,10 +109,14 @@ export function useDocs() {
   const deleteDoc = useCallback(async (id: string): Promise<boolean> => {
     try {
       const res = await secureFetch(`/api/v8/docs/${id}/`, { method: "DELETE" });
-      if (!res.ok && res.status !== 204) throw new Error();
+      if (!res.ok && res.status !== 204) {
+        toast.error("Couldn't delete the page. Please try again.");
+        return false;
+      }
       await fetchAll();
       return true;
     } catch {
+      toast.error("Connection issue — couldn't delete the page. Check your network and try again.");
       return false;
     }
   }, [fetchAll]);

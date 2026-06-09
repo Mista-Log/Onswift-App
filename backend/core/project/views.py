@@ -208,14 +208,15 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        deliverable_prefetch = ['deliverables__links', 'deliverables__files', 'deliverables__submitted_by']
         if user.role == "creator":
-            return Task.objects.filter(project__creator=user)
+            return Task.objects.filter(project__creator=user).prefetch_related(*deliverable_prefetch)
         elif user.role == "client":
             return Task.objects.filter(
                 project__client_memberships__client=user
-            )
+            ).prefetch_related(*deliverable_prefetch)
         else:
-            return Task.objects.filter(assignees=user)
+            return Task.objects.filter(assignees=user).prefetch_related(*deliverable_prefetch)
 
     def perform_update(self, serializer):
         serializer.save()
@@ -469,7 +470,7 @@ class DeliverableListCreateView(generics.ListCreateAPIView):
         create_notification(
             user=creator,
             title="Deliverable Submitted",
-            message=f"{submitter.full_name} submitted a deliverable for \"{deliverable.task.title}\".",
+            message=f"{submitter.full_name} submitted a deliverable for \"{deliverable.task.name}\".",
             notification_type="system",
         )
 

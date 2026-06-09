@@ -56,7 +56,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { secureFetch } from "@/api/apiClient";
+import { secureFetch, isNetworkError } from "@/api/apiClient";
 import { ClientInviteModal } from "@/components/project/ClientInviteModal";
 import { ClientInvitesTable } from "@/components/project/ClientInvitesTable";
 import { TaskDetailModal } from "@/components/project/TaskDetailModal";
@@ -209,7 +209,12 @@ export default function ProjectDetail() {
         setShowTaskCelebration(true);
       }
     } catch (error) {
-      toast.error("Failed to create task");
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection — your task may have been created. Refreshing...");
+        setTimeout(loadTasks, 2000);
+      } else {
+        toast.error("Failed to create task");
+      }
     }
   };
 
@@ -226,7 +231,12 @@ export default function ProjectDetail() {
       toast.success("Task updated successfully!");
       await loadTasks();
     } catch (error) {
-      toast.error("Failed to update task");
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection — your change may have been saved. Refreshing...");
+        setTimeout(loadTasks, 2000);
+      } else {
+        toast.error("Failed to update task");
+      }
     }
   };
 
@@ -236,7 +246,12 @@ export default function ProjectDetail() {
       toast.success("Task deleted successfully!");
       await loadTasks();
     } catch (error) {
-      toast.error("Failed to delete task");
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection — checking status...");
+        setTimeout(loadTasks, 2000);
+      } else {
+        toast.error("Failed to delete task");
+      }
     }
   };
 
@@ -283,7 +298,12 @@ export default function ProjectDetail() {
       setEditingTask(null);
       await loadTasks();
     } catch (error) {
-      toast.error("Failed to update task");
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection — your change may have been saved. Refreshing...");
+        setTimeout(loadTasks, 2000);
+      } else {
+        toast.error("Failed to update task");
+      }
     }
   };
 

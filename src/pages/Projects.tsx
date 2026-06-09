@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProjects } from "@/contexts/ProjectContext";
+import { isNetworkError } from "@/api/apiClient";
 
 export default function Projects() {
   const navigate = useNavigate();
@@ -65,7 +66,11 @@ export default function Projects() {
       await deleteProject(projectToDelete.id);
       toast.success("Project deleted successfully");
     } catch (error) {
-      toast.error("Failed to delete project");
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection — your request may have gone through. Refreshing...");
+      } else {
+        toast.error("Failed to delete project");
+      }
     } finally {
       setDeleteDialogOpen(false);
       setProjectToDelete(null);
@@ -90,8 +95,12 @@ export default function Projects() {
     try {
       await updateProject(projectToRename.id, { name: renameValue.trim() });
       toast.success("Project renamed successfully");
-    } catch {
-      toast.error("Failed to rename project");
+    } catch (error) {
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection — your rename may have been saved. Refreshing...");
+      } else {
+        toast.error("Failed to rename project");
+      }
     } finally {
       setRenameDialogOpen(false);
       setProjectToRename(null);
