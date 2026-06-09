@@ -69,10 +69,18 @@ describe("DocumentLibrary — New Files button", () => {
     mockFetch();
   });
 
+  async function getHeaderButton() {
+    return waitFor(() => {
+      const btns = screen.getAllByRole("button", { name: /New Files/i });
+      if (!btns.length) throw new Error("button not found");
+      return btns[0];
+    });
+  }
+
   it("renders 'New Files' in the header (not 'New page')", async () => {
     renderLibrary();
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /New Files/i })).toBeInTheDocument()
+      expect(screen.getAllByRole("button", { name: /New Files/i })[0]).toBeInTheDocument()
     );
     expect(screen.queryByRole("button", { name: /^New page$/i })).toBeNull();
   });
@@ -81,8 +89,8 @@ describe("DocumentLibrary — New Files button", () => {
     const user = userEvent.setup();
     renderLibrary();
 
-    await waitFor(() => screen.getByRole("button", { name: /New Files/i }));
-    await user.click(screen.getByRole("button", { name: /New Files/i }));
+    const btn = await getHeaderButton();
+    await user.click(btn);
 
     expect(screen.getByText(/Create new file/i)).toBeInTheDocument();
   });
@@ -91,8 +99,8 @@ describe("DocumentLibrary — New Files button", () => {
     const user = userEvent.setup();
     renderLibrary();
 
-    await waitFor(() => screen.getByRole("button", { name: /New Files/i }));
-    await user.click(screen.getByRole("button", { name: /New Files/i }));
+    const btn = await getHeaderButton();
+    await user.click(btn);
 
     expect(screen.getByText("Docs")).toBeInTheDocument();
     expect(screen.getByText("Spreadsheet")).toBeInTheDocument();
@@ -102,8 +110,8 @@ describe("DocumentLibrary — New Files button", () => {
     const user = userEvent.setup();
     renderLibrary();
 
-    await waitFor(() => screen.getByRole("button", { name: /New Files/i }));
-    await user.click(screen.getByRole("button", { name: /New Files/i }));
+    const btn = await getHeaderButton();
+    await user.click(btn);
     await user.click(screen.getByText("Docs"));
 
     await waitFor(() => {
@@ -119,8 +127,8 @@ describe("DocumentLibrary — New Files button", () => {
     const user = userEvent.setup();
     renderLibrary();
 
-    await waitFor(() => screen.getByRole("button", { name: /New Files/i }));
-    await user.click(screen.getByRole("button", { name: /New Files/i }));
+    const btn = await getHeaderButton();
+    await user.click(btn);
     await user.click(screen.getByText("Spreadsheet"));
 
     expect(mockNavigate).toHaveBeenCalledWith("/library/crm");
@@ -134,8 +142,8 @@ describe("DocumentLibrary — New Files button", () => {
     const user = userEvent.setup();
     renderLibrary();
 
-    await waitFor(() => screen.getByRole("button", { name: /New Files/i }));
-    await user.click(screen.getByRole("button", { name: /New Files/i }));
+    const btn = await getHeaderButton();
+    await user.click(btn);
     await user.click(screen.getByText("Docs"));
 
     await waitFor(() =>
@@ -147,8 +155,8 @@ describe("DocumentLibrary — New Files button", () => {
     const user = userEvent.setup();
     renderLibrary();
 
-    await waitFor(() => screen.getByRole("button", { name: /New Files/i }));
-    await user.click(screen.getByRole("button", { name: /New Files/i }));
+    const btn = await getHeaderButton();
+    await user.click(btn);
     await user.click(screen.getByText("Spreadsheet"));
 
     await waitFor(() =>
@@ -161,8 +169,8 @@ describe("DocumentLibrary — New Files button", () => {
     const user = userEvent.setup();
     renderLibrary();
 
-    await waitFor(() => screen.getByRole("button", { name: /New Files/i }));
-    await user.click(screen.getByRole("button", { name: /New Files/i }));
+    const btn = await getHeaderButton();
+    await user.click(btn);
     await user.click(screen.getByText("Docs"));
 
     await waitFor(() =>
