@@ -268,6 +268,24 @@
     opacity: 1;
   }
 
+  .google-auth-wrapper {
+    width: 100% !important;
+    display: block;
+  }
+
+  .google-auth-wrapper {
+    min-height: 44px;
+  }
+
+  .google-auth-wrapper iframe {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 10px;
+  }
+
+
+
   .loader-screen {
     position: fixed;
     inset: 0;
