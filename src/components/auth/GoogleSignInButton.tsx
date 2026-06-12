@@ -15,46 +15,46 @@ export default function GoogleSignInButton({ role, mode }: Props) {
   const { getUser } = useAuth();
 
   return (
-    <div className="w-full">
-      <GoogleLogin
-        onSuccess={async (credentialResponse) => {
-          try {
-            if (!credentialResponse.credential) return;
+  <div className="w-full google-auth-wrapper">
+    <GoogleLogin
+      onSuccess={async (credentialResponse) => {
+        try {
+          if (!credentialResponse.credential) return;
 
-            const data = await googleAuth(
-              credentialResponse.credential,
-              role
-            );
+          const data = await googleAuth(
+            credentialResponse.credential,
+            role
+          );
 
-            localStorage.setItem("onswift_access", data.access);
-            localStorage.setItem("onswift_refresh", data.refresh);
-            localStorage.setItem("onswift_user", JSON.stringify(data.user));
+          localStorage.setItem("onswift_access", data.access);
+          localStorage.setItem("onswift_refresh", data.refresh);
+          localStorage.setItem("onswift_user", JSON.stringify(data.user));
 
-            await getUser();
+          await getUser();
 
-            if (mode === "login") {
-              navigate("/dashboard", { replace: true });
-              return;
-            }
-
-            navigate("/signup", {
-              state: {
-                fromSignup: true,
-                prefilledEmail: data.user.email,
-                prefilledName: data.user.full_name,
-              },
-              replace: true,
-            });
-          } catch (error) {
-            console.error("Google login failed:", error);
+          if (mode === "login") {
+            navigate("/dashboard", { replace: true });
+            return;
           }
-        }}
-        onError={() => console.log("Google Login Failed")}
-        theme="outline"
-        size="large"
-        shape="rectangular"
-        width="100%"
-      />
-    </div>
+
+          navigate("/signup", {
+            state: {
+              fromSignup: true,
+              prefilledEmail: data.user.email,
+              prefilledName: data.user.full_name,
+            },
+            replace: true,
+          });
+        } catch (error) {
+          console.error("Google login failed:", error);
+        }
+      }}
+      onError={() => console.log("Google Login Failed")}
+      theme="outline"
+      size="large"
+      shape="rectangular"
+      width="100%"
+    />
+  </div>
   );
 }
