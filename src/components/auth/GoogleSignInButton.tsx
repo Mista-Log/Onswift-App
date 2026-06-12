@@ -26,7 +26,6 @@ export default function GoogleSignInButton({
       {/* Invisible Google Button Overlay */}
       <div className="absolute inset-0 z-10 opacity-0 cursor-pointer">
         <GoogleLogin
-          width="100%"
           onSuccess={async (credentialResponse) => {
             try {
               if (!credentialResponse.credential) return;
