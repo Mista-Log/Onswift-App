@@ -24,8 +24,7 @@ export default function GoogleSignInButton({
   return (
     <div className="w-full relative">
       {/* Invisible Google Button Overlay */}
-      {/* FIX: Forced full width/height and overflow containment on the Google iframe elements */}
-      <div className="absolute inset-0 z-10 opacity-0 cursor-pointer w-full h-full overflow-hidden [&_iframe]:!w-full [&_iframe]:!h-full [&_span]:!w-full [&_span]:!h-full">
+      <div className="absolute inset-0 z-10 opacity-0 cursor-pointer">
         <GoogleLogin
           width="100%"
           onSuccess={async (credentialResponse) => {
