@@ -15,7 +15,7 @@ export default function GoogleSignInButton({ role, mode }: Props) {
   const { getUser } = useAuth();
 
   return (
-  <div className="w-full google-auth-wrapper">
+  <div className="w-full google-auth-wrapper flex-none">
     <GoogleLogin
       onSuccess={async (credentialResponse) => {
         try {

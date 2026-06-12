@@ -270,18 +270,17 @@
 
   .google-auth-wrapper {
     width: 100% !important;
-    display: block;
+    min-width: 100% !important;
+    flex-shrink: 0 !important;
+    display: block !important;
   }
 
-  .google-auth-wrapper {
-    min-height: 44px;
-  }
-
+  /* Prevent Google iframe reflow shrink */
   .google-auth-wrapper iframe {
     width: 100% !important;
     min-width: 100% !important;
     max-width: 100% !important;
-    border-radius: 10px;
+    display: block !important;
   }
 
 
