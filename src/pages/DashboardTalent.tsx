@@ -47,7 +47,7 @@ export default function DashboardTalent() {
             try {
               if (
                 task.status === "planning" &&
-                task.assignee === user.id &&
+                task.assignees?.includes(user.id) &&
                 task.created_at &&
                 now - new Date(task.created_at).getTime() <= RECENT_MS
               ) {
@@ -79,13 +79,15 @@ export default function DashboardTalent() {
   const handleStatusChange = async (taskId: string, newStatus: "planning" | "in-progress" | "completed") => {
     try {
       await updateTask(taskId, { status: newStatus });
-      // Update local state
       setTasks(prev => prev.map(task =>
         task.id === taskId ? { ...task, status: newStatus } : task
       ));
       toast.success("Task status updated!");
     } catch (error) {
-      toast.error("Failed to update task status");
+      toast.info(
+        "Task stages are controlled by your project creator. Submit a deliverable to show your progress on this task.",
+        { duration: 4000 }
+      );
     }
   };
 

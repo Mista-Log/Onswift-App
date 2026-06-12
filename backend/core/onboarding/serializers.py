@@ -90,6 +90,36 @@ class OnboardingPublicSerializer(serializers.Serializer):
     status = serializers.CharField()
 
 
+class ClientSubmissionSerializer(serializers.ModelSerializer):
+    """Client-facing view of their own completed onboarding submissions."""
+    form_title = serializers.CharField(source="template.title", read_only=True)
+    creator_name = serializers.SerializerMethodField()
+    creator_company = serializers.SerializerMethodField()
+    submitted_at = serializers.SerializerMethodField()
+    blocks = serializers.JSONField(source="template.blocks", read_only=True)
+
+    class Meta:
+        model = OnboardingInstance
+        fields = ["id", "form_title", "creator_name", "creator_company", "submitted_at", "blocks", "responses"]
+
+    def get_creator_name(self, obj):
+        if obj.template and obj.template.creator:
+            return obj.template.creator.full_name or obj.template.creator.email
+        return None
+
+    def get_creator_company(self, obj):
+        if obj.template and obj.template.creator:
+            try:
+                return obj.template.creator.creatorprofile.company_name or None
+            except Exception:
+                return None
+        return None
+
+    def get_submitted_at(self, obj):
+        dt = obj.completed_at or obj.created_at
+        return dt.isoformat() if dt else None
+
+
 class ClientSignupSerializer(serializers.Serializer):
     """Input schema for client signup + form submission via onboarding link."""
     full_name = serializers.CharField(max_length=255)

@@ -6,6 +6,14 @@ from .views import (
     ProjectArchiveView,
     TaskListCreateView,
     TaskDetailView,
+    TaskCommentListCreateView,
+    TaskCommentDeleteView,
+    TaskAttachmentListCreateView,
+    TaskAttachmentDeleteView,
+    TaskChecklistListCreateView,
+    TaskChecklistDetailView,
+    TaskChecklistItemListCreateView,
+    TaskChecklistItemDetailView,
     ProjectSampleDeleteView,
     ProjectSampleListCreateView,
     TalentTasksListView,
@@ -50,6 +58,20 @@ urlpatterns = [
     # Tasks
     path("tasks/<uuid:pk>/", TaskDetailView.as_view(), name="task-detail"),
     path("my-tasks/", TalentTasksListView.as_view(), name="talent-tasks"),
+
+    # Task Comments
+    path("tasks/<uuid:task_id>/comments/", TaskCommentListCreateView.as_view(), name="task-comment-list"),
+    path("tasks/<uuid:task_id>/comments/<uuid:comment_id>/", TaskCommentDeleteView.as_view(), name="task-comment-delete"),
+
+    # Task Attachments
+    path("tasks/<uuid:task_id>/attachments/", TaskAttachmentListCreateView.as_view(), name="task-attachment-list"),
+    path("tasks/<uuid:task_id>/attachments/<uuid:attachment_id>/", TaskAttachmentDeleteView.as_view(), name="task-attachment-delete"),
+
+    # Task Checklists
+    path("tasks/<uuid:task_id>/checklists/", TaskChecklistListCreateView.as_view(), name="task-checklist-list"),
+    path("tasks/<uuid:task_id>/checklists/<uuid:checklist_id>/", TaskChecklistDetailView.as_view(), name="task-checklist-detail"),
+    path("tasks/<uuid:task_id>/checklists/<uuid:checklist_id>/items/", TaskChecklistItemListCreateView.as_view(), name="task-checklist-item-list"),
+    path("tasks/<uuid:task_id>/checklists/<uuid:checklist_id>/items/<uuid:item_id>/", TaskChecklistItemDetailView.as_view(), name="task-checklist-item-detail"),
 
     # Deliverables
     path("deliverables/", DeliverableListCreateView.as_view(), name="deliverable-list-create"),

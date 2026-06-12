@@ -1,32 +1,18 @@
 /**
- * DocumentLibrary — Creator-facing digital document library with:
- * - Folder tree sidebar
- * - Document grid / list view
- * - Drag-and-drop upload
- * - Search (name + tags)
- * - View and download actions
- * - Document info panel
- * - Trash view
+ * Files — Unified workspace for uploaded files and rich-text docs.
+ * Think Google Drive: all roles see what belongs to them, search by content,
+ * upload files (creator/talent), navigate to docs editor pages.
  */
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { secureFetch } from "@/api/apiClient";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,191 +21,522 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
-  ChevronRight,
-  ChevronDown,
-  Folder,
-  FolderPlus,
-  File,
-  FileText,
-  Upload,
   Search,
-  MoreVertical,
-  Trash2,
-  RotateCcw,
-  Info,
+  Upload,
   Grid3X3,
   List,
-  X,
-  Loader2,
+  File,
+  FileText,
+  NotebookPen,
+  MoreVertical,
   Download,
-  Tag,
   Eye,
-  Edit,
-  AlertCircle,
+  Trash2,
+  RotateCcw,
+  Loader2,
+  X,
+  Plus,
+  FolderOpen,
+  Clock,
+  Wrench,
+  Table2,
 } from "lucide-react";
-import { format } from "date-fns";
-import type {
-  LibraryFolder,
-  LibraryDocument,
-  DocumentActivity,
-  ColorLabel,
-  COLOR_LABELS,
-} from "@/types/library";
+import { format, formatDistanceToNow } from "date-fns";
+import type { LibraryDocument } from "@/types/library";
+import type { DocListItem } from "@/hooks/useDocs";
 
-// Color label options
-const colorLabels: { value: ColorLabel; label: string; color: string }[] = [
-  { value: "red", label: "Red", color: "bg-red-500" },
-  { value: "orange", label: "Orange", color: "bg-orange-500" },
-  { value: "yellow", label: "Yellow", color: "bg-yellow-500" },
-  { value: "green", label: "Green", color: "bg-green-500" },
-  { value: "blue", label: "Blue", color: "bg-blue-500" },
-  { value: "purple", label: "Purple", color: "bg-purple-500" },
-];
+// ── Unified item type ─────────────────────────────────────────────────────────
+
+type ItemKind = "file" | "doc" | "crm";
+
+interface UnifiedItem {
+  kind: ItemKind;
+  id: string;
+  name: string;
+  icon?: string;
+  fileType?: string;
+  sizeKb?: number;
+  updatedAt: string;
+  createdAt: string;
+  fileUrl?: string;
+  tags?: string[];
+  folderName?: string;
+}
+
+function fileToUnified(d: LibraryDocument): UnifiedItem {
+  return {
+    kind: "file",
+    id: d.id,
+    name: d.name,
+    fileType: d.file_type,
+    sizeKb: d.size_kb,
+    updatedAt: d.updated_at,
+    createdAt: d.created_at,
+    fileUrl: d.file,
+    tags: d.tags,
+    folderName: d.folder_name,
+  };
+}
+
+function docToUnified(d: DocListItem): UnifiedItem {
+  return {
+    kind: "doc",
+    id: d.id,
+    name: d.title || "Untitled",
+    icon: d.icon || "📄",
+    updatedAt: d.updated_at,
+    createdAt: d.updated_at,
+  };
+}
+
+interface CRMSheetSummary {
+  id: string;
+  name: string;
+  column_count: number;
+  row_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+function crmToUnified(s: CRMSheetSummary): UnifiedItem {
+  return {
+    kind: "crm",
+    id: s.id,
+    name: s.name,
+    fileType: `${s.column_count} col · ${s.row_count} row`,
+    updatedAt: s.updated_at,
+    createdAt: s.created_at,
+  };
+}
+
+// ── File type icon ────────────────────────────────────────────────────────────
+
+function ItemIcon({ item, size = 40 }: { item: UnifiedItem; size?: number }) {
+  if (item.kind === "doc") {
+    return (
+      <div
+        className="flex items-center justify-center rounded-xl bg-primary/10 text-primary flex-shrink-0"
+        style={{ width: size, height: size, fontSize: size * 0.45 }}
+      >
+        {item.icon}
+      </div>
+    );
+  }
+
+  if (item.kind === "crm") {
+    return (
+      <div
+        className="flex items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-950/30 text-violet-500 flex-shrink-0"
+        style={{ width: size, height: size }}
+      >
+        <Wrench size={size * 0.45} />
+      </div>
+    );
+  }
+
+  const type = (item.fileType || "").toLowerCase();
+  const isImage = type.startsWith("image/");
+  const isPDF = type.includes("pdf");
+  const color = isImage
+    ? "text-green-500 bg-green-50 dark:bg-green-950/30"
+    : isPDF
+    ? "text-red-500 bg-red-50 dark:bg-red-950/30"
+    : "text-blue-500 bg-blue-50 dark:bg-blue-950/30";
+
+  return (
+    <div
+      className={cn("flex items-center justify-center rounded-xl flex-shrink-0", color)}
+      style={{ width: size, height: size }}
+    >
+      <FileText size={size * 0.45} />
+    </div>
+  );
+}
+
+// ── Grid card ─────────────────────────────────────────────────────────────────
+
+function ItemCard({
+  item,
+  onOpen,
+  onDownload,
+  onDelete,
+}: {
+  item: UnifiedItem;
+  onOpen: (item: UnifiedItem) => void;
+  onDownload?: (item: UnifiedItem) => void;
+  onDelete?: (item: UnifiedItem) => void;
+}) {
+  return (
+    <div
+      className="group relative flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all"
+      onClick={() => onOpen(item)}
+    >
+      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreVertical size={14} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onOpen(item); }}>
+              <Eye size={13} className="mr-2" /> Open
+            </DropdownMenuItem>
+            {item.kind === "file" && onDownload && (
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDownload(item); }}>
+                <Download size={13} className="mr-2" /> Download
+              </DropdownMenuItem>
+            )}
+            {onDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={(e) => { e.stopPropagation(); onDelete(item); }}
+                >
+                  <Trash2 size={13} className="mr-2" /> Delete
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <ItemIcon item={item} size={44} />
+
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          {formatDistanceToNow(new Date(item.updatedAt), { addSuffix: true })}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <Badge
+          variant="secondary"
+          className={cn(
+            "text-[10px] px-1.5 py-0 font-medium",
+            item.kind === "doc" ? "bg-primary/10 text-primary border-0" : ""
+          )}
+        >
+          {item.kind === "doc" ? "Page" : item.kind === "crm" ? "CRM Sheet" : item.fileType?.split("/")[1]?.toUpperCase() || "File"}
+        </Badge>
+        {item.tags?.slice(0, 2).map((t) => (
+          <Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0">
+            {t}
+          </Badge>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── List row ──────────────────────────────────────────────────────────────────
+
+function ItemRow({
+  item,
+  onOpen,
+  onDownload,
+  onDelete,
+}: {
+  item: UnifiedItem;
+  onOpen: (item: UnifiedItem) => void;
+  onDownload?: (item: UnifiedItem) => void;
+  onDelete?: (item: UnifiedItem) => void;
+}) {
+  return (
+    <div
+      className="group flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted/50 cursor-pointer transition-colors border border-transparent hover:border-border/50"
+      onClick={() => onOpen(item)}
+    >
+      <ItemIcon item={item} size={36} />
+
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+        <p className="text-[11px] text-muted-foreground">
+          {item.kind === "doc" ? "Page" : item.kind === "crm" ? "CRM Sheet" : item.fileType || "File"}
+          {item.folderName ? ` · ${item.folderName}` : ""}
+        </p>
+      </div>
+
+      <div className="hidden sm:flex items-center gap-1.5">
+        {item.tags?.slice(0, 2).map((t) => (
+          <Badge key={t} variant="outline" className="text-[10px]">
+            {t}
+          </Badge>
+        ))}
+      </div>
+
+      <p className="hidden md:block text-xs text-muted-foreground flex-shrink-0 w-28 text-right">
+        {format(new Date(item.updatedAt), "MMM d, yyyy")}
+      </p>
+
+      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-muted"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreVertical size={14} className="text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onOpen(item); }}>
+              <Eye size={13} className="mr-2" /> Open
+            </DropdownMenuItem>
+            {item.kind === "file" && onDownload && (
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDownload(item); }}>
+                <Download size={13} className="mr-2" /> Download
+              </DropdownMenuItem>
+            )}
+            {onDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={(e) => { e.stopPropagation(); onDelete(item); }}
+                >
+                  <Trash2 size={13} className="mr-2" /> Delete
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+function EmptyState({
+  query,
+  tab,
+  canUpload,
+  onUpload,
+  onNewDoc,
+}: {
+  query: string;
+  tab: string;
+  canUpload: boolean;
+  onUpload: () => void;
+  onNewDoc: () => void;
+}) {
+  if (query) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-20 text-center">
+        <Search size={40} className="text-muted-foreground/40" />
+        <p className="text-sm text-muted-foreground">No results for "{query}"</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-4 py-20 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-muted/60 flex items-center justify-center">
+        {tab === "docs" ? (
+          <NotebookPen size={28} className="text-muted-foreground" />
+        ) : (
+          <FolderOpen size={28} className="text-muted-foreground" />
+        )}
+      </div>
+      <div>
+        <p className="font-medium text-foreground">
+          {tab === "docs" ? "No pages yet" : "No files yet"}
+        </p>
+        <p className="text-sm text-muted-foreground mt-1">
+          {tab === "docs"
+            ? "Create your first page in the Docs editor"
+            : canUpload
+            ? "Drag & drop files or click Upload"
+            : "No files have been shared with you yet"}
+        </p>
+      </div>
+      {canUpload ? (
+        <Button size="sm" onClick={onNewDoc}>
+          <Plus size={14} className="mr-1.5" />
+          New Files
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DocumentLibrary() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canUpload = user?.role === "creator" || user?.role === "talent";
 
-  // State
-  const [folders, setFolders] = useState<LibraryFolder[]>([]);
-  const [documents, setDocuments] = useState<LibraryDocument[]>([]);
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [files, setFiles] = useState<UnifiedItem[]>([]);
+  const [docs, setDocs] = useState<UnifiedItem[]>([]);
+  const [crmSheets, setCrmSheets] = useState<UnifiedItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<LibraryDocument[] | null>(null);
-  const [showTrash, setShowTrash] = useState(false);
-  const [trashDocuments, setTrashDocuments] = useState<LibraryDocument[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [tab, setTab] = useState<"all" | "files" | "docs" | "crm">("all");
+  const [query, setQuery] = useState("");
+  const [trash, setTrash] = useState<UnifiedItem[]>([]);
+  const [showTrash, setShowTrash] = useState(false);
+  const [newFileModalOpen, setNewFileModalOpen] = useState(false);
 
-  // Dialogs
-  const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
-  const [infoDoc, setInfoDoc] = useState<LibraryDocument | null>(null);
-  const [docActivity, setDocActivity] = useState<DocumentActivity[]>([]);
-  const [loadingInfo, setLoadingInfo] = useState(false);
-  const [editDoc, setEditDoc] = useState<LibraryDocument | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editTags, setEditTags] = useState("");
-  const [editColor, setEditColor] = useState<string>("");
+  const loadFiles = useCallback(async () => {
+    try {
+      const res = await secureFetch("/api/v6/documents/");
+      if (res.ok) {
+        const data: LibraryDocument[] = await res.json();
+        setFiles(data.map(fileToUnified));
+      }
+    } catch { /* ignore */ }
+  }, []);
 
-  // Load initial data
-  useEffect(() => {
-    loadFolders();
-    loadDocuments();
+  const loadDocs = useCallback(async () => {
+    try {
+      const res = await secureFetch("/api/v8/docs/?all=1");
+      if (res.ok) {
+        const data: DocListItem[] = await res.json();
+        setDocs(data.map(docToUnified));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const loadCRM = useCallback(async () => {
+    try {
+      const res = await secureFetch("/api/v7/sheets/");
+      if (res.ok) {
+        const data: CRMSheetSummary[] = await res.json();
+        setCrmSheets(data.map(crmToUnified));
+      }
+    } catch { /* ignore */ }
   }, []);
 
   useEffect(() => {
-    if (selectedFolder) {
-      loadFolderContents(selectedFolder);
+    Promise.all([loadFiles(), loadDocs(), loadCRM()]).finally(() => setLoading(false));
+  }, [loadFiles, loadDocs, loadCRM]);
+
+  // ── Search filter ────────────────────────────────────────────────────────
+  const q = query.toLowerCase();
+
+  const filteredFiles = q
+    ? files.filter(
+        (f) =>
+          f.name.toLowerCase().includes(q) ||
+          f.tags?.some((t) => t.toLowerCase().includes(q))
+      )
+    : files;
+
+  const filteredDocs = q
+    ? docs.filter((d) => d.name.toLowerCase().includes(q))
+    : docs;
+
+  const filteredCRM = q
+    ? crmSheets.filter((s) => s.name.toLowerCase().includes(q))
+    : crmSheets;
+
+  const allItems = [...filteredFiles, ...filteredDocs, ...filteredCRM].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
+
+  const displayItems =
+    tab === "files" ? filteredFiles :
+    tab === "docs"  ? filteredDocs  :
+    tab === "crm"   ? filteredCRM   :
+    allItems;
+
+  // ── Actions ──────────────────────────────────────────────────────────────
+
+  const openItem = (item: UnifiedItem) => {
+    if (item.kind === "doc") {
+      navigate(`/docs/${item.id}`);
+    } else if (item.kind === "crm") {
+      navigate("/library/crm");
+    } else if (item.fileUrl) {
+      window.open(item.fileUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const downloadItem = (item: UnifiedItem) => {
+    if (!item.fileUrl) return;
+    const a = document.createElement("a");
+    a.href = item.fileUrl;
+    a.download = item.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const deleteItem = async (item: UnifiedItem) => {
+    if (item.kind === "crm") {
+      navigate("/library/crm");
+      return;
+    }
+    if (item.kind === "doc") {
+      const res = await secureFetch(`/api/v8/docs/${item.id}/`, { method: "DELETE" });
+      if (res.ok || res.status === 204) {
+        setDocs((prev) => prev.filter((d) => d.id !== item.id));
+        toast.success("Page deleted");
+      } else {
+        toast.error("Failed to delete page");
+      }
     } else {
-      loadDocuments();
-    }
-  }, [selectedFolder]);
-
-  const loadFolders = async () => {
-    try {
-      const response = await secureFetch("/api/v6/folders/");
-      if (response.ok) {
-        const data = await response.json();
-        setFolders(data);
+      const res = await secureFetch(`/api/v6/documents/${item.id}/`, { method: "DELETE" });
+      if (res.ok) {
+        setFiles((prev) => prev.filter((f) => f.id !== item.id));
+        toast.success("Moved to trash");
+      } else {
+        toast.error("Failed to delete file");
       }
-    } catch {
-      toast.error("Failed to load folders");
     }
   };
 
-  const loadDocuments = async () => {
-    try {
-      const response = await secureFetch("/api/v6/documents/");
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(data);
-      }
-    } catch {
-      toast.error("Failed to load documents");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadFolderContents = async (folderId: string) => {
-    setLoading(true);
-    try {
-      const response = await secureFetch(`/api/v6/folders/${folderId}/`);
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(data.documents || []);
-      }
-    } catch {
-      toast.error("Failed to load folder contents");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ---- Search ----
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults(null);
-      return;
-    }
-    try {
-      const response = await secureFetch(`/api/v6/search/?q=${encodeURIComponent(searchQuery)}`);
-      if (response.ok) {
-        const data = await response.json();
-        setSearchResults(data.results || []);
-      }
-    } catch {
-      toast.error("Search failed");
-    }
-  };
-
-  const clearSearch = () => {
-    setSearchQuery("");
-    setSearchResults(null);
-  };
-
-  // ---- Upload ----
-  const handleUpload = async (files: FileList | File[]) => {
-    if (!files.length) return;
-    if (!selectedFolder) {
-      toast.error("Select a folder before uploading files");
-      return;
-    }
+  const handleUpload = async (fileList: FileList | File[]) => {
+    const arr = Array.from(fileList);
+    if (!arr.length) return;
 
     setUploading(true);
-
-    const fileArray = Array.from(files);
     let uploaded = 0;
+    let folderId: string | null = null;
 
-    for (const file of fileArray) {
+    try {
+      const res = await secureFetch("/api/v6/folders/");
+      if (res.ok) {
+        const folders = await res.json();
+        if (folders.length > 0) folderId = folders[0].id;
+      }
+    } catch { /* ignore */ }
+
+    if (!folderId) {
+      toast.error("No folder found — create a folder in the legacy Files section first");
+      setUploading(false);
+      return;
+    }
+
+    for (const file of arr) {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("folder_id", folderId);
       try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("folder_id", selectedFolder);
-
-        const response = await secureFetch("/api/v6/documents/upload/", {
+        const res = await secureFetch("/api/v6/documents/upload/", {
           method: "POST",
-          body: formData,
+          body: fd,
           headers: {},
         });
-
-        if (response.ok) {
-          uploaded++;
-        } else {
-          const error = await response.json();
-          toast.error(`Failed to upload ${file.name}: ${error?.detail || "Error"}`);
-        }
+        if (res.ok) uploaded++;
+        else toast.error(`Failed to upload ${file.name}`);
       } catch {
         toast.error(`Failed to upload ${file.name}`);
       }
@@ -227,7 +544,7 @@ export default function DocumentLibrary() {
 
     if (uploaded > 0) {
       toast.success(`Uploaded ${uploaded} file${uploaded > 1 ? "s" : ""}`);
-      loadFolderContents(selectedFolder);
+      await loadFiles();
     }
     setUploading(false);
   };
@@ -238,694 +555,317 @@ export default function DocumentLibrary() {
       setDragOver(false);
       if (e.dataTransfer.files.length) handleUpload(e.dataTransfer.files);
     },
-    [selectedFolder]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
-  // ---- Folder CRUD ----
-  const createFolder = async () => {
-    if (!newFolderName.trim()) return;
-    try {
-      const body: any = { name: newFolderName.trim() };
-      if (selectedFolder) body.parent_folder_id = selectedFolder;
-
-      const response = await secureFetch("/api/v6/folders/create/", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-
-      if (response.ok) {
-        toast.success("Folder created");
-        setNewFolderName("");
-        setCreateFolderOpen(false);
-        loadFolders();
-      } else {
-        toast.error("Failed to create folder");
-      }
-    } catch {
-      toast.error("Something went wrong");
+  const newPage = async () => {
+    const res = await secureFetch("/api/v8/docs/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Untitled" }),
+    });
+    if (res.ok) {
+      const doc = await res.json();
+      navigate(`/docs/${doc.id}`);
+    } else {
+      toast.error("Failed to create page");
     }
   };
 
-  // ---- Document actions ----
-  const deleteDocument = async (docId: string) => {
-    try {
-      const response = await secureFetch(`/api/v6/documents/${docId}/`, { method: "DELETE" });
-      if (response.ok) {
-        toast.success("Moved to trash");
-        setDocuments((prev) => prev.filter((d) => d.id !== docId));
-      }
-    } catch {
-      toast.error("Failed to delete");
-    }
-  };
-
-  const updateDocument = async () => {
-    if (!editDoc) return;
-    try {
-      const body: any = { name: editName };
-      if (editTags.trim()) body.tags = editTags.split(",").map((t) => t.trim()).filter(Boolean);
-      if (editColor) body.color_label = editColor;
-      else body.color_label = null;
-
-      const response = await secureFetch(`/api/v6/documents/${editDoc.id}/`, {
-        method: "PATCH",
-        body: JSON.stringify(body),
-      });
-
-      if (response.ok) {
-        const updated = await response.json();
-        setDocuments((prev) => prev.map((d) => (d.id === editDoc.id ? updated : d)));
-        setEditDoc(null);
-        toast.success("Document updated");
-      }
-    } catch {
-      toast.error("Failed to update");
-    }
-  };
-
-  const viewDocument = (doc: LibraryDocument) => {
-    if (!doc.file) {
-      toast.error("File is not available");
-      return;
-    }
-    window.open(doc.file, "_blank", "noopener,noreferrer");
-  };
-
-  const downloadDocument = (doc: LibraryDocument) => {
-    if (!doc.file) {
-      toast.error("File is not available");
-      return;
-    }
-
-    const link = document.createElement("a");
-    link.href = doc.file;
-    link.download = doc.name || "document";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // ---- Info ----
-  const openInfoDialog = async (doc: LibraryDocument) => {
-    setInfoDoc(doc);
-    setLoadingInfo(true);
-    try {
-      const response = await secureFetch(`/api/v6/documents/${doc.id}/activity/`);
-      if (response.ok) {
-        setDocActivity(await response.json());
-      } else {
-        setDocActivity([]);
-      }
-    } catch {
-      setDocActivity([]);
-      toast.error("Failed to load document info");
-    } finally {
-      setLoadingInfo(false);
-    }
-  };
-
-  // ---- Trash ----
   const loadTrash = async () => {
     try {
-      const response = await secureFetch("/api/v6/documents/trash/");
-      if (response.ok) {
-        setTrashDocuments(await response.json());
+      const res = await secureFetch("/api/v6/documents/trash/");
+      if (res.ok) {
+        const data: LibraryDocument[] = await res.json();
+        setTrash(data.map(fileToUnified));
       }
-    } catch {
-      toast.error("Failed to load trash");
+    } catch { /* ignore */ }
+  };
+
+  const restoreFile = async (id: string) => {
+    const res = await secureFetch(`/api/v6/documents/${id}/restore/`, { method: "POST" });
+    if (res.ok) {
+      toast.success("Restored");
+      setTrash((p) => p.filter((t) => t.id !== id));
+      await loadFiles();
     }
   };
 
-  const restoreDocument = async (docId: string) => {
-    try {
-      const response = await secureFetch(`/api/v6/documents/${docId}/restore/`, {
-        method: "POST",
-      });
-      if (response.ok) {
-        toast.success("Document restored");
-        setTrashDocuments((prev) => prev.filter((d) => d.id !== docId));
-        loadDocuments();
-      }
-    } catch {
-      toast.error("Failed to restore");
+  const permanentDelete = async (id: string) => {
+    const res = await secureFetch(`/api/v6/documents/${id}/permanent/`, { method: "DELETE" });
+    if (res.ok) {
+      toast.success("Permanently deleted");
+      setTrash((p) => p.filter((t) => t.id !== id));
     }
   };
 
-  const permanentDelete = async (docId: string) => {
-    try {
-      const response = await secureFetch(`/api/v6/documents/${docId}/permanent/`, {
-        method: "DELETE",
-      });
-      if (response.ok) {
-        toast.success("Permanently deleted");
-        setTrashDocuments((prev) => prev.filter((d) => d.id !== docId));
-      }
-    } catch {
-      toast.error("Failed to delete");
-    }
-  };
+  // ── Render helpers ────────────────────────────────────────────────────────
 
-  // ---- Folder tree helpers ----
-  const toggleFolder = (folderId: string) => {
-    setExpandedFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(folderId)) next.delete(folderId);
-      else next.add(folderId);
-      return next;
-    });
-  };
+  const canDelete = (item: UnifiedItem) =>
+    item.kind === "doc" || (item.kind === "file" && canUpload);
 
-  const renderFolderTree = (parentId: string | null = null, depth = 0): React.ReactNode => {
-    const children = folders.filter((f) => f.parent_folder === parentId);
-    if (!children.length) return null;
+  const renderGrid = (items: UnifiedItem[]) => (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+      {items.map((item) => (
+        <ItemCard
+          key={`${item.kind}-${item.id}`}
+          item={item}
+          onOpen={openItem}
+          onDownload={item.kind === "file" ? downloadItem : undefined}
+          onDelete={canDelete(item) ? deleteItem : undefined}
+        />
+      ))}
+    </div>
+  );
 
-    return children.map((folder) => {
-      const isExpanded = expandedFolders.has(folder.id);
-      const isSelected = selectedFolder === folder.id;
-      const hasChildren = folders.some((f) => f.parent_folder === folder.id);
-
-      return (
-        <div key={folder.id}>
-          <button
-            className={cn(
-              "w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm hover:bg-accent transition-colors",
-              isSelected && "bg-accent font-medium"
-            )}
-            style={{ paddingLeft: `${depth * 16 + 8}px` }}
-            onClick={() => {
-              setSelectedFolder(folder.id);
-              if (hasChildren) toggleFolder(folder.id);
-            }}
-          >
-            {hasChildren ? (
-              isExpanded ? (
-                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-              )
-            ) : (
-              <span className="w-3.5" />
-            )}
-            <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="truncate">{folder.name}</span>
-          </button>
-          {isExpanded && renderFolderTree(folder.id, depth + 1)}
-        </div>
-      );
-    });
-  };
-
-  // Document display list
-  const displayDocs = searchResults !== null ? searchResults : documents;
+  const renderList = (items: UnifiedItem[]) => (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-3 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="w-9 flex-shrink-0" />
+        <span className="flex-1">Name</span>
+        <span className="hidden md:block w-28 text-right">Modified</span>
+        <div className="w-7 flex-shrink-0" />
+      </div>
+      {items.map((item) => (
+        <ItemRow
+          key={`${item.kind}-${item.id}`}
+          item={item}
+          onOpen={openItem}
+          onDownload={item.kind === "file" ? downloadItem : undefined}
+          onDelete={canDelete(item) ? deleteItem : undefined}
+        />
+      ))}
+    </div>
+  );
 
   return (
     <MainLayout>
-      <div className="flex flex-col gap-4">
+      <div
+        className={cn(
+          "flex flex-col gap-5 transition-colors rounded-2xl",
+          dragOver && "ring-2 ring-primary/40 bg-primary/5"
+        )}
+        onDragOver={(e) => { if (canUpload) { e.preventDefault(); setDragOver(true); } }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={canUpload ? handleDrop : undefined}
+      >
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Document Library</h1>
+            <h1 className="text-2xl font-bold text-foreground">Files</h1>
             <p className="text-sm text-muted-foreground">
-              Organize and manage your documents
+              {files.length + docs.length + crmSheets.length} item{files.length + docs.length + crmSheets.length !== 1 ? "s" : ""} · pages, uploads, CRM sheets, and shared documents
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={showTrash ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                setShowTrash(!showTrash);
-                if (!showTrash) loadTrash();
-              }}
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              Trash
-            </Button>
-            <Button size="sm" onClick={() => setCreateFolderOpen(true)}>
-              <FolderPlus className="h-4 w-4 mr-1" />
-              New Folder
-            </Button>
-            <Button size="sm" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="h-4 w-4 mr-1" />
-              Upload
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files?.length) handleUpload(e.target.files);
-                e.target.value = "";
-              }}
-            />
-          </div>
-        </div>
 
-        {/* Search */}
-        <div className="flex gap-2">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              placeholder="Search documents by name or tags..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            />
-            {searchQuery && (
-              <button
-                className="absolute right-3 top-1/2 -translate-y-1/2"
-                onClick={clearSearch}
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
+          <div className="flex items-center gap-2">
+            {showTrash ? (
+              <Button variant="outline" size="sm" onClick={() => setShowTrash(false)}>
+                <FolderOpen size={14} className="mr-1.5" />
+                Back to Files
+              </Button>
+            ) : (
+              <>
+                {canUpload && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => { setShowTrash(true); loadTrash(); }}>
+                      <Trash2 size={14} className="mr-1.5" />
+                      Trash
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                      {uploading ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Upload size={14} className="mr-1.5" />}
+                      Upload
+                    </Button>
+                  </>
+                )}
+                <Button size="sm" onClick={() => setNewFileModalOpen(true)}>
+                  <Plus size={14} className="mr-1.5" />
+                  New Files
+                </Button>
+              </>
             )}
-          </div>
-          <Button variant="outline" size="icon" onClick={handleSearch}>
-            <Search className="h-4 w-4" />
-          </Button>
-          <div className="flex border rounded-md">
-            <Button
-              variant={viewMode === "grid" ? "secondary" : "ghost"}
-              size="icon"
-              className="rounded-r-none"
-              onClick={() => setViewMode("grid")}
-            >
-              <Grid3X3 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === "list" ? "secondary" : "ghost"}
-              size="icon"
-              className="rounded-l-none"
-              onClick={() => setViewMode("list")}
-            >
-              <List className="h-4 w-4" />
-            </Button>
           </div>
         </div>
 
         {/* Trash view */}
         {showTrash ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Trash</CardTitle>
-              <CardDescription>
-                Documents in trash are kept for 30 days before permanent deletion.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {trashDocuments.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">Trash is empty</p>
-              ) : (
-                <div className="space-y-2">
-                  {trashDocuments.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center gap-3 p-3 rounded-lg border"
-                    >
-                      <FileText className="h-5 w-5 text-muted-foreground" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{doc.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Deleted {doc.deleted_at && format(new Date(doc.deleted_at), "MMM d, yyyy")}
-                        </p>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={() => restoreDocument(doc.id)}>
-                        <RotateCcw className="h-3 w-3 mr-1" />
-                        Restore
-                      </Button>
-                      <Button variant="destructive" size="sm" onClick={() => permanentDelete(doc.id)}>
-                        <Trash2 className="h-3 w-3 mr-1" />
-                        Delete
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="flex gap-4">
-            {/* Folder sidebar */}
-            <div className="hidden md:block w-56 shrink-0">
-              <Card>
-                <CardContent className="p-3">
-                  <button
-                    className={cn(
-                      "w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm hover:bg-accent transition-colors mb-1",
-                      selectedFolder === null && "bg-accent font-medium"
-                    )}
-                    onClick={() => setSelectedFolder(null)}
-                  >
-                    <Folder className="h-4 w-4 text-muted-foreground" />
-                    All Documents
-                  </button>
-                  <Separator className="my-1" />
-                  {renderFolderTree()}
-                  {folders.length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-4">
-                      No folders yet
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="px-5 py-4 border-b border-border">
+              <h2 className="font-semibold text-foreground">Trash</h2>
+              <p className="text-sm text-muted-foreground">Files are permanently deleted after 30 days.</p>
             </div>
-
-            {/* Document area */}
-            <div
-              className={cn(
-                "flex-1 min-w-0 rounded-lg border-2 border-dashed p-4 transition-colors",
-                dragOver ? "border-primary bg-primary/5" : "border-transparent"
-              )}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-            >
-              {uploading && (
-                <div className="flex items-center gap-2 mb-4 p-3 rounded-lg bg-primary/5 text-sm">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Uploading...
-                </div>
-              )}
-
-              {loading ? (
-                <div className="flex items-center justify-center py-20">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : displayDocs.length === 0 ? (
-                <div className="text-center py-20 text-muted-foreground">
-                  <Upload className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p className="font-medium">
-                    {searchResults !== null ? "No documents found" : "No documents yet"}
-                  </p>
-                  <p className="text-sm">
-                    {searchResults !== null
-                      ? "Try a different search term"
-                      : "Drag & drop files here, or click Upload"}
-                  </p>
-                </div>
-              ) : viewMode === "grid" ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {displayDocs.map((doc) => (
-                    <Card
-                      key={doc.id}
-                      className="group cursor-pointer hover:shadow-md transition-shadow"
-                    >
-                      <CardContent className="p-3">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-1">
-                            {doc.color_label && (
-                              <span
-                                className={cn(
-                                  "h-2.5 w-2.5 rounded-full",
-                                  `bg-${doc.color_label}-500`
-                                )}
-                              />
-                            )}
-                          </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                              >
-                                <MoreVertical className="h-3 w-3" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => viewDocument(doc)}>
-                                <Eye className="h-4 w-4 mr-2" />
-                                View
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => downloadDocument(doc)}>
-                                <Download className="h-4 w-4 mr-2" />
-                                Download
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openInfoDialog(doc)}>
-                                <Info className="h-4 w-4 mr-2" />
-                                Info
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => {
-                                setEditDoc(doc);
-                                setEditName(doc.name);
-                                setEditTags(doc.tags?.join(", ") || "");
-                                setEditColor(doc.color_label || "");
-                              }}>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => deleteDocument(doc.id)}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Move to Trash
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                        <div className="flex flex-col items-center text-center">
-                          <FileText className="h-10 w-10 text-muted-foreground mb-2" />
-                          <p className="text-sm font-medium truncate w-full">{doc.name}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {doc.file_type || "Document"} · {format(new Date(doc.updated_at), "MMM d")}
-                          </p>
-                        </div>
-                        {doc.tags?.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {doc.tags.slice(0, 2).map((tag) => (
-                              <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">
-                                {tag}
-                              </Badge>
-                            ))}
-                            {doc.tags.length > 2 && (
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                +{doc.tags.length - 2}
-                              </Badge>
-                            )}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+            <div className="divide-y divide-border">
+              {trash.length === 0 ? (
+                <p className="text-center text-muted-foreground py-12 text-sm">Trash is empty</p>
               ) : (
-                // List view
-                <div className="space-y-1">
-                  {displayDocs.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent group transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        {doc.color_label && (
-                          <span className={cn("h-2.5 w-2.5 rounded-full", `bg-${doc.color_label}-500`)} />
-                        )}
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium truncate">{doc.name}</p>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {doc.file_type || "Document"} · {format(new Date(doc.updated_at), "MMM d, yyyy")}
-                        </p>
-                      </div>
-                      {doc.tags?.length > 0 && (
-                        <div className="hidden sm:flex gap-1">
-                          {doc.tags.slice(0, 3).map((tag) => (
-                            <Badge key={tag} variant="secondary" className="text-xs">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => viewDocument(doc)}>
-                            <Eye className="h-4 w-4 mr-2" />
-                            View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => downloadDocument(doc)}>
-                            <Download className="h-4 w-4 mr-2" />
-                            Download
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openInfoDialog(doc)}>
-                            <Info className="h-4 w-4 mr-2" />
-                            Info
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => {
-                            setEditDoc(doc);
-                            setEditName(doc.name);
-                            setEditTags(doc.tags?.join(", ") || "");
-                            setEditColor(doc.color_label || "");
-                          }}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => deleteDocument(doc.id)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Move to Trash
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  ))}
-                </div>
+                trash.map((item) => (
+                  <div key={item.id} className="flex items-center gap-3 px-5 py-3">
+                    <FileText size={18} className="text-muted-foreground flex-shrink-0" />
+                    <p className="flex-1 text-sm font-medium truncate">{item.name}</p>
+                    <Button variant="ghost" size="sm" onClick={() => restoreFile(item.id)}>
+                      <RotateCcw size={13} className="mr-1.5" />
+                      Restore
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={() => permanentDelete(item.id)}>
+                      <Trash2 size={13} className="mr-1.5" />
+                      Delete
+                    </Button>
+                  </div>
+                ))
               )}
             </div>
           </div>
+        ) : (
+          <>
+            {/* Toolbar */}
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-9 pr-8 rounded-full h-9 bg-secondary/50"
+                  placeholder="Filter by name or tag…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+                {query && (
+                  <button className="absolute right-3 top-1/2 -translate-y-1/2" onClick={() => setQuery("")}>
+                    <X size={13} className="text-muted-foreground" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center border border-border rounded-lg overflow-hidden">
+                <button
+                  className={cn("px-2.5 py-1.5 text-muted-foreground hover:text-foreground transition-colors", viewMode === "grid" && "bg-muted text-foreground")}
+                  onClick={() => setViewMode("grid")}
+                >
+                  <Grid3X3 size={15} />
+                </button>
+                <button
+                  className={cn("px-2.5 py-1.5 text-muted-foreground hover:text-foreground transition-colors border-l border-border", viewMode === "list" && "bg-muted text-foreground")}
+                  onClick={() => setViewMode("list")}
+                >
+                  <List size={15} />
+                </button>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+              <TabsList className="bg-muted/50 h-9 gap-1">
+                <TabsTrigger value="all" className="text-xs gap-1.5">
+                  <Clock size={12} />
+                  All
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-0.5">{allItems.length}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="files" className="text-xs gap-1.5">
+                  <File size={12} />
+                  Files
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-0.5">{filteredFiles.length}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="docs" className="text-xs gap-1.5">
+                  <NotebookPen size={12} />
+                  Pages
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-0.5">{filteredDocs.length}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="crm" className="text-xs gap-1.5">
+                  <Wrench size={12} />
+                  CRM
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-0.5">{filteredCRM.length}</Badge>
+                </TabsTrigger>
+              </TabsList>
+
+              {loading ? (
+                <div className="flex items-center justify-center py-24">
+                  <Loader2 size={28} className="animate-spin text-muted-foreground" />
+                </div>
+              ) : displayItems.length === 0 ? (
+                <EmptyState
+                  query={query}
+                  tab={tab}
+                  canUpload={canUpload}
+                  onUpload={() => fileInputRef.current?.click()}
+                  onNewDoc={() => setNewFileModalOpen(true)}
+                />
+              ) : (
+                <>
+                  <TabsContent value="all" className="mt-4">
+                    {viewMode === "grid" ? renderGrid(allItems) : renderList(allItems)}
+                  </TabsContent>
+                  <TabsContent value="files" className="mt-4">
+                    {viewMode === "grid" ? renderGrid(filteredFiles) : renderList(filteredFiles)}
+                  </TabsContent>
+                  <TabsContent value="docs" className="mt-4">
+                    {viewMode === "grid" ? renderGrid(filteredDocs) : renderList(filteredDocs)}
+                  </TabsContent>
+                  <TabsContent value="crm" className="mt-4">
+                    {viewMode === "grid" ? renderGrid(filteredCRM) : renderList(filteredCRM)}
+                  </TabsContent>
+                </>
+              )}
+            </Tabs>
+          </>
         )}
       </div>
 
-      {/* Create Folder Dialog */}
-      <Dialog open={createFolderOpen} onOpenChange={setCreateFolderOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>New Folder</DialogTitle>
-          </DialogHeader>
-          <Input
-            placeholder="Folder name"
-            value={newFolderName}
-            onChange={(e) => setNewFolderName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && createFolder()}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateFolderOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={createFolder} disabled={!newFolderName.trim()}>
-              Create
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files?.length) handleUpload(e.target.files);
+          e.target.value = "";
+        }}
+      />
 
-      {/* Edit Document Dialog */}
-      <Dialog open={!!editDoc} onOpenChange={(open) => !open && setEditDoc(null)}>
-        <DialogContent>
+      {/* New Files picker modal */}
+      <Dialog open={newFileModalOpen} onOpenChange={setNewFileModalOpen}>
+        <DialogContent className="sm:max-w-xs">
           <DialogHeader>
-            <DialogTitle>Edit Document</DialogTitle>
+            <DialogTitle>Create new file</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Name</Label>
-              <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
-            </div>
-            <div>
-              <Label>Tags (comma separated)</Label>
-              <Input
-                placeholder="design, branding, v2"
-                value={editTags}
-                onChange={(e) => setEditTags(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Color Label</Label>
-              <div className="flex gap-2 mt-2">
-                <button
-                  className={cn(
-                    "h-6 w-6 rounded-full border-2",
-                    !editColor ? "border-primary" : "border-transparent",
-                    "bg-gray-200"
-                  )}
-                  onClick={() => setEditColor("")}
-                  title="None"
-                />
-                {colorLabels.map((c) => (
-                  <button
-                    key={c.value}
-                    className={cn(
-                      "h-6 w-6 rounded-full border-2",
-                      editColor === c.value ? "border-primary" : "border-transparent",
-                      c.color
-                    )}
-                    onClick={() => setEditColor(c.value)}
-                    title={c.label}
-                  />
-                ))}
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <button
+              onClick={async () => {
+                setNewFileModalOpen(false);
+                await newPage();
+              }}
+              className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-5 hover:bg-muted transition-colors text-center"
+            >
+              <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <FileText size={22} className="text-blue-500" />
               </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDoc(null)}>
-              Cancel
-            </Button>
-            <Button onClick={updateDocument}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <span className="text-sm font-medium">Docs</span>
+            </button>
 
-      {/* Info Dialog */}
-      <Dialog open={!!infoDoc} onOpenChange={(open) => !open && setInfoDoc(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Document Info — {infoDoc?.name}</DialogTitle>
-            <DialogDescription>Details and activity for this document.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 max-h-72 overflow-y-auto">
-            <div className="rounded-md border p-3 space-y-2 text-sm">
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">File Type</span>
-                <span>{infoDoc?.file_type || "Unknown"}</span>
+            <button
+              onClick={() => {
+                setNewFileModalOpen(false);
+                navigate("/library/crm");
+              }}
+              className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-5 hover:bg-muted transition-colors text-center"
+            >
+              <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <Table2 size={22} className="text-green-500" />
               </div>
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">Size</span>
-                <span>{Math.round(infoDoc?.size_kb || 0)} KB</span>
-              </div>
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">Folder</span>
-                <span>{infoDoc?.folder_name || "—"}</span>
-              </div>
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">Updated</span>
-                <span>{infoDoc?.updated_at ? format(new Date(infoDoc.updated_at), "MMM d, yyyy h:mm a") : "—"}</span>
-              </div>
-            </div>
-
-            {loadingInfo ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              </div>
-            ) : docActivity.length === 0 ? (
-              <p className="text-center text-muted-foreground py-2">No activity yet</p>
-            ) : (
-              docActivity.slice(0, 8).map((activity) => (
-                <div key={activity.id} className="flex items-center gap-3 p-3 rounded border">
-                  <Info className="h-4 w-4 text-muted-foreground" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{activity.action}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {activity.actor_name} · {format(new Date(activity.timestamp), "MMM d, yyyy h:mm a")}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
+              <span className="text-sm font-medium">Spreadsheet</span>
+            </button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Drop overlay */}
+      {dragOver && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm pointer-events-none">
+          <div className="text-center">
+            <Upload size={48} className="mx-auto text-primary mb-3" />
+            <p className="text-lg font-semibold text-primary">Drop files to upload</p>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 }

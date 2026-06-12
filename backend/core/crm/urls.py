@@ -17,4 +17,7 @@ urlpatterns = [
     # Access control (nested under sheet)
     path("sheets/<uuid:sheet_id>/access/", views.CRMAccessListCreateView.as_view(), name="crm-access-list-create"),
     path("sheets/<uuid:sheet_id>/access/<uuid:pk>/", views.CRMAccessDetailView.as_view(), name="crm-access-detail"),
+
+    # Users the creator can share with (accepted team members + onboarded clients)
+    path("sharable-users/", views.CRMShareableUsersView.as_view(), name="crm-sharable-users"),
 ]

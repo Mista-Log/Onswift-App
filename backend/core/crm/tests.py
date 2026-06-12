@@ -101,9 +101,10 @@ class CRMSheetEndpointTests(TestCase):
         self.assertEqual(r.data["name"], "My CRM")
         self.assertTrue(CRMSheet.objects.filter(name="My CRM").exists())
 
-    def test_talent_cannot_create_sheet(self):
+    def test_talent_can_create_sheet(self):
         r = self.talent_client.post("/api/v7/sheets/", {"name": "Talent CRM"}, format="json")
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(CRMSheet.objects.filter(name="Talent CRM").exists())
 
     def test_unauthenticated_cannot_create_sheet(self):
         r = APIClient().post("/api/v7/sheets/", {"name": "Anon CRM"}, format="json")

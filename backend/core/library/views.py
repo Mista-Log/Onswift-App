@@ -238,20 +238,24 @@ class DocumentUploadView(APIView):
 class DocumentListView(APIView):
     """
     GET /api/v6/documents/
-    List documents, optionally filtered by folder.
-    Always scoped to the authenticated creator. Excludes soft-deleted.
-    Query params: ?folder_id=<uuid>
+    List documents accessible to the authenticated user.
+    Creator: all their own documents. Client: documents in their client folder.
     """
-    permission_classes = [permissions.IsAuthenticated, IsCreatorRole]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        qs = Document.objects.filter(
-            creator=request.user,
-            is_deleted=False,
-        ).select_related("folder")
+        user = request.user
+        if user.role == "creator":
+            qs = Document.objects.filter(creator=user, is_deleted=False)
+        elif user.role == "client":
+            qs = Document.objects.filter(client=user, is_deleted=False)
+        else:
+            qs = Document.objects.none()
+
+        qs = qs.select_related("folder")
 
         folder_id = request.query_params.get("folder_id")
-        if folder_id:
+        if folder_id and user.role == "creator":
             qs = qs.filter(folder_id=folder_id)
 
         return Response(DocumentSerializer(qs, many=True).data)
@@ -493,26 +497,30 @@ class DocumentActivityListView(APIView):
 class DocumentSearchView(APIView):
     """
     GET /api/v6/search/?q=<query>
-    Full-text search across file names and tags.
-    Scoped to the authenticated creator only. Max 50 results.
+    Full-text search across file names and tags, scoped by role.
     """
-    permission_classes = [permissions.IsAuthenticated, IsCreatorRole]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         query = request.query_params.get("q", "").strip()
         if not query:
             return Response({"results": []})
 
-        results = Document.objects.filter(
-            creator=request.user,
-            is_deleted=False,
-        ).filter(
+        user = request.user
+        if user.role == "creator":
+            base_qs = Document.objects.filter(creator=user, is_deleted=False)
+        elif user.role == "client":
+            base_qs = Document.objects.filter(client=user, is_deleted=False)
+        else:
+            return Response({"results": [], "count": 0})
+
+        results = base_qs.filter(
             Q(name__icontains=query) | Q(tags__icontains=query)
         ).select_related("folder")[:50]
 
         return Response({
             "results": DocumentSerializer(results, many=True).data,
-            "count": len(results),
+            "count": results.count(),
         })
 
 

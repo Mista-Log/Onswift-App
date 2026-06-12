@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Switch } from "@/components/ui/switch";
 import { useParams, useNavigate } from "react-router-dom";
 import { CelebrationModal } from "@/components/CelebrationModal";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -16,6 +17,7 @@ import {
   CheckCircle2,
   Circle,
   Clock,
+  Repeat,
   Trash2,
   Edit,
   Loader2,
@@ -54,13 +56,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { secureFetch } from "@/api/apiClient";
+import { secureFetch, isNetworkError } from "@/api/apiClient";
 import { ClientInviteModal } from "@/components/project/ClientInviteModal";
 import { ClientInvitesTable } from "@/components/project/ClientInvitesTable";
+import { TaskDetailModal } from "@/components/project/TaskDetailModal";
+import type { TaskDetail } from "@/hooks/useTaskDetail";
 import { useProjects, type Task } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -78,20 +83,26 @@ export default function ProjectDetail() {
   const [editFormData, setEditFormData] = useState({
     name: "",
     description: "",
-    assignee: "unassigned",
+    assignees: [] as string[],
     status: "planning" as "planning" | "in-progress" | "completed",
     deadline: "",
   });
   const [taskFormData, setTaskFormData] = useState({
     name: "",
     description: "",
-    assignee: "unassigned",
+    assignees: [] as string[],
     status: "planning" as "planning" | "in-progress" | "completed",
     deadline: "",
+    task_time: "09:00",
+    recurrence_type: null as "daily" | "weekly" | "monthly" | "custom" | null,
+    recurrence_days: 2,
   });
+  const [taskRecurring, setTaskRecurring] = useState(false);
   const [sortMethod, setSortMethod] = useState<"deadline-asc" | "deadline-desc" | "alphabetical-asc" | "alphabetical-desc">("deadline-asc");
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [refreshInvitesTrigger, setRefreshInvitesTrigger] = useState(0);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
   const [showTaskCelebration, setShowTaskCelebration] = useState(false);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<"planning" | "in-progress" | "completed" | null>(null);
@@ -170,19 +181,26 @@ export default function ProjectDetail() {
       await addTask(id, {
         name: taskFormData.name,
         description: taskFormData.description,
-        assignee: taskFormData.assignee && taskFormData.assignee !== "unassigned" ? taskFormData.assignee : null,
+        assignees: taskFormData.assignees,
         status: taskFormData.status,
         deadline: taskFormData.deadline || null,
+        task_time: taskFormData.task_time || null,
+        recurrence_type: taskRecurring ? taskFormData.recurrence_type : null,
+        recurrence_days: taskRecurring && taskFormData.recurrence_type === "custom" ? taskFormData.recurrence_days : null,
       });
 
       toast.success("Task created successfully!");
       setTaskFormData({
         name: "",
         description: "",
-        assignee: "unassigned",
+        assignees: [],
         status: "planning",
         deadline: "",
+        task_time: "09:00",
+        recurrence_type: null,
+        recurrence_days: 2,
       });
+      setTaskRecurring(false);
       setIsTaskDialogOpen(false);
       await loadTasks();
 
@@ -191,17 +209,34 @@ export default function ProjectDetail() {
         setShowTaskCelebration(true);
       }
     } catch (error) {
-      toast.error("Failed to create task");
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection — your task may have been created. Refreshing...");
+        setTimeout(loadTasks, 2000);
+      } else {
+        toast.error("Failed to create task");
+      }
     }
   };
 
   const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
+    if (!isCreator) {
+      toast.info(
+        "Task stages are managed by your project creator. To show progress on a task, submit a deliverable.",
+        { duration: 4000 }
+      );
+      return;
+    }
     try {
       await updateTask(taskId, updates);
       toast.success("Task updated successfully!");
       await loadTasks();
     } catch (error) {
-      toast.error("Failed to update task");
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection — your change may have been saved. Refreshing...");
+        setTimeout(loadTasks, 2000);
+      } else {
+        toast.error("Failed to update task");
+      }
     }
   };
 
@@ -211,7 +246,12 @@ export default function ProjectDetail() {
       toast.success("Task deleted successfully!");
       await loadTasks();
     } catch (error) {
-      toast.error("Failed to delete task");
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection — checking status...");
+        setTimeout(loadTasks, 2000);
+      } else {
+        toast.error("Failed to delete task");
+      }
     }
   };
 
@@ -220,10 +260,25 @@ export default function ProjectDetail() {
     setEditFormData({
       name: task.name,
       description: task.description || "",
-      assignee: task.assignee || "unassigned",
+      assignees: task.assignees ?? [],
       status: task.status,
       deadline: task.deadline || "",
     });
+  };
+
+  const handleOpenTaskDetail = (taskId: string) => {
+    setSelectedTaskId(taskId);
+    setIsTaskDetailOpen(true);
+  };
+
+  const handleTaskDetailUpdated = (updated: TaskDetail) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === updated.id
+          ? { ...t, name: updated.name, description: updated.description, status: updated.status, deadline: updated.deadline, assignees: updated.assignees, assignee_names: updated.assignee_names }
+          : t
+      )
+    );
   };
 
   const handleSaveEditTask = async () => {
@@ -235,7 +290,7 @@ export default function ProjectDetail() {
       await updateTask(editingTask.id, {
         name: editFormData.name.trim(),
         description: editFormData.description,
-        assignee: editFormData.assignee !== "unassigned" ? editFormData.assignee : null,
+        assignees: editFormData.assignees,
         status: editFormData.status,
         deadline: editFormData.deadline || null,
       });
@@ -243,7 +298,12 @@ export default function ProjectDetail() {
       setEditingTask(null);
       await loadTasks();
     } catch (error) {
-      toast.error("Failed to update task");
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection — your change may have been saved. Refreshing...");
+        setTimeout(loadTasks, 2000);
+      } else {
+        toast.error("Failed to update task");
+      }
     }
   };
 
@@ -509,22 +569,41 @@ export default function ProjectDetail() {
               </div>
               <div className="space-y-2">
                 <Label>Assign To</Label>
-                <Select
-                  value={editFormData.assignee}
-                  onValueChange={(value) => setEditFormData((prev) => ({ ...prev, assignee: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select team member" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {availableAssignees.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.id === user?.id ? "Self" : member.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start font-normal">
+                      {editFormData.assignees.length === 0
+                        ? <span className="text-muted-foreground">Unassigned</span>
+                        : availableAssignees.filter(m => editFormData.assignees.includes(m.id)).map(m => m.id === user?.id ? "Self" : m.name).join(", ")
+                      }
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-2" align="start">
+                    <div className="space-y-1">
+                      {availableAssignees.map((member) => {
+                        const checked = editFormData.assignees.includes(member.id);
+                        return (
+                          <button
+                            key={member.id}
+                            type="button"
+                            onClick={() => setEditFormData(prev => ({
+                              ...prev,
+                              assignees: checked
+                                ? prev.assignees.filter(id => id !== member.id)
+                                : [...prev.assignees, member.id],
+                            }))}
+                            className="flex items-center gap-2 w-full px-2 py-1.5 rounded hover:bg-muted text-sm text-left"
+                          >
+                            <div className={cn("h-4 w-4 rounded border flex items-center justify-center flex-shrink-0", checked ? "bg-primary border-primary" : "border-border")}>
+                              {checked && <svg className="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                            </div>
+                            {member.id === user?.id ? "Self" : member.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
@@ -663,104 +742,154 @@ export default function ProjectDetail() {
                     <span className="hidden sm:inline">New Task</span>
                   </Button>
                 </DialogTrigger>
-              <DialogContent className="glass-card border-border/50 sm:max-w-md">
+              <DialogContent className="glass-card border-border/50 sm:max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Create New Task</DialogTitle>
-                  <DialogDescription>
-                    Add a new task to this project
-                  </DialogDescription>
+                  <DialogDescription>Add a new task to this project</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <div className="space-y-5 py-4">
+
+                  {/* Name */}
                   <div className="space-y-2">
                     <Label htmlFor="task-name">Task Name</Label>
                     <Input
                       id="task-name"
                       placeholder="Enter task name"
                       value={taskFormData.name}
-                      onChange={(e) =>
-                        setTaskFormData((prev) => ({
-                          ...prev,
-                          name: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => setTaskFormData((prev) => ({ ...prev, name: e.target.value }))}
                     />
                   </div>
+
+                  {/* Description */}
                   <div className="space-y-2">
                     <Label htmlFor="task-description">Description</Label>
                     <Textarea
                       id="task-description"
                       placeholder="Describe the task"
                       value={taskFormData.description}
-                      onChange={(e) =>
-                        setTaskFormData((prev) => ({
-                          ...prev,
-                          description: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => setTaskFormData((prev) => ({ ...prev, description: e.target.value }))}
                     />
                   </div>
+
+                  {/* Assignees */}
                   <div className="space-y-2">
-                    <Label htmlFor="task-assignee">Assign To</Label>
-                    <Select
-                      value={taskFormData.assignee}
-                      onValueChange={(value) =>
-                        setTaskFormData((prev) => ({
-                          ...prev,
-                          assignee: value,
-                        }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select team member" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unassigned">Unassigned</SelectItem>
-                        {availableAssignees.map((member) => (
-                          <SelectItem key={member.id} value={member.id}>
-                            {member.id === user?.id ? "Self" : member.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Deadline</Label>
+                    <Label>Assign To</Label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !taskFormData.deadline && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {taskFormData.deadline ? format(new Date(taskFormData.deadline), "PPP") : "Pick a deadline"}
+                        <Button variant="outline" className="w-full justify-start font-normal">
+                          {taskFormData.assignees.length === 0
+                            ? <span className="text-muted-foreground">Unassigned</span>
+                            : availableAssignees.filter(m => taskFormData.assignees.includes(m.id)).map(m => m.id === user?.id ? "Self" : m.name).join(", ")
+                          }
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={taskFormData.deadline ? new Date(taskFormData.deadline) : undefined}
-                          onSelect={(date) =>
-                            setTaskFormData((prev) => ({
-                              ...prev,
-                              deadline: date ? format(date, "yyyy-MM-dd") : "",
-                            }))
-                          }
-                          initialFocus
-                        />
+                      <PopoverContent className="w-64 p-2" align="start">
+                        <div className="space-y-1">
+                          {availableAssignees.map((member) => {
+                            const checked = taskFormData.assignees.includes(member.id);
+                            return (
+                              <button
+                                key={member.id}
+                                type="button"
+                                onClick={() => setTaskFormData(prev => ({
+                                  ...prev,
+                                  assignees: checked
+                                    ? prev.assignees.filter(id => id !== member.id)
+                                    : [...prev.assignees, member.id],
+                                }))}
+                                className="flex items-center gap-2 w-full px-2 py-1.5 rounded hover:bg-muted text-sm text-left"
+                              >
+                                <div className={cn("h-4 w-4 rounded border flex items-center justify-center flex-shrink-0", checked ? "bg-primary border-primary" : "border-border")}>
+                                  {checked && <svg className="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                </div>
+                                {member.id === user?.id ? "Self" : member.name}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </PopoverContent>
                     </Popover>
                   </div>
+
+                  {/* Deadline + Time */}
+                  <div className="space-y-2">
+                    <Label>Deadline</Label>
+                    <DateTimePicker
+                      date={taskFormData.deadline ? new Date(taskFormData.deadline) : undefined}
+                      time={taskFormData.task_time}
+                      onDateChange={(d) => setTaskFormData((prev) => ({ ...prev, deadline: d ? format(d, "yyyy-MM-dd") : "" }))}
+                      onTimeChange={(t) => setTaskFormData((prev) => ({ ...prev, task_time: t }))}
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* Recurring */}
+                  <div className="rounded-lg border border-border/50 bg-secondary/10 p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Repeat className="h-4 w-4 text-purple-500" />
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Recurring task</p>
+                          <p className="text-xs text-muted-foreground">Auto-respawns when completed</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={taskRecurring}
+                        onCheckedChange={(v) => {
+                          setTaskRecurring(v);
+                          if (v && !taskFormData.recurrence_type) {
+                            setTaskFormData((prev) => ({ ...prev, recurrence_type: "daily" }));
+                          }
+                        }}
+                        className="data-[state=checked]:bg-purple-600"
+                      />
+                    </div>
+
+                    {taskRecurring && (
+                      <div className="space-y-3 pt-1 border-t border-border/40">
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Repeat every</Label>
+                          <Select
+                            value={taskFormData.recurrence_type ?? "daily"}
+                            onValueChange={(v) => setTaskFormData((prev) => ({ ...prev, recurrence_type: v as "daily" | "weekly" | "monthly" | "custom" }))}
+                          >
+                            <SelectTrigger className="hover:border-purple-400 hover:text-purple-700 transition-colors">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="daily">Daily (every 24 hrs)</SelectItem>
+                              <SelectItem value="weekly">Weekly</SelectItem>
+                              <SelectItem value="monthly">Monthly</SelectItem>
+                              <SelectItem value="custom">Custom interval</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {taskFormData.recurrence_type === "custom" && (
+                          <div className="flex items-center gap-2">
+                            <Label className="text-sm whitespace-nowrap">Every</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={365}
+                              value={taskFormData.recurrence_days}
+                              onChange={(e) => setTaskFormData((prev) => ({ ...prev, recurrence_days: Math.max(1, parseInt(e.target.value) || 1) }))}
+                              className="w-20"
+                            />
+                            <span className="text-sm text-muted-foreground">days</span>
+                          </div>
+                        )}
+
+                        <p className="text-xs text-purple-600 bg-purple-50 dark:bg-purple-950/30 dark:text-purple-400 rounded-md px-3 py-2">
+                          When completed, the next occurrence drops back into Planning automatically at {taskFormData.task_time}.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="flex justify-end gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsTaskDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button variant="outline" onClick={() => setIsTaskDialogOpen(false)}>Cancel</Button>
                   <Button onClick={handleCreateTask}>Create Task</Button>
                 </div>
               </DialogContent>
@@ -799,7 +928,7 @@ export default function ProjectDetail() {
                       task={task}
                       isCreator={isCreator}
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
-                      onEdit={() => handleOpenEditTask(task)}
+                      onEdit={() => handleOpenTaskDetail(task.id)}
                       onDelete={() => handleDeleteTask(task.id)}
                       onAddDeliverable={!isCreator ? () => navigate("/deliverables", { state: { prefillTaskId: task.id } }) : undefined}
                       onDragStart={() => setDragTaskId(task.id)}
@@ -834,7 +963,7 @@ export default function ProjectDetail() {
                       task={task}
                       isCreator={isCreator}
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
-                      onEdit={() => handleOpenEditTask(task)}
+                      onEdit={() => handleOpenTaskDetail(task.id)}
                       onDelete={() => handleDeleteTask(task.id)}
                       onAddDeliverable={!isCreator ? () => navigate("/deliverables", { state: { prefillTaskId: task.id } }) : undefined}
                       onDragStart={() => setDragTaskId(task.id)}
@@ -869,7 +998,7 @@ export default function ProjectDetail() {
                       task={task}
                       isCreator={isCreator}
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
-                      onEdit={() => handleOpenEditTask(task)}
+                      onEdit={() => handleOpenTaskDetail(task.id)}
                       onDelete={() => handleDeleteTask(task.id)}
                       onAddDeliverable={!isCreator ? () => navigate("/deliverables", { state: { prefillTaskId: task.id } }) : undefined}
                       onDragStart={() => setDragTaskId(task.id)}
@@ -896,13 +1025,13 @@ export default function ProjectDetail() {
           </div>
         )} */}
 
-        {/* Messages Section — hidden from talent; these are creator↔client conversations */}
-        {id && user?.role !== 'talent' && (
+        {/* Messages Section — only shown once the project has at least one invited/linked client */}
+        {id && user?.role !== 'talent' && project?.has_clients && (
           <div className="mt-8 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold flex items-center gap-2">
                 <MessageCircle className="h-5 w-5" />
-                Project Messages
+                Client Chats
               </h2>
               <div className="flex items-center gap-2">
                 <Button 
@@ -1093,9 +1222,24 @@ export default function ProjectDetail() {
             projectName={project.name}
             isOpen={isInviteModalOpen}
             onClose={() => setIsInviteModalOpen(false)}
-            onSuccess={() => setRefreshInvitesTrigger(prev => prev + 1)}
+            onSuccess={() => { setRefreshInvitesTrigger(prev => prev + 1); fetchProjectTasks(id); }}
           />
         )}
+
+        {/* Task Detail Modal */}
+        <TaskDetailModal
+          taskId={selectedTaskId}
+          open={isTaskDetailOpen}
+          onOpenChange={(open) => {
+            setIsTaskDetailOpen(open);
+            if (!open) setSelectedTaskId(null);
+          }}
+          onTaskUpdated={handleTaskDetailUpdated}
+          onTaskDeleted={() => { setIsTaskDetailOpen(false); setSelectedTaskId(null); loadTasks(); }}
+          availableAssignees={availableAssignees}
+          currentUserId={user?.id ?? ""}
+          isCreator={isCreator}
+        />
 
         {/* First task celebration */}
         <CelebrationModal
@@ -1148,15 +1292,27 @@ function TaskCard({ task, isCreator, onStatusChange, onEdit, onDelete, onAddDeli
 
   return (
     <div
-      className={`glass-card p-4 rounded-lg border space-y-3 cursor-grab active:cursor-grabbing select-none ${STATUS_COLORS[task.status] || "border-border/50"}`}
+      className={`glass-card p-4 rounded-lg border space-y-3 cursor-pointer select-none ${STATUS_COLORS[task.status] || "border-border/50"}`}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onClick={(e) => {
+        // Don't open modal when clicking the dropdown menu
+        if ((e.target as HTMLElement).closest("[data-radix-popper-content-wrapper]")) return;
+        onEdit();
+      }}
     >
       <div className="flex items-start justify-between gap-2">
-        <h4 className="font-medium text-sm flex-1">{task.name}</h4>
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <h4 className="font-medium text-sm truncate">{task.name}</h4>
+          {task.recurrence_type && (
+            <span title={`Repeats ${task.recurrence_type}`} className="shrink-0">
+              <Repeat className="h-3 w-3 text-purple-500" />
+            </span>
+          )}
+        </div>
 
         {/* Creator menu: Edit + Delete */}
         {isCreator && (
@@ -1206,8 +1362,8 @@ function TaskCard({ task, isCreator, onStatusChange, onEdit, onDelete, onAddDeli
       )}
 
       <div className="flex items-center justify-between text-xs">
-        <span className={task.assignee_name ? "text-muted-foreground" : "text-muted-foreground/50"}>
-          {task.assignee_name ? `Assigned to ${task.assignee_name}` : "Unassigned"}
+        <span className={task.assignee_names?.length ? "text-muted-foreground" : "text-muted-foreground/50"}>
+          {task.assignee_names?.length ? `Assigned to ${task.assignee_names.join(", ")}` : "Unassigned"}
         </span>
         {task.deadline && <span className="text-muted-foreground">{task.deadline}</span>}
       </div>

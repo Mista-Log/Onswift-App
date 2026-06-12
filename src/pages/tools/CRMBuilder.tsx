@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,10 +31,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { useTeam } from "@/contexts/TeamContext";
-import { useCRM, CRMFieldType, CRMColumn } from "@/hooks/useCRM";
+import { useCRM, CRMFieldType, CRMColumn, CRMRow, SharableUser, AccessRole } from "@/hooks/useCRM";
 import { cn } from "@/lib/utils";
 import {
   Plus,
@@ -51,10 +51,24 @@ import {
   Sparkles,
   Loader2,
   X,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Lock,
   LockOpen,
+  BarChart2,
+  Image as ImageIcon,
+  PenLine,
+  CheckSquare,
+  List,
+  Link2,
+  MessageSquare,
+  StickyNote,
+  Tag,
+  LayoutGrid,
+  Sheet,
+  Eye,
+  Users,
 } from "lucide-react";
 
 // ── Field type options ─────────────────────────────────────────────────────────
@@ -69,6 +83,54 @@ const FIELD_TYPES: { value: CRMFieldType; label: string }[] = [
   { value: "single_select", label: "Dropdown" },
   { value: "multi_select",  label: "Multi-select" },
   { value: "checkbox",      label: "Checkbox" },
+];
+
+// ── Insert menu structure ──────────────────────────────────────────────────────
+
+type InsertItem = {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  sub?: { id: string; label: string }[];
+};
+type InsertSection = { items: InsertItem[] };
+
+const INSERT_SECTIONS: InsertSection[] = [
+  {
+    items: [
+      { id: "rows",    label: "Rows",    icon: Rows3,       sub: [{ id: "row-above", label: "Above" }, { id: "row-below", label: "Below" }] },
+      { id: "columns", label: "Columns", icon: Columns3,    sub: [{ id: "col-left",  label: "Left"  }, { id: "col-right", label: "Right" }] },
+      { id: "cells",   label: "Cells",   icon: LayoutGrid,  sub: [{ id: "cell-shift-right", label: "Shift right" }, { id: "cell-shift-down", label: "Shift down" }] },
+    ],
+  },
+  {
+    items: [
+      { id: "chart",   label: "Chart",   icon: BarChart2 },
+      { id: "image",   label: "Image",   icon: ImageIcon, sub: [{ id: "image-in-cell", label: "In cell" }, { id: "image-over-cells", label: "Over cells" }] },
+    ],
+  },
+  {
+    items: [
+      { id: "checkbox", label: "Checkbox", icon: CheckSquare },
+      { id: "dropdown", label: "Drop  down", icon: List },
+      {
+        id: "smart-chips", label: "Smart chips", icon: Tag,
+        sub: [
+          { id: "chip-people",   label: "People"         },
+          { id: "chip-file",     label: "File"           },
+          { id: "chip-calendar", label: "Calendar event" },
+          { id: "chip-finance",  label: "Finance"        },
+        ],
+      },
+      { id: "link", label: "Link", icon: Link2 }, 
+    ],
+  },
+  {
+    items: [
+      { id: "comment", label: "Comment", icon: MessageSquare },
+      { id: "note",    label: "Note",    icon: StickyNote },
+    ],
+  },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -105,10 +167,11 @@ interface ColPanelState {
   type: CRMFieldType;
   options: string[];
   anchor: { top: number; left: number; width: number } | null;
+  insertAtIndex: number | null;
 }
 
 const CLOSED_PANEL: ColPanelState = {
-  open: false, columnId: null, name: "", type: "text", options: [], anchor: null,
+  open: false, columnId: null, name: "", type: "text", options: [], anchor: null, insertAtIndex: null,
 };
 
 interface MultiSelectEdit {
@@ -126,11 +189,15 @@ function AutoTextarea({
   onBlur,
   placeholder,
   type = "text",
+  onEnter,
+  readOnly = false,
 }: {
   defaultValue: string;
   onBlur: (value: string) => void;
   placeholder?: string;
   type?: string;
+  onEnter?: () => void;
+  readOnly?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -144,9 +211,20 @@ function AutoTextarea({
       <input
         type={type}
         defaultValue={defaultValue}
-        onBlur={(e) => onBlur(e.target.value)}
+        readOnly={readOnly}
+        onBlur={readOnly ? undefined : (e) => onBlur(e.target.value)}
+        onKeyDown={readOnly ? undefined : (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onBlur((e.target as HTMLInputElement).value);
+            onEnter?.();
+          }
+        }}
         placeholder={placeholder}
-        className="w-full min-w-[100px] rounded border-0 bg-transparent px-0 py-0.5 text-sm text-foreground outline-none focus:ring-0 placeholder:text-muted-foreground/50"
+        className={cn(
+          "w-full min-w-[100px] rounded border-0 bg-transparent px-0 py-0.5 text-sm text-foreground outline-none focus:ring-0 placeholder:text-muted-foreground/50",
+          readOnly && "cursor-default select-text"
+        )}
       />
     );
   }
@@ -156,10 +234,22 @@ function AutoTextarea({
       ref={ref}
       defaultValue={defaultValue}
       rows={1}
-      onBlur={(e) => onBlur(e.target.value)}
-      onChange={(e) => autoResize(e.target)}
+      readOnly={readOnly}
+      onBlur={readOnly ? undefined : (e) => onBlur(e.target.value)}
+      onChange={readOnly ? undefined : (e) => autoResize(e.target)}
+      onKeyDown={readOnly ? undefined : (e) => {
+        // Shift+Enter → normal newline; plain Enter → save & move down
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          onBlur((e.target as HTMLTextAreaElement).value);
+          onEnter?.();
+        }
+      }}
       placeholder={placeholder}
-      className="w-full min-w-[100px] resize-none overflow-hidden rounded border-0 bg-transparent px-0 py-0.5 text-sm text-foreground outline-none focus:ring-0 placeholder:text-muted-foreground/50"
+      className={cn(
+        "w-full min-w-[100px] resize-none overflow-hidden rounded border-0 bg-transparent px-0 py-0.5 text-sm text-foreground outline-none focus:ring-0 placeholder:text-muted-foreground/50",
+        readOnly && "cursor-default select-text"
+      )}
     />
   );
 }
@@ -168,13 +258,16 @@ function AutoTextarea({
 
 export default function CRMBuilder() {
   const { user } = useAuth();
-  const { teamMembers } = useTeam();
   const crm = useCRM();
 
   // Setup dialog
   const [isSetupOpen, setIsSetupOpen] = useState(false);
   const [setupName, setSetupName]     = useState("");
   const [setupCols, setSetupCols]     = useState(6);
+
+  // Sharable users for the Share popover
+  const [sharableUsers, setSharableUsers] = useState<SharableUser[]>([]);
+  const [sharableLoading, setSharableLoading] = useState(false);
 
   // Rename dialog
   const [renameDialogOpen, setRenameDialogOpen]   = useState(false);
@@ -204,11 +297,44 @@ export default function CRMBuilder() {
   // Row-number column sticky toggle
   const [stickyRowNum, setStickyRowNum] = useState(true);
 
-  const canManageTools = user?.role === "creator";
+  // Column drag-to-reorder
+  const [localColOrder, setLocalColOrder] = useState<string[] | null>(null);
+  const [dragColId, setDragColId] = useState<string | null>(null);
+  const [dragOverColId, setDragOverColId] = useState<string | null>(null);
+  const dragDidMoveRef = useRef(false);
+
+  // Row selection (for Ctrl+X cut)
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+
+  // Insert popover
+  const [insertMenuOpen, setInsertMenuOpen]   = useState(false);
+  const [insertMenuPos,  setInsertMenuPos]    = useState<{ top: number; left: number } | null>(null);
+  const [insertSubMenu,  setInsertSubMenu]    = useState<string | null>(null);
+  const [insertSubTop,   setInsertSubTop]     = useState(0);
+
+  // Undo / redo
+  type HistoryEntry =
+    | { type: "reorder_cols"; prevOrder: string[] }
+    | { type: "delete_row"; row: CRMRow }
+    | { type: "delete_col"; col: CRMColumn; valuesPerRow: Record<string, CRMRow["values"][string]> };
+  const [undoStack, setUndoStack] = useState<HistoryEntry[]>([]);
+  const [redoStack, setRedoStack] = useState<HistoryEntry[]>([]);
+
+  const isOwner = user?.role === "creator";
+  const sheetRole = crm.activeSheet?.user_role ?? null;
+  // canWrite: sheet owner/admin/editor can write; creator in list view (no active sheet) can write
+  const canWrite = sheetRole === "owner" || sheetRole === "admin" || sheetRole === "editor"
+    || (isOwner && sheetRole === null);
   const { activeSheet } = crm;
 
-  // Reset column widths when a different sheet is opened
-  useEffect(() => { setColumnWidths({}); }, [activeSheet?.id]);
+  // Reset per-sheet local state when a different sheet is opened
+  useEffect(() => {
+    setColumnWidths({});
+    setLocalColOrder(null);
+    setSelectedRowId(null);
+    setUndoStack([]);
+    setRedoStack([]);
+  }, [activeSheet?.id]);
 
   // ── Scroll helpers ─────────────────────────────────────────────────────────
 
@@ -268,6 +394,170 @@ export default function CRMBuilder() {
     document.addEventListener("mouseup", onUp);
   }, [columnWidths]);
 
+  // ── Displayed column order (local drag state) ──────────────────────────────
+
+  const displayedColumns = useMemo(() => {
+    if (!activeSheet) return [];
+    if (!localColOrder) return activeSheet.columns;
+    const inOrder = new Set(localColOrder);
+    const ordered = localColOrder
+      .map((id) => activeSheet.columns.find((c) => c.id === id))
+      .filter(Boolean) as CRMColumn[];
+    // Append any columns added after last reorder
+    const extras = activeSheet.columns.filter((c) => !inOrder.has(c.id));
+    return [...ordered, ...extras];
+  }, [activeSheet, localColOrder]);
+
+  // ── History helpers ────────────────────────────────────────────────────────
+
+  const pushHistory = useCallback((entry: HistoryEntry) => {
+    setUndoStack((prev) => [...prev.slice(-19), entry]);
+    setRedoStack([]);
+  }, []);
+
+  const handleUndo = useCallback(async () => {
+    if (!activeSheet || undoStack.length === 0) return;
+    const last = undoStack[undoStack.length - 1];
+    setUndoStack((prev) => prev.slice(0, -1));
+
+    if (last.type === "reorder_cols") {
+      const current = localColOrder ?? activeSheet.columns.map((c) => c.id);
+      setRedoStack((prev) => [...prev, { type: "reorder_cols", prevOrder: current }]);
+      setLocalColOrder(last.prevOrder);
+      toast.success("Undo: column order restored");
+    } else if (last.type === "delete_row") {
+      try {
+        const newRow = await crm.addRow(activeSheet.id, activeSheet.columns);
+        await crm.updateRowValues(activeSheet.id, newRow.id, last.row.values);
+        setRedoStack((prev) => [...prev, { type: "delete_row", row: { ...last.row, id: newRow.id } }]);
+        toast.success("Undo: row restored");
+      } catch { toast.error("Undo failed"); }
+    } else if (last.type === "delete_col") {
+      try {
+        const col = await crm.addColumn(activeSheet.id, {
+          name: last.col.name, field_type: last.col.field_type,
+          options: last.col.options, order: last.col.order,
+        });
+        for (const [rowId, value] of Object.entries(last.valuesPerRow)) {
+          const row = activeSheet.rows.find((r) => r.id === rowId);
+          if (row) await crm.updateRowValues(activeSheet.id, rowId, { ...row.values, [col.id]: value });
+        }
+        setRedoStack((prev) => [...prev, { type: "delete_col", col: { ...last.col, id: col.id }, valuesPerRow: last.valuesPerRow }]);
+        toast.success("Undo: column restored");
+      } catch { toast.error("Undo failed"); }
+    }
+  }, [activeSheet, undoStack, localColOrder, crm]);
+
+  const handleRedo = useCallback(async () => {
+    if (!activeSheet || redoStack.length === 0) return;
+    const last = redoStack[redoStack.length - 1];
+    setRedoStack((prev) => prev.slice(0, -1));
+
+    if (last.type === "reorder_cols") {
+      const current = localColOrder ?? activeSheet.columns.map((c) => c.id);
+      setUndoStack((prev) => [...prev, { type: "reorder_cols", prevOrder: current }]);
+      setLocalColOrder(last.prevOrder);
+      toast.success("Redo: column order re-applied");
+    } else if (last.type === "delete_row") {
+      try {
+        await crm.deleteRow(activeSheet.id, last.row.id);
+        setUndoStack((prev) => [...prev, { type: "delete_row", row: last.row }]);
+        toast.success("Redo: row re-deleted");
+      } catch { toast.error("Redo failed"); }
+    } else if (last.type === "delete_col") {
+      try {
+        await crm.deleteColumn(activeSheet.id, last.col.id);
+        setUndoStack((prev) => [...prev, { type: "delete_col", col: last.col, valuesPerRow: last.valuesPerRow }]);
+        toast.success("Redo: column re-deleted");
+      } catch { toast.error("Redo failed"); }
+    }
+  }, [activeSheet, redoStack, localColOrder, crm]);
+
+  const handleCut = useCallback(async () => {
+    if (!activeSheet) return;
+    if (selectedRowId) {
+      const row = activeSheet.rows.find((r) => r.id === selectedRowId);
+      if (!row) return;
+      pushHistory({ type: "delete_row", row });
+      try {
+        await crm.deleteRow(activeSheet.id, selectedRowId);
+        setSelectedRowId(null);
+        toast.success("Row cut — Ctrl+Z to undo");
+      } catch {
+        toast.error("Failed to cut row");
+        setUndoStack((prev) => prev.slice(0, -1));
+      }
+    } else if (colPanel.open && colPanel.columnId) {
+      const col = activeSheet.columns.find((c) => c.id === colPanel.columnId);
+      if (!col) return;
+      const valuesPerRow: Record<string, CRMRow["values"][string]> = {};
+      activeSheet.rows.forEach((r) => { valuesPerRow[r.id] = r.values[colPanel.columnId!]; });
+      pushHistory({ type: "delete_col", col, valuesPerRow });
+      try {
+        await crm.deleteColumn(activeSheet.id, colPanel.columnId);
+        closeColPanel();
+        toast.success("Column cut — Ctrl+Z to undo");
+      } catch {
+        toast.error("Failed to cut column");
+        setUndoStack((prev) => prev.slice(0, -1));
+      }
+    }
+  }, [activeSheet, selectedRowId, colPanel, pushHistory, crm]);
+
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!activeSheet) return;
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && e.key === "z") { e.preventDefault(); handleUndo(); }
+      else if (ctrl && e.key === "y") { e.preventDefault(); handleRedo(); }
+      else if (ctrl && e.key === "x") { e.preventDefault(); handleCut(); }
+      else if (e.key === "Escape") { setSelectedRowId(null); }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [activeSheet, handleUndo, handleRedo, handleCut]);
+
+  // ── Column drag-to-reorder ─────────────────────────────────────────────────
+
+  const handleColDragStart = useCallback((e: React.DragEvent, colId: string) => {
+    dragDidMoveRef.current = false;
+    setDragColId(colId);
+    e.dataTransfer.effectAllowed = "move";
+  }, []);
+
+  const handleColDragOver = useCallback((e: React.DragEvent, colId: string) => {
+    e.preventDefault();
+    dragDidMoveRef.current = true;
+    e.dataTransfer.dropEffect = "move";
+    setDragOverColId(colId);
+  }, []);
+
+  const handleColDrop = useCallback((e: React.DragEvent, targetColId: string) => {
+    e.preventDefault();
+    if (!dragColId || dragColId === targetColId || !activeSheet) return;
+    const current = localColOrder ?? activeSheet.columns.map((c) => c.id);
+    const from = current.indexOf(dragColId);
+    const to = current.indexOf(targetColId);
+    if (from === -1 || to === -1) return;
+    const next = [...current];
+    next.splice(from, 1);
+    next.splice(to, 0, dragColId);
+    pushHistory({ type: "reorder_cols", prevOrder: current });
+    setLocalColOrder(next);
+    setDragColId(null);
+    setDragOverColId(null);
+  }, [dragColId, localColOrder, activeSheet, pushHistory]);
+
+  const handleColDragEnd = useCallback(() => {
+    setDragColId(null);
+    setDragOverColId(null);
+    dragDidMoveRef.current = false;
+  }, []);
+
   // ── Panel helpers ──────────────────────────────────────────────────────────
 
   const openColPanel = (
@@ -283,6 +573,7 @@ export default function CRMBuilder() {
       type: col?.field_type ?? "text",
       options: col?.options ?? [],
       anchor: { top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: rect.width },
+      insertAtIndex: null,
     });
   };
 
@@ -404,6 +695,14 @@ export default function CRMBuilder() {
       if (colPanel.columnId) {
         await crm.updateColumn(activeSheet.id, colPanel.columnId, { name, field_type: colPanel.type, options });
         toast.success("Column updated");
+      } else if (colPanel.insertAtIndex !== null && colPanel.insertAtIndex < activeSheet.columns.length) {
+        await crm.insertColumnAt(
+          activeSheet.id,
+          { name, field_type: colPanel.type, options },
+          activeSheet.columns,
+          colPanel.insertAtIndex,
+        );
+        toast.success(`Column "${name}" added`);
       } else {
         await crm.addColumn(activeSheet.id, {
           name, field_type: colPanel.type, options, order: activeSheet.columns.length,
@@ -434,6 +733,83 @@ export default function CRMBuilder() {
     catch { toast.error("Failed to add row"); }
   };
 
+  const closeInsertMenu = () => {
+    setInsertMenuOpen(false);
+    setInsertSubMenu(null);
+  };
+
+  const handleInsertAction = async (actionId: string) => {
+    closeInsertMenu();
+    if (!activeSheet) return;
+
+    switch (actionId) {
+      case "row-above": {
+        const idx = selectedRowId
+          ? activeSheet.rows.findIndex((r) => r.id === selectedRowId)
+          : -1;
+        const insertIndex = idx >= 0 ? idx : 0;
+        try {
+          await crm.insertRowAt(activeSheet.id, activeSheet.columns, activeSheet.rows, insertIndex);
+          toast.success("Row added above");
+        } catch { toast.error("Failed to add row"); }
+        break;
+      }
+      case "row-below": {
+        const idx = selectedRowId
+          ? activeSheet.rows.findIndex((r) => r.id === selectedRowId)
+          : -1;
+        const insertIndex = idx >= 0 ? idx + 1 : activeSheet.rows.length;
+        try {
+          await crm.insertRowAt(activeSheet.id, activeSheet.columns, activeSheet.rows, insertIndex);
+          toast.success("Row added below");
+        } catch { toast.error("Failed to add row"); }
+        break;
+      }
+      case "col-left":
+      case "col-right": {
+        const refIdx = colPanel.columnId
+          ? activeSheet.columns.findIndex((c) => c.id === colPanel.columnId)
+          : -1;
+        const insertIndex = actionId === "col-left"
+          ? (refIdx >= 0 ? refIdx : 0)
+          : (refIdx >= 0 ? refIdx + 1 : activeSheet.columns.length);
+        const anchor = insertMenuPos
+          ? { top: insertMenuPos.top, left: insertMenuPos.left, width: 208 }
+          : null;
+        setColPanel({ open: true, columnId: null, name: "", type: "text", options: [], anchor, insertAtIndex: insertIndex });
+        break;
+      }
+      case "checkbox": {
+        try {
+          await crm.addColumn(activeSheet.id, {
+            name: "Checkbox",
+            field_type: "checkbox",
+            options: [],
+            order: activeSheet.columns.length,
+          });
+          toast.success("Checkbox column added");
+        } catch { toast.error("Failed to add column"); }
+        break;
+      }
+      case "dropdown": {
+        setColPanel({
+          open: true,
+          columnId: null,
+          name: "",
+          type: "single_select",
+          options: [],
+          anchor: insertMenuPos
+            ? { top: insertMenuPos.top, left: insertMenuPos.left, width: 208 }
+            : null,
+          insertAtIndex: null,
+        });
+        break;
+      }
+      default:
+        toast.info("Coming soon");
+    }
+  };
+
   const handleDeleteRow = async (rowId: string) => {
     if (!activeSheet) return;
     try { await crm.deleteRow(activeSheet.id, rowId); }
@@ -447,6 +823,19 @@ export default function CRMBuilder() {
     try { await crm.updateRowValues(activeSheet.id, rowId, { ...row.values, [colId]: nextValue }); }
     catch { toast.error("Failed to save cell"); }
   };
+
+  const handleCellEnter = useCallback((rowIdx: number, colIdx: number) => {
+    const nextTd = document.querySelector<HTMLElement>(
+      `[data-rowidx="${rowIdx + 1}"][data-colidx="${colIdx}"]`
+    );
+    if (!nextTd) return;
+    const focusable = nextTd.querySelector<HTMLElement>("input, textarea, select");
+    if (!focusable) return;
+    focusable.focus();
+    if (focusable instanceof HTMLInputElement || focusable instanceof HTMLTextAreaElement) {
+      focusable.select();
+    }
+  }, []);
 
   // ── Export ─────────────────────────────────────────────────────────────────
 
@@ -474,18 +863,6 @@ export default function CRMBuilder() {
     toast.success("JSON backup exported");
   };
 
-  // ── Guard ──────────────────────────────────────────────────────────────────
-
-  if (!canManageTools) {
-    return (
-      <MainLayout>
-        <div className="rounded-xl border border-border/60 bg-card p-8 text-center">
-          <h1 className="text-2xl font-bold text-foreground">CRM Builder</h1>
-          <p className="mt-2 text-sm text-muted-foreground">This tool is available to creator accounts.</p>
-        </div>
-      </MainLayout>
-    );
-  }
 
   if (crm.isDetailLoading) {
     return (
@@ -518,61 +895,120 @@ export default function CRMBuilder() {
               </Button>
               <span className="text-muted-foreground/40">/</span>
               <h1 className="text-lg font-bold text-foreground truncate">{activeSheet.name}</h1>
+              {!canWrite && (
+                <Badge variant="secondary" className="gap-1 shrink-0">
+                  <Eye className="h-3 w-3" />
+                  View only
+                </Badge>
+              )}
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {/* Sharing — hidden behind icon popover */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5" title="Sharing access">
-                    <Share2 className="h-3.5 w-3.5" />
-                    Share
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-80 p-0">
-                  <div className="px-4 py-3 border-b border-border">
-                    <h3 className="font-semibold text-sm text-foreground">Sharing Access</h3>
-                  </div>
-                  <div className="px-4 py-3 max-h-72 overflow-y-auto">
-                    {teamMembers.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        No team members yet. Invite teammates to assign access.
+              {/* Share — owner only */}
+              {activeSheet.user_role === "owner" && (
+                <Popover onOpenChange={async (open) => {
+                  if (open && sharableUsers.length === 0) {
+                    setSharableLoading(true);
+                    try {
+                      const users = await crm.fetchSharableUsers();
+                      setSharableUsers(users);
+                    } finally {
+                      setSharableLoading(false);
+                    }
+                  }
+                }}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5" title="Manage access">
+                      <Share2 className="h-3.5 w-3.5" />
+                      Share
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-80 p-0">
+                    <div className="px-4 py-3 border-b border-border">
+                      <h3 className="font-semibold text-sm text-foreground">Manage Access</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Share with your team members and clients
                       </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {teamMembers.map((member) => {
-                          const existing = activeSheet.access_list.find((a) => a.user === member.user_id);
-                          return (
-                            <div key={member.id} className="flex items-center justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-foreground truncate">{member.name}</p>
-                                <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                    </div>
+                    <div className="px-4 py-3 max-h-72 overflow-y-auto">
+                      {sharableLoading ? (
+                        <div className="flex justify-center py-4">
+                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : sharableUsers.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-2">
+                          No team members or clients found. Hire talent or onboard clients first.
+                        </p>
+                      ) : (
+                        <div className="space-y-2.5">
+                          {sharableUsers.map((u) => {
+                            const existing = activeSheet.access_list.find((a) => a.user === u.user_id);
+                            return (
+                              <div key={u.user_id} className="flex items-center justify-between gap-2">
+                                <div className="min-w-0 flex items-center gap-2">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-foreground truncate">{u.name}</p>
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                                      <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4 shrink-0">
+                                        {u.type === "team" ? "Team" : "Client"}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </div>
+                                <select
+                                  value={existing?.role ?? "none"}
+                                  onChange={async (e) => {
+                                    const val = e.target.value;
+                                    try {
+                                      if (val === "none") {
+                                        if (existing) {
+                                          await crm.revokeAccess(activeSheet.id, existing.id);
+                                          toast.success(`Access removed for ${u.name}`);
+                                        }
+                                      } else {
+                                        await crm.upsertAccess(activeSheet.id, u.user_id, val as AccessRole, existing?.id);
+                                        toast.success(`${u.name} set as ${val}`);
+                                      }
+                                    } catch {
+                                      toast.error("Failed to update access");
+                                    }
+                                  }}
+                                  className="h-8 rounded-md border border-input bg-background px-2 text-xs shrink-0"
+                                >
+                                  <option value="none">No access</option>
+                                  <option value="viewer">Viewer</option>
+                                  <option value="editor">Editor</option>
+                                  <option value="admin">Admin</option>
+                                </select>
                               </div>
-                              <select
-                                value={existing?.role ?? "viewer"}
-                                onChange={async (e) => {
-                                  const role = e.target.value as "viewer" | "editor" | "admin";
-                                  try {
-                                    await crm.upsertAccess(activeSheet.id, member.user_id, role, existing?.id);
-                                    toast.success(`${member.name} set as ${role}`);
-                                  } catch {
-                                    toast.error("Failed to update access");
-                                  }
-                                }}
-                                className="h-8 rounded-md border border-input bg-background px-2 text-xs shrink-0"
-                              >
-                                <option value="viewer">Viewer</option>
-                                <option value="editor">Editor</option>
-                                <option value="admin">Admin</option>
-                              </select>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+
+              {/* Insert button — write access only */}
+              {canWrite && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setInsertMenuPos({ top: rect.bottom + 4, left: rect.left });
+                    setInsertMenuOpen((v) => !v);
+                    setInsertSubMenu(null);
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Insert
+                  <ChevronDown className="h-3 w-3 opacity-60" />
+                </Button>
+              )}
 
               <Button variant="outline" size="sm" className="gap-1.5" onClick={exportCsv}>
                 <Download className="h-3.5 w-3.5" />
@@ -602,7 +1038,7 @@ export default function CRMBuilder() {
                 <colgroup>
                   {/* row-number col */}
                   <col style={{ width: 44 }} />
-                  {activeSheet.columns.map((col) => (
+                  {displayedColumns.map((col) => (
                     <col key={col.id} style={{ width: columnWidths[col.id] ?? 160 }} />
                   ))}
                   {/* add-column col */}
@@ -630,33 +1066,52 @@ export default function CRMBuilder() {
                       </button>
                     </th>
 
-                    {activeSheet.columns.map((col) => (
+                    {displayedColumns.map((col) => (
                       <th
                         key={col.id}
-                        onClick={(e) => openColPanel(col, e)}
-                        className="relative bg-secondary/50 border border-border py-2.5 text-left font-semibold text-foreground group/th cursor-pointer hover:bg-secondary transition-colors select-none overflow-hidden"
+                        draggable={canWrite}
+                        onDragStart={canWrite ? (e) => handleColDragStart(e, col.id) : undefined}
+                        onDragOver={canWrite ? (e) => handleColDragOver(e, col.id) : undefined}
+                        onDrop={canWrite ? (e) => handleColDrop(e, col.id) : undefined}
+                        onDragEnd={canWrite ? handleColDragEnd : undefined}
+                        onClick={canWrite ? (e) => openColPanel(col, e) : undefined}
+                        className={cn(
+                          "relative bg-secondary/50 border border-border py-2.5 text-left font-semibold text-foreground group/th transition-colors select-none overflow-hidden",
+                          canWrite && "cursor-grab active:cursor-grabbing hover:bg-secondary",
+                          !canWrite && "cursor-default",
+                          dragColId === col.id && "opacity-40 bg-primary/5",
+                          dragOverColId === col.id && dragColId !== col.id && "bg-primary/15 border-primary/50",
+                          colPanel.open && colPanel.columnId === col.id && "bg-primary/10"
+                        )}
                       >
                         <div className="flex items-center justify-between gap-1 px-3">
                           <span className="text-sm truncate">{col.name}</span>
-                          <Pencil className="h-3 w-3 shrink-0 opacity-0 group-hover/th:opacity-40 text-muted-foreground transition-opacity" />
+                          {canWrite && (
+                            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-0 group-hover/th:opacity-70 text-muted-foreground transition-opacity" />
+                          )}
                         </div>
-                        {/* Drag-to-resize handle */}
+                        {/* Drag-to-resize handle (right edge) */}
                         <div
                           className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors z-10"
                           onMouseDown={(e) => startResize(e, col.id)}
                           onClick={(e) => e.stopPropagation()}
+                          onDragStart={(e) => e.stopPropagation()}
                         />
                       </th>
                     ))}
 
-                    {/* Add-column */}
-                    <th
-                      onClick={(e) => openColPanel(null, e)}
-                      title="Add column"
-                      className="bg-secondary/50 border border-border px-2 py-2.5 text-center cursor-pointer text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
-                    >
-                      <Plus className="h-4 w-4 mx-auto" />
-                    </th>
+                    {/* Add-column — write access only */}
+                    {canWrite ? (
+                      <th
+                        onClick={(e) => openColPanel(null, e)}
+                        title="Add column"
+                        className="bg-secondary/50 border border-border px-2 py-2.5 text-center cursor-pointer text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
+                      >
+                        <Plus className="h-4 w-4 mx-auto" />
+                      </th>
+                    ) : (
+                      <th className="bg-secondary/50 border border-border" />
+                    )}
 
                     {/* Delete-row col header */}
                     <th className="bg-secondary/50 border border-border" />
@@ -665,21 +1120,34 @@ export default function CRMBuilder() {
 
                 <tbody>
                   {activeSheet.rows.map((row, rowIdx) => (
-                    <tr key={row.id} className="group/row hover:bg-secondary/10 transition-colors">
+                    <tr
+                      key={row.id}
+                      className={cn(
+                        "group/row hover:bg-secondary/10 transition-colors",
+                        selectedRowId === row.id && "bg-primary/5 ring-1 ring-inset ring-primary/30"
+                      )}
+                    >
 
-                      {/* Sticky row number */}
-                      <td className={cn(
-                        "border border-border px-2 py-1.5 text-center text-xs text-muted-foreground select-none transition-colors",
-                        stickyRowNum
-                          ? "sticky left-0 z-[5] bg-card group-hover/row:bg-secondary/10"
-                          : "bg-secondary/20"
-                      )}>
+                      {/* Sticky row number — click to select row for Ctrl+X */}
+                      <td
+                        className={cn(
+                          "border border-border px-2 py-1.5 text-center text-xs text-muted-foreground select-none transition-colors cursor-pointer hover:bg-primary/10",
+                          stickyRowNum
+                            ? "sticky left-0 z-[5] bg-card group-hover/row:bg-secondary/10"
+                            : "bg-secondary/20",
+                          selectedRowId === row.id && "bg-primary/15 text-primary font-semibold"
+                        )}
+                        onClick={() => setSelectedRowId((prev) => prev === row.id ? null : row.id)}
+                        title="Click to select • Ctrl+X to cut"
+                      >
                         {rowIdx + 1}
                       </td>
 
-                      {activeSheet.columns.map((col) => (
+                      {displayedColumns.map((col, colIdx) => (
                         <td
                           key={`${row.id}_${col.id}`}
+                          data-rowidx={rowIdx}
+                          data-colidx={colIdx}
                           className="border border-border px-3 py-1.5 align-top overflow-hidden"
                         >
                           {col.field_type === "checkbox" ? (
@@ -687,16 +1155,20 @@ export default function CRMBuilder() {
                               <input
                                 type="checkbox"
                                 checked={Boolean(row.values[col.id])}
-                                onChange={(e) => handleCellBlur(row.id, col.id, e.target.checked)}
-                                className="h-4 w-4 accent-primary"
+                                disabled={!canWrite}
+                                onChange={canWrite ? (e) => handleCellBlur(row.id, col.id, e.target.checked) : undefined}
+                                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCellEnter(rowIdx, colIdx); } }}
+                                className="h-4 w-4 accent-primary disabled:opacity-60"
                               />
                             </div>
                           ) : col.field_type === "single_select" ? (
                             <select
                               defaultValue={String(row.values[col.id] || "")}
-                              onBlur={(e) => handleCellBlur(row.id, col.id, e.target.value)}
-                              onChange={(e) => handleCellBlur(row.id, col.id, e.target.value)}
-                              className="h-7 w-full rounded border border-input bg-background px-2 text-sm"
+                              disabled={!canWrite}
+                              onBlur={canWrite ? (e) => handleCellBlur(row.id, col.id, e.target.value) : undefined}
+                              onChange={canWrite ? (e) => handleCellBlur(row.id, col.id, e.target.value) : undefined}
+                              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCellEnter(rowIdx, colIdx); } }}
+                              className="h-7 w-full rounded border border-input bg-background px-2 text-sm disabled:opacity-60 disabled:cursor-default"
                             >
                               <option value="">Select…</option>
                               {(col.options || []).map((opt) => (
@@ -705,13 +1177,16 @@ export default function CRMBuilder() {
                             </select>
                           ) : col.field_type === "multi_select" ? (
                             <div
-                              className="min-h-[28px] cursor-pointer flex flex-wrap gap-1 items-center py-0.5"
-                              onClick={(e) => {
+                              className={cn(
+                                "min-h-[28px] flex flex-wrap gap-1 items-center py-0.5",
+                                canWrite && "cursor-pointer"
+                              )}
+                              onClick={canWrite ? (e) => {
                                 const current = Array.isArray(row.values[col.id])
                                   ? (row.values[col.id] as string[])
                                   : [];
                                 openMultiSelectEdit(e, row.id, col.id, col, current);
-                              }}
+                              } : undefined}
                             >
                               {Array.isArray(row.values[col.id]) && (row.values[col.id] as string[]).length > 0 ? (
                                 (row.values[col.id] as string[]).map((v) => (
@@ -720,7 +1195,7 @@ export default function CRMBuilder() {
                                   </span>
                                 ))
                               ) : (
-                                <span className="text-xs text-muted-foreground/50">Select…</span>
+                                <span className="text-xs text-muted-foreground/50">{canWrite ? "Select…" : "—"}</span>
                               )}
                             </div>
                           ) : (
@@ -733,11 +1208,13 @@ export default function CRMBuilder() {
                                 : "text"
                               }
                               defaultValue={String(row.values[col.id] ?? "")}
-                              onBlur={(v) => {
+                              readOnly={!canWrite}
+                              onBlur={canWrite ? (v) => {
                                 const value = col.field_type === "number" ? Number(v) : v;
                                 handleCellBlur(row.id, col.id, value);
-                              }}
-                              placeholder={col.name}
+                              } : () => {}}
+                              onEnter={() => handleCellEnter(rowIdx, colIdx)}
+                              placeholder={canWrite ? col.name : ""}
                             />
                           )}
                         </td>
@@ -746,16 +1223,18 @@ export default function CRMBuilder() {
                       {/* Spacer under add-column header */}
                       <td className="border border-border" />
 
-                      {/* Delete row — appears on hover */}
+                      {/* Delete row — write access only */}
                       <td className="border border-border px-1 py-1 text-center align-middle">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 opacity-0 group-hover/row:opacity-100 transition-opacity"
-                          onClick={() => handleDeleteRow(row.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
+                        {canWrite && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                            onClick={() => handleDeleteRow(row.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -779,13 +1258,15 @@ export default function CRMBuilder() {
               </div>
             )}
 
-            {/* Add record */}
-            <div className="border-t border-border p-3">
-              <Button variant="outline" size="sm" className="gap-2" onClick={handleAddRow}>
-                <Plus className="h-3.5 w-3.5" />
-                Cell
-              </Button>
-            </div>
+            {/* Add record — write access only */}
+            {canWrite && (
+              <div className="border-t border-border p-3">
+                <Button variant="outline" size="sm" className="gap-2" onClick={handleAddRow}>
+                  <Plus className="h-3.5 w-3.5" />
+                  Add row
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -869,6 +1350,87 @@ export default function CRMBuilder() {
                 </div>
               )}
             </div>
+          </>
+        )}
+
+        {/* ── Insert menu ───────────────────────────────────────────────────── */}
+        {insertMenuOpen && insertMenuPos && (
+          <>
+            {/* Click-away backdrop */}
+            <div className="fixed inset-0 z-40" onClick={closeInsertMenu} />
+
+            {/* Primary popover */}
+            <div
+              className="fixed z-50 w-52 rounded-xl border border-border bg-card shadow-xl overflow-hidden py-1"
+              style={{
+                top:  insertMenuPos.top,
+                left: Math.min(insertMenuPos.left, window.innerWidth - 220),
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onMouseLeave={() => setInsertSubMenu(null)}
+            >
+              {INSERT_SECTIONS.map((section, si) => (
+                <div key={si}>
+                  {si > 0 && <div className="my-1 mx-2 border-t border-border/50" />}
+                  {section.items.map((item) => {
+                    const Icon = item.icon;
+                    const hasSub = !!(item.sub && item.sub.length > 0);
+                    return (
+                      <button
+                        key={item.id}
+                        className={cn(
+                          "w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors",
+                          insertSubMenu === item.id
+                            ? "bg-primary/10 text-primary"
+                            : "text-foreground hover:bg-secondary"
+                        )}
+                        onMouseEnter={(e) => {
+                          if (hasSub) {
+                            setInsertSubMenu(item.id);
+                            setInsertSubTop(e.currentTarget.getBoundingClientRect().top);
+                          } else {
+                            setInsertSubMenu(null);
+                          }
+                        }}
+                        onClick={() => {
+                          if (!hasSub) handleInsertAction(item.id);
+                        }}
+                      >
+                        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="flex-1">{item.label}</span>
+                        {hasSub && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+
+            {/* Nested sub-menu */}
+            {insertSubMenu && (() => {
+              const parentItem = INSERT_SECTIONS.flatMap((s) => s.items).find((i) => i.id === insertSubMenu);
+              if (!parentItem?.sub) return null;
+              const menuLeft = Math.min(insertMenuPos.left, window.innerWidth - 220);
+              const subLeft  = Math.min(menuLeft + 212, window.innerWidth - 192);
+              return (
+                <div
+                  className="fixed z-50 w-44 rounded-xl border border-border bg-card shadow-xl overflow-hidden py-1"
+                  style={{ top: insertSubTop, left: subLeft }}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseEnter={() => setInsertSubMenu(insertSubMenu)}
+                >
+                  {parentItem.sub.map((sub) => (
+                    <button
+                      key={sub.id}
+                      className="w-full flex items-center px-3 py-2 text-sm text-left text-foreground hover:bg-secondary transition-colors"
+                      onClick={() => handleInsertAction(sub.id)}
+                    >
+                      {sub.label}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </>
         )}
 
@@ -1037,12 +1599,14 @@ export default function CRMBuilder() {
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">CRM Builder</h1>
-            <p className="mt-1 text-muted-foreground">Manage your CRM sheets — click any card to open it.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">Spreadsheet</h1>
+            <p className="mt-1 text-muted-foreground">
+              Manage your spreadsheets and shared sheets.
+            </p>
           </div>
           <Button className="gap-2 w-full sm:w-auto" onClick={() => setIsSetupOpen(true)}>
             <Plus className="h-4 w-4" />
-            New CRM Sheet
+            New Spreadsheet
           </Button>
         </div>
 
@@ -1074,15 +1638,23 @@ export default function CRMBuilder() {
                 className="cursor-pointer p-6 rounded-lg border group hover:border-primary/50 transition-colors"
               >
                 <div className="flex justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="rounded-lg bg-primary/10 p-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="rounded-lg bg-primary/10 p-2 shrink-0">
                       <FileSpreadsheet className="h-5 w-5 text-primary" />
                     </div>
-                    <h3 className="font-semibold text-foreground">{sheet.name}</h3>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-foreground truncate">{sheet.name}</h3>
+                      {sheet.user_role !== "owner" && (
+                        <Badge variant="secondary" className="gap-1 text-[10px] mt-0.5">
+                          <Users className="h-2.5 w-2.5" />
+                          Shared · {sheet.user_role}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -1090,15 +1662,19 @@ export default function CRMBuilder() {
                       <DropdownMenuItem onClick={(e) => { e.stopPropagation(); crm.openSheet(sheet.id); }}>
                         <FileSpreadsheet className="h-4 w-4 mr-2" />Open CRM
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => openRenameDialog(e, { id: sheet.id, name: sheet.name })}>
-                        <Pencil className="h-4 w-4 mr-2" />Rename Sheet
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => openDeleteDialog(e, { id: sheet.id, name: sheet.name })}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />Delete Sheet
-                      </DropdownMenuItem>
+                      {sheet.user_role === "owner" && (
+                        <>
+                          <DropdownMenuItem onClick={(e) => openRenameDialog(e, { id: sheet.id, name: sheet.name })}>
+                            <Pencil className="h-4 w-4 mr-2" />Rename Sheet
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => openDeleteDialog(e, { id: sheet.id, name: sheet.name })}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />Delete Sheet
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

@@ -8,6 +8,7 @@ from .views import (
     OnboardingInstanceDetailView,
     OnboardingPublicView,
     ClientOnboardingSubmitView,
+    ClientMySubmissionsView,
 )
 
 urlpatterns = [
@@ -21,4 +22,7 @@ urlpatterns = [
     # Public client-facing endpoints
     path("onboard/<str:slug>/", OnboardingPublicView.as_view(), name="onboarding-public"),
     path("onboard/<str:slug>/submit/", ClientOnboardingSubmitView.as_view(), name="onboarding-submit"),
+
+    # Client dashboard
+    path("my-submissions/", ClientMySubmissionsView.as_view(), name="my-submissions"),
 ]

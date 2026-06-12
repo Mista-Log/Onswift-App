@@ -1,56 +1,254 @@
 from rest_framework import serializers
+from django.contrib.auth import get_user_model
 from .models import Project, Task, Deliverable, DeliverableFile, DeliverableLink, Message, Conversation
 from .models import ProjectSample, TeamMember, Group, GroupMembership, GroupMessage, GroupMessageReadStatus
 from .models import GoogleCalendarToken, CalendarSyncedTask, ProjectClientMembership
+from .models import TaskComment, TaskAttachment, TaskChecklist, TaskChecklistItem
 from django.conf import settings
 
+User = get_user_model()
+
+
+def spawn_recurring_task(task):
+    """
+    Create the next occurrence of a recurring task and notify both the creator
+    and the assignee. Called whenever a recurring task reaches 'completed',
+    regardless of whether that happened via the task serializer or the
+    deliverable-approval path.
+    Returns the newly created Task, or None if recurrence cannot be computed.
+    """
+    from datetime import date, timedelta
+    from dateutil.relativedelta import relativedelta
+    from notification.services import create_notification
+
+    base = task.deadline or date.today()
+
+    if task.recurrence_type == "daily":
+        next_date = base + timedelta(days=1)
+        interval_label = "daily"
+    elif task.recurrence_type == "weekly":
+        next_date = base + timedelta(weeks=1)
+        interval_label = "weekly"
+    elif task.recurrence_type == "monthly":
+        next_date = base + relativedelta(months=1)
+        interval_label = "monthly"
+    elif task.recurrence_type == "custom" and task.recurrence_days:
+        next_date = base + timedelta(days=task.recurrence_days)
+        interval_label = f"every {task.recurrence_days} days"
+    else:
+        return None
+
+    new_task = Task.objects.create(
+        project=task.project,
+        name=task.name,
+        description=task.description,
+        status="planning",
+        priority=task.priority,
+        deadline=next_date,
+        task_time=task.task_time,
+        recurrence_type=task.recurrence_type,
+        recurrence_days=task.recurrence_days,
+    )
+    new_task.assignees.set(task.assignees.all())
+
+    # Copy checklists — items start unchecked for the new occurrence
+    for checklist in task.checklists.prefetch_related("items").all():
+        new_cl = TaskChecklist.objects.create(task=new_task, title=checklist.title)
+        for item in checklist.items.order_by("order"):
+            TaskChecklistItem.objects.create(
+                checklist=new_cl,
+                content=item.content,
+                is_checked=False,
+                order=item.order,
+            )
+
+    # Copy link attachments only (files are binary uploads and cannot be cloned)
+    for att in task.attachments.filter(url__isnull=False):
+        if not att.file:
+            TaskAttachment.objects.create(
+                task=new_task,
+                uploaded_by=att.uploaded_by,
+                name=att.name,
+                url=att.url,
+            )
+
+    due_str = next_date.strftime("%b %d, %Y")
+
+    create_notification(
+        user=task.project.creator,
+        title="Recurring Task Reset",
+        message=(
+            f"'{task.name}' completed and reset to Planning ({interval_label}). "
+            f"Next due: {due_str}."
+        ),
+        notification_type="system",
+    )
+
+    for assignee in task.assignees.exclude(id=task.project.creator.id):
+        create_notification(
+            user=assignee,
+            title="Recurring Task Reset",
+            message=(
+                f"'{task.name}' has been reset to Planning ({interval_label}). "
+                f"Your next deadline: {due_str}."
+            ),
+            notification_type="system",
+        )
+
+    return new_task
+
+
 class TaskSerializer(serializers.ModelSerializer):
-    assignee_name = serializers.CharField(source="assignee.full_name", read_only=True)
+    assignees = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=User.objects.all(),
+        required=False,
+    )
+    assignee_names = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
-        fields = ["id", "project", "name", "description", "assignee", "assignee_name", "status", "deadline", "created_at"]
+        fields = [
+            "id", "project", "name", "description", "assignees", "assignee_names",
+            "status", "priority", "deadline", "task_time",
+            "recurrence_type", "recurrence_days",
+            "created_at",
+        ]
         read_only_fields = ["project", "created_at"]
 
+    def get_assignee_names(self, obj):
+        return [u.full_name for u in obj.assignees.all()]
+
     def create(self, validated_data):
+        assignees = validated_data.pop("assignees", [])
         task = super().create(validated_data)
-        # Create notification if task is assigned to someone
-        if task.assignee:
-            self._notify_assignee(task, is_new=True)
+        task.assignees.set(assignees)
+        if assignees:
+            self._notify_assignees(task, assignees, is_new=True)
         return task
 
     def update(self, instance, validated_data):
-        old_assignee = instance.assignee
-        new_assignee = validated_data.get('assignee', old_assignee)
+        old_assignee_ids = set(instance.assignees.values_list("id", flat=True))
+        old_status = instance.status
+        new_assignees = validated_data.pop("assignees", None)
 
         task = super().update(instance, validated_data)
 
-        # Notify if assignee changed
-        if new_assignee and new_assignee != old_assignee:
-            self._notify_assignee(task, is_new=False)
+        if new_assignees is not None:
+            task.assignees.set(new_assignees)
+            new_assignee_ids = {u.id for u in new_assignees}
+            added = [u for u in new_assignees if u.id not in old_assignee_ids]
+            if added:
+                self._notify_assignees(task, added, is_new=False)
+
+        if old_status != "completed" and task.status == "completed" and task.recurrence_type:
+            spawn_recurring_task(task)
 
         return task
 
-    def _notify_assignee(self, task, is_new=True):
-        """Send notification to the task assignee"""
+    def _notify_assignees(self, task, assignees, is_new=True):
         from notification.services import create_notification
-
         project_name = task.project.name
         creator_name = task.project.creator.full_name
-
+        title = "New Task Assigned" if is_new else "Task Reassigned"
         if is_new:
-            title = "New Task Assigned"
             message = f"{creator_name} assigned you to '{task.name}' in project '{project_name}'."
         else:
-            title = "Task Reassigned"
             message = f"You've been assigned to '{task.name}' in project '{project_name}'."
+        for user in assignees:
+            create_notification(user=user, title=title, message=message, notification_type="system")
 
-        create_notification(
-            user=task.assignee,
-            title=title,
-            message=message,
-            notification_type="system",
-        )
+class TaskCommentSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source="author.full_name", read_only=True)
+    author_role = serializers.CharField(source="author.role", read_only=True)
+    author_avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TaskComment
+        fields = ["id", "author", "author_name", "author_role", "author_avatar", "content", "created_at"]
+        read_only_fields = ["id", "author", "author_name", "author_role", "author_avatar", "created_at"]
+
+    def get_author_avatar(self, obj):
+        if obj.author.profile_picture:
+            try:
+                return obj.author.profile_picture.url
+            except Exception:
+                return None
+        return None
+
+
+class TaskAttachmentSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.CharField(source="uploaded_by.full_name", read_only=True)
+    file_url = serializers.SerializerMethodField()
+    url = serializers.CharField(max_length=2048, allow_null=True, allow_blank=True, required=False)
+
+    class Meta:
+        model = TaskAttachment
+        fields = ["id", "uploaded_by", "uploaded_by_name", "name", "file", "file_url", "url", "created_at"]
+        read_only_fields = ["id", "uploaded_by", "uploaded_by_name", "file_url", "created_at"]
+
+    def get_file_url(self, obj):
+        if obj.file:
+            try:
+                request = self.context.get("request")
+                return request.build_absolute_uri(obj.file.url) if request else obj.file.url
+            except Exception:
+                return None
+        return None
+
+
+class TaskChecklistItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaskChecklistItem
+        fields = ["id", "content", "is_checked", "order", "created_at"]
+        read_only_fields = ["id", "created_at"]
+
+
+class TaskChecklistSerializer(serializers.ModelSerializer):
+    items = TaskChecklistItemSerializer(many=True, read_only=True)
+    progress = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TaskChecklist
+        fields = ["id", "title", "items", "progress", "created_at"]
+        read_only_fields = ["id", "created_at"]
+
+    def get_progress(self, obj):
+        items = obj.items.all()
+        total = items.count()
+        if total == 0:
+            return 0
+        checked = items.filter(is_checked=True).count()
+        return round((checked / total) * 100)
+
+
+class TaskDetailSerializer(TaskSerializer):
+    comments = TaskCommentSerializer(many=True, read_only=True)
+    attachments = TaskAttachmentSerializer(many=True, read_only=True)
+    checklists = TaskChecklistSerializer(many=True, read_only=True)
+    assignee_avatars = serializers.SerializerMethodField()
+    deliverables = serializers.SerializerMethodField()
+
+    class Meta(TaskSerializer.Meta):
+        fields = list(TaskSerializer.Meta.fields) + ["comments", "attachments", "checklists", "assignee_avatars", "deliverables"]
+
+    def get_assignee_avatars(self, obj):
+        avatars = []
+        for user in obj.assignees.all():
+            try:
+                url = user.profile_picture.url if user.profile_picture else None
+            except Exception:
+                url = None
+            avatars.append(url)
+        return avatars
+
+    def get_deliverables(self, obj):
+        request = self.context.get('request')
+        qs = obj.deliverables.prefetch_related('links', 'files').select_related('submitted_by')
+        if request and request.user.role == 'talent':
+            qs = qs.filter(submitted_by=request.user)
+        return TaskDeliverableSerializer(qs, many=True, context=self.context).data
+
 
 class TeamMemberSerializer(serializers.ModelSerializer):
     class Meta:
@@ -68,6 +266,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     task_count = serializers.SerializerMethodField()
     completed_tasks = serializers.SerializerMethodField()
     progress = serializers.SerializerMethodField()
+    has_clients = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -82,7 +281,15 @@ class ProjectSerializer(serializers.ModelSerializer):
             "task_count",
             "completed_tasks",
             "progress",
+            "has_clients",
             "created_at",
+        )
+
+    def get_has_clients(self, obj):
+        from portal.models import ClientInvite
+        return (
+            ProjectClientMembership.objects.filter(project=obj).exists()
+            or ClientInvite.objects.filter(project=obj).exists()
         )
 
     def create(self, validated_data):
@@ -142,6 +349,17 @@ class DeliverableLinkSerializer(serializers.ModelSerializer):
     class Meta:
         model = DeliverableLink
         fields = ["id", "url"]
+
+
+class TaskDeliverableSerializer(serializers.ModelSerializer):
+    """Slim read-only serializer used inside TaskDetailSerializer.get_deliverables."""
+    links = DeliverableLinkSerializer(many=True, read_only=True)
+    files = DeliverableFileSerializer(many=True, read_only=True)
+    submitted_by_name = serializers.CharField(source="submitted_by.full_name", read_only=True)
+
+    class Meta:
+        model = Deliverable
+        fields = ["id", "title", "description", "submitted_by_name", "status", "feedback", "links", "files", "created_at"]
 
 
 class DeliverableSerializer(serializers.ModelSerializer):
@@ -207,11 +425,13 @@ class DeliverableReviewSerializer(serializers.ModelSerializer):
 
         instance = super().update(instance, validated_data)
 
-        # Auto-complete the task when approved; revert it when unapproved
+        # Auto-complete the task when approved; trigger recurrence spawn if set
         if new_status == "approved":
             task = instance.task
             task.status = "completed"
             task.save(update_fields=["status"])
+            if task.recurrence_type:
+                spawn_recurring_task(task)
         elif new_status == "pending" and old_status == "approved":
             task = instance.task
             if task.status == "completed":

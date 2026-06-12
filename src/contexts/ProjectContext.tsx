@@ -7,17 +7,21 @@ import {
 } from "react";
 import { mapFromBackend } from "../lib/api";
 import { useAuth } from "./AuthContext";
-import { secureFetch } from '../api/apiClient';
+import { secureFetch, isNetworkError } from '../api/apiClient';
+import { readCache, writeCache } from "../lib/cache";
 
 export interface Task {
   id: string;
   project: string;
   name: string;
   description: string;
-  assignee: string | null;
-  assignee_name: string | null;
+  assignees: string[];
+  assignee_names: string[];
   status: "planning" | "in-progress" | "completed";
   deadline: string | null;
+  task_time?: string | null;
+  recurrence_type?: "daily" | "weekly" | "monthly" | "custom" | null;
+  recurrence_days?: number | null;
   created_at: string;
 }
 
@@ -35,6 +39,7 @@ export interface Project {
   task_count: number;
   completed_tasks: number;
   progress?: number;
+  has_clients?: boolean;
 }
 
 interface ProjectContextType {
@@ -48,7 +53,7 @@ interface ProjectContextType {
 
   // Task management
   fetchProjectTasks: (projectId: string) => Promise<Task[]>;
-  addTask: (projectId: string, task: Omit<Task, "id" | "project" | "assignee_name" | "created_at">) => Promise<void>;
+  addTask: (projectId: string, task: Omit<Task, "id" | "project" | "assignee_names" | "created_at">) => Promise<void>;
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
 }
@@ -64,7 +69,9 @@ const deriveStatus = (p: Project): Project["status"] => {
 };
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(
+    () => readCache<Project[]>("projects") ?? []
+  );
 
   const getToken = () => localStorage.getItem("onswift_access");
 
@@ -75,7 +82,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const response = await secureFetch('/api/v2/projects/');
       if (response.ok) {
         const data = await response.json();
-        setProjects(data.map((p: Project) => ({ ...p, status: deriveStatus(p) })));
+        const mapped = data.map((p: Project) => ({ ...p, status: deriveStatus(p) }));
+        setProjects(mapped);
+        writeCache("projects", mapped);
       }
     } catch (error) {
       console.error("Error loading projects:", error);
@@ -173,16 +182,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   // ---------------- ADD TASK ----------------
-  const addTask = async (projectId: string, taskData: Omit<Task, "id" | "project" | "assignee_name" | "created_at">) => {
+  const addTask = async (projectId: string, taskData: Omit<Task, "id" | "project" | "assignee_names" | "created_at">) => {
     try {
       const res = await secureFetch(`/api/v2/projects/${projectId}/tasks/`, {
         method: "POST",
         body: JSON.stringify({
           name: taskData.name,
           description: taskData.description,
-          assignee: taskData.assignee || null,
+          assignees: taskData.assignees ?? [],
           status: taskData.status || "planning",
           deadline: taskData.deadline || null,
+          task_time: taskData.task_time || null,
+          recurrence_type: taskData.recurrence_type || null,
+          recurrence_days: taskData.recurrence_days || null,
         }),
       });
 
@@ -208,7 +220,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({
           name: updates.name,
           description: updates.description,
-          assignee: updates.assignee,
+          assignees: updates.assignees,
           status: updates.status,
           deadline: updates.deadline,
         }),

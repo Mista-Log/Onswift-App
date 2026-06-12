@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'portal',
     'library',
     'crm',
+    'docs',
     "corsheaders",
     "rest_framework",
     "rest_framework.authtoken",
@@ -254,13 +255,14 @@ SIMPLE_JWT = {
 
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-EMAIL_HOST = 'smtp.resend.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
+EMAIL_HOST     = os.environ.get("EMAIL_HOST", "smtp.hostinger.com")
+EMAIL_PORT     = int(os.environ.get("EMAIL_PORT", 465))
+EMAIL_USE_TLS  = False
+EMAIL_USE_SSL  = True
+EMAIL_TIMEOUT  = 30
+EMAIL_HOST_USER     = os.environ.get("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL")
+DEFAULT_FROM_EMAIL  = os.environ.get("DEFAULT_FROM_EMAIL") or os.environ.get("EMAIL_HOST_USER", "")
 
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL")

@@ -251,7 +251,7 @@ class AccountStatsView(APIView):
             from notification.models import HireRequest
 
             projects_count = Task.objects.filter(
-                assignee=user
+                assignees=user
             ).values('project').distinct().count()
 
             hire_requests = HireRequest.objects.filter(
@@ -262,7 +262,7 @@ class AccountStatsView(APIView):
             team_members_count = hire_requests.count()
 
             completed_tasks_count = Task.objects.filter(
-                assignee=user,
+                assignees=user,
                 status='completed'
             ).count()
 
