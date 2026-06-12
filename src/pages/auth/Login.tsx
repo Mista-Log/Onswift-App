@@ -57,8 +57,8 @@ export default function Login() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.08),transparent_42%),linear-gradient(180deg,#fbfaff_0%,#f4effb_100%)] lg:flex">
       <AuthImagePanel />
 
-      <div className="min-h-screen flex items-stretch justify-center">
-        <div className="w-full max-w-xl flex-none">
+      <div className="flex min-h-screen flex-1 items-center justify-center px-5 py-10 sm:px-8 lg:px-12">
+        <div className="w-full max-w-xl">
           <div className="rounded-[28px] border border-white/70 bg-white/92 p-7 shadow-[0_30px_90px_rgba(46,16,101,0.12)] backdrop-blur-xl md:p-10">
             {/* Header */}
             <div className="text-center mb-8">
