@@ -10,7 +10,10 @@ from .serializers import (
     InviteTokenCreateSerializer,
     InviteTokenValidateSerializer
 )
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
 from .models import HireRequest, InviteToken
+from django.utils import timezone
 
 
 
@@ -165,7 +168,7 @@ class InviteTokenCreateView(generics.CreateAPIView):
             from utils.email_service import send_email
             creator = request.user
             frontend_url = getattr(settings, "FRONTEND_URL", "https://onswift.org")
-            invite_link = f"{frontend_url}/signup/talent?invite={invite.token}"
+            invite_link = f"{frontend_url}/invite/{invite.token}"
             creator_label = creator.full_name or creator.email
             company = getattr(getattr(creator, "creatorprofile", None), "company_name", None)
             company_line = f" at {company}" if company else ""
@@ -225,3 +228,58 @@ class InviteTokenValidateView(generics.RetrieveAPIView):
                 },
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+class InviteTokenAcceptView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, token):
+
+        try:
+            invite = InviteToken.objects.get(token=token)
+        except InviteToken.DoesNotExist:
+            return Response(
+                {"error": "Invalid invite"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not invite.is_valid():
+            return Response(
+                {"error": "Invite expired"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if request.user.role != "talent":
+            return Response(
+                {"error": "Only talents can accept invites"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # already on team?
+        existing = HireRequest.objects.filter(
+            creator=invite.creator,
+            talent=request.user,
+            status="accepted"
+        ).exists()
+
+        if existing:
+            return Response(
+                {"message": "Already a team member"}
+            )
+
+        HireRequest.objects.create(
+            creator=invite.creator,
+            talent=request.user,
+            status="accepted",
+            message="Joined via invite link"
+        )
+
+        invite.is_used = True
+        invite.used_by = request.user
+        invite.used_at = timezone.now()
+        invite.save()
+
+        return Response({
+            "success": True,
+            "message": "Invite accepted"
+        })

@@ -154,18 +154,18 @@ class InviteTokenCreateSerializer(serializers.ModelSerializer):
     def get_invite_url(self, obj):
         frontend_url = settings.FRONTEND_URL or 'http://localhost:8080'
         frontend_url = frontend_url.rstrip('/')
-        return f"{frontend_url}/signup/talent?invite={obj.token}"
-
+        return f"{frontend_url}/invite/{obj.token}"
 
 class InviteTokenValidateSerializer(serializers.ModelSerializer):
     """Serializer for validating invite tokens"""
     creator_name = serializers.CharField(source='creator.full_name', read_only=True)
+    creator_id = serializers.CharField(source='creator.id', read_only=True)
     creator_company = serializers.SerializerMethodField()
     is_valid = serializers.SerializerMethodField()
 
     class Meta:
         model = InviteToken
-        fields = ['token', 'creator_name', 'creator_company', 'is_valid', 'is_used', 'expires_at']
+        fields = ['token', 'creator_name', 'creator_id', 'creator_company', 'is_valid', 'is_used', 'expires_at']
 
     def get_creator_company(self, obj):
         """Get creator's company name"""

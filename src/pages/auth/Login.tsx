@@ -8,6 +8,7 @@ import { AuthImagePanel } from '@/components/auth/AuthImagePanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton';
+import { secureFetch } from '@/api/apiClient';
 
 
 
@@ -25,6 +26,12 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const inviteToken = new URLSearchParams(location.search).get("invite");
+
+  if (inviteToken) {
+    localStorage.setItem("invite_token", inviteToken);
+  }
 
   const from = (location.state as any)?.from?.pathname || '/dashboard';
 
@@ -44,6 +51,19 @@ export default function Login() {
     setIsLoading(true);
     const result = await login(formData.email, formData.password);
     setIsLoading(false);
+
+    const inviteToken = localStorage.getItem("invite_token");
+
+    if (inviteToken) {
+        await secureFetch(
+            `/api/v3/invites/accept/${inviteToken}/`,
+            {
+                method: "POST"
+            }
+        );
+
+        localStorage.removeItem("invite_token");
+    }
     
     if (result.success) {
       toast({ title: 'Welcome back!', description: 'You have successfully signed in.' });
