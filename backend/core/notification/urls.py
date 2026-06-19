@@ -12,6 +12,7 @@ from .views import (
     NotificationDeleteView,
     InviteTokenCreateView,
     InviteTokenValidateView,
+    InviteTokenAcceptView,
 )
 
 urlpatterns = [
@@ -29,5 +30,6 @@ urlpatterns = [
     # Invite system
     path("invites/generate/", InviteTokenCreateView.as_view()),  # Generate invite token
     path("invites/validate/<str:token>/", InviteTokenValidateView.as_view()),  # Validate token
+    path("invites/accept/<str:token>/", InviteTokenAcceptView.as_view()),
 
 ]

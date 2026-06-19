@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { FIXED_PROCESSING_MESSAGE, runWithFixedProcessingDelay } from '@/lib/loadingGate';
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+import { secureFetch } from '@/api/apiClient';
 
 const SKILL_OPTIONS = [
   // Core Creative
@@ -143,12 +144,21 @@ export default function SignUpTalent() {
     if (token) {
       setInviteToken(token);
       validateInviteToken(token);
+      localStorage.setItem("invite_token", token);
+
     }
   }, [searchParams]);
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
+
+  // const inviteToken = new URLSearchParams(location.search).get("invite");
+
+  // if (token) {
+  //   localStorage.setItem("invite_token", inviteToken);
+  // }
+
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -187,8 +197,18 @@ export default function SignUpTalent() {
     if (!validateForm()) return;
 
     setIsLoading(true);
+
+    const inviteToken = localStorage.getItem("invite_token");
+
     if (inviteToken) {
-      setProcessingMessage(FIXED_PROCESSING_MESSAGE);
+        await secureFetch(
+            `/api/v3/invites/accept/${inviteToken}/`,
+            {
+                method: "POST"
+            }
+        );
+
+        localStorage.removeItem("invite_token");
     }
 
     try {

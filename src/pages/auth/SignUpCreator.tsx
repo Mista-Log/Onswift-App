@@ -8,6 +8,7 @@ import { AuthImagePanel } from '@/components/auth/AuthImagePanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+import { secureFetch } from '@/api/apiClient';
 
 
 export default function SignUpCreator() {
@@ -34,6 +35,12 @@ export default function SignUpCreator() {
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  const inviteToken = new URLSearchParams(location.search).get("invite");
+
+  if (inviteToken) {
+    localStorage.setItem("invite_token", inviteToken);
   }
 
   const validateForm = () => {
@@ -79,6 +86,19 @@ export default function SignUpCreator() {
       password: formData.password,
     });
     setIsLoading(false);
+
+    const inviteToken = localStorage.getItem("invite_token");
+
+    if (inviteToken) {
+        await secureFetch(
+            `/api/v3/invites/accept/${inviteToken}/`,
+            {
+                method: "POST"
+            }
+        );
+
+        localStorage.removeItem("invite_token");
+    }
     
     if (result.success) {
       toast({ title: 'Account created!', description: 'Welcome to OnSwift.' });

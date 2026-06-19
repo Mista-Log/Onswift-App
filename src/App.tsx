@@ -52,6 +52,7 @@ import ClientPortalView from "./pages/client/ClientPortalView";
 
 // Invite acceptance
 import InviteAccept from "./pages/client/InviteAccept";
+import InvitePage from "./pages/InvitePage";
 
 // Library & CRM
 import DocumentLibrary from "./pages/library/DocumentLibrary";
@@ -119,6 +120,7 @@ const App = () => (
                     <Route path="/signup/creator" element={<SignUpCreator />} />
                     <Route path="/signup/talent" element={<SignUpTalent />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/invite/:token" element={<InvitePage />} />
 
                     {/* Protected routes — unified shell, role-filtered nav */}
                     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -148,7 +150,7 @@ const App = () => (
                     <Route path="/onboard/:slug" element={<ClientOnboard />} />
 
                     {/* Invite acceptance — public, token-based */}
-                    <Route path="/invite/:token" element={<InviteAccept />} />
+                    {/* <Route path="/invite/:token" element={<InviteAccept />} /> */}
 
                     {/* Legacy portal routes — hard redirect to unified shell */}
                     <Route path="/portal" element={<Navigate to="/dashboard" replace />} />
