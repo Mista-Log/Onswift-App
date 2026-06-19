@@ -3,10 +3,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { secureFetch } from "@/api/apiClient";
 import { Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function InvitePage() {
   const { token } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+
 
   const [loading, setLoading] = useState(true);
   const [invite, setInvite] = useState<any>(null);
@@ -17,8 +20,8 @@ export default function InvitePage() {
 
   const validateInvite = async () => {
     try {
-      const response = await secureFetch(
-        `/api/v3/invites/validate/${token}/`
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/v3/invites/validate/${token}/`
       );
 
       const data = await response.json();
@@ -76,7 +79,7 @@ export default function InvitePage() {
 
           {/* CTA */}
           <div className="flex flex-col gap-3">
-            {invite.user_exists ? (
+            {user ? (
               <Button
                 size="lg"
                 className="w-full"
