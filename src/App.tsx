@@ -61,6 +61,18 @@ import CRMBuilder from "./pages/tools/CRMBuilder";
 // Docs editor
 import DocsPage from "./pages/docs/DocsPage";
 
+// Admin CMS
+import { AdminLogin } from "./pages/admin/AdminLogin";
+import { AdminDashboard } from "./pages/admin/AdminDashboard";
+import { AdminPostEditor } from "./pages/admin/AdminPostEditor";
+import { AdminCategoriesPage } from "./pages/admin/AdminCategoriesPage";
+import { AdminProtectedRoute } from "./components/admin/AdminProtectedRoute";
+import { AdminAuthProvider } from "./contexts/AdminAuthContext";
+
+// Public Blog
+import { BlogListPage } from "./pages/blog/BlogListPage";
+import { BlogDetailPage } from "./pages/blog/BlogDetailPage";
+
 // Analytics
 import { PageTracker } from "./components/analytics/PageTracker";
 
@@ -113,6 +125,36 @@ const App = () => (
                 <BrowserRouter>
                   <PageTracker />
                   <Routes>
+                    {/* Admin CMS — all admin routes wrapped in AdminAuthProvider */}
+                    <Route
+                      path="/admin/*"
+                      element={
+                        <AdminAuthProvider>
+                          <Routes>
+                            <Route path="login" element={<AdminLogin />} />
+                            <Route
+                              path="*"
+                              element={
+                                <AdminProtectedRoute>
+                                  <Routes>
+                                    <Route path="dashboard" element={<AdminDashboard />} />
+                                    <Route path="posts/new" element={<AdminPostEditor />} />
+                                    <Route path="posts/:id/edit" element={<AdminPostEditor />} />
+                                    <Route path="categories" element={<AdminCategoriesPage />} />
+                                    <Route index element={<Navigate to="dashboard" replace />} />
+                                  </Routes>
+                                </AdminProtectedRoute>
+                              }
+                            />
+                          </Routes>
+                        </AdminAuthProvider>
+                      }
+                    />
+
+                    {/* Public blog */}
+                    <Route path="/blog" element={<BlogListPage />} />
+                    <Route path="/blog/:slug" element={<BlogDetailPage />} />
+
                     {/* Public routes */}
                     <Route path="/" element={<Landing />} />
                     <Route path="/login" element={<Login />} />

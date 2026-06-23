@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, Check, Menu, Minus, Plus, X } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -82,6 +82,7 @@ const Navigation = () => {
     { label: 'Creator Tools', href: '#creator-tools' },
     { label: 'Testimonials', href: '#testimonials' },
     { label: 'FAQ', href: '#faq' },
+    { label: 'Blog', href: '/blog', isRoute: true },
   ];
 
   return (
@@ -99,15 +100,25 @@ const Navigation = () => {
         </a>
 
         <div className="hidden items-center gap-8 md:flex">
-          {navLinks.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              className="text-sm font-medium text-white/70 transition-colors hover:text-white"
-            >
-              {link.label}
-            </a>
-          ))}
+          {navLinks.map((link) =>
+            link.isRoute ? (
+              <Link
+                key={link.label}
+                to={link.href}
+                className="text-sm font-medium text-white/70 transition-colors hover:text-white"
+              >
+                {link.label}
+              </Link>
+            ) : (
+              <a
+                key={link.label}
+                href={link.href}
+                className="text-sm font-medium text-white/70 transition-colors hover:text-white"
+              >
+                {link.label}
+              </a>
+            )
+          )}
         </div>
 
         <button
@@ -138,16 +149,27 @@ const Navigation = () => {
           }}
         >
           <div className="flex flex-col gap-3">
-            {navLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="py-2 text-sm font-medium text-white/70 transition-colors hover:text-white"
-                onClick={() => setIsOpen(false)}
-              >
-                {link.label}
-              </a>
-            ))}
+            {navLinks.map((link) =>
+              link.isRoute ? (
+                <Link
+                  key={link.label}
+                  to={link.href}
+                  className="py-2 text-sm font-medium text-white/70 transition-colors hover:text-white"
+                  onClick={() => setIsOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ) : (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  className="py-2 text-sm font-medium text-white/70 transition-colors hover:text-white"
+                  onClick={() => setIsOpen(false)}
+                >
+                  {link.label}
+                </a>
+              )
+            )}
             <button
               className="mt-2 rounded-full bg-white py-2.5 text-sm font-semibold text-gray-900"
               onClick={() => { navigate('/login'); setIsOpen(false); }}
