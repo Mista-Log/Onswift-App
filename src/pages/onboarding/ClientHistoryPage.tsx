@@ -207,7 +207,13 @@ export default function ClientHistoryPage() {
                         <TableRow
                           key={client.id}
                           className="cursor-pointer"
+                          role="button"
+                          tabIndex={0}
                           onClick={() => setSelectedClient(client)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") setSelectedClient(client);
+                          }}
+                          aria-label={`View onboarding responses for ${client.client_name || "client"}`}
                         >
                           <TableCell className="font-medium">
                             {client.client_name || "Unknown"}
