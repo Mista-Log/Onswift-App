@@ -344,7 +344,7 @@ function IntroScreen({
         by {creatorName}
         {creatorCompany && ` · ${creatorCompany}`}
         <br />
-        Let's get you onboarded — it only takes a minute.
+        Let's get you onboarded, it only takes a minute.
       </p>
       <button
         onClick={onContinue}
