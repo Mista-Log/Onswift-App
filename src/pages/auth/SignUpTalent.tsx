@@ -10,7 +10,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { FIXED_PROCESSING_MESSAGE, runWithFixedProcessingDelay } from '@/lib/loadingGate';
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
-import { secureFetch } from '@/api/apiClient';
 
 const SKILL_OPTIONS = [
   // Core Creative
@@ -200,17 +199,6 @@ export default function SignUpTalent() {
 
     const inviteToken = localStorage.getItem("invite_token");
 
-    if (inviteToken) {
-        await secureFetch(
-            `/api/v3/invites/accept/${inviteToken}/`,
-            {
-                method: "POST"
-            }
-        );
-
-        localStorage.removeItem("invite_token");
-    }
-
     try {
       const signupRequest = signup({
         full_name: formData.full_name,
@@ -228,6 +216,7 @@ export default function SignUpTalent() {
         : await signupRequest;
 
       if (result.success) {
+        if (inviteToken) localStorage.removeItem("invite_token");
         if (inviteToken && inviteInfo) {
           toast({
             title: 'Account created!',

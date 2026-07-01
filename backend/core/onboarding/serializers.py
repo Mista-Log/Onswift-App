@@ -3,7 +3,7 @@ Onboarding serializers — request/response schemas for DRF views.
 """
 from rest_framework import serializers
 from django.utils import timezone
-from .models import OnboardingTemplate, OnboardingInstance
+from .models import OnboardingTemplate, OnboardingInstance, OnboardingUpload
 
 
 # ── Template Serializers ──────────────────────────────────────────────
@@ -118,6 +118,45 @@ class ClientSubmissionSerializer(serializers.ModelSerializer):
     def get_submitted_at(self, obj):
         dt = obj.completed_at or obj.created_at
         return dt.isoformat() if dt else None
+
+
+class CreatorClientSubmissionSerializer(serializers.ModelSerializer):
+    """Creator-facing view of a single client's completed onboarding submission."""
+    form_title = serializers.CharField(source="template.title", read_only=True)
+    client_name = serializers.CharField(source="client.full_name", read_only=True, default=None)
+    client_email = serializers.CharField(source="client.email", read_only=True, default=None)
+    submitted_at = serializers.SerializerMethodField()
+    blocks = serializers.JSONField(source="template.blocks", read_only=True)
+
+    class Meta:
+        model = OnboardingInstance
+        fields = [
+            "id", "form_title", "client_name", "client_email",
+            "submitted_at", "blocks", "responses",
+        ]
+
+    def get_submitted_at(self, obj):
+        dt = obj.completed_at or obj.created_at
+        return dt.isoformat() if dt else None
+
+
+class OnboardingUploadSerializer(serializers.ModelSerializer):
+    """Represents a client-uploaded onboarding file — exposes its stored URL."""
+    url = serializers.SerializerMethodField()
+    name = serializers.CharField(source="original_name", read_only=True)
+
+    class Meta:
+        model = OnboardingUpload
+        fields = ["id", "url", "name", "block_index", "uploaded_at"]
+
+    def get_url(self, obj):
+        if not obj.file:
+            return None
+        url = obj.file.url
+        request = self.context.get("request")
+        if request is not None and url and url.startswith("/"):
+            return request.build_absolute_uri(url)
+        return url
 
 
 class ClientSignupSerializer(serializers.Serializer):

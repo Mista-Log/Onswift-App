@@ -103,3 +103,29 @@ class OnboardingInstance(models.Model):
             return False
         from django.utils import timezone
         return timezone.now() > self.expires_at
+
+
+class OnboardingUpload(models.Model):
+    """
+    A file uploaded by a client while filling out an onboarding form.
+    Uploads happen before the client account exists, so they are tied to the
+    OnboardingInstance (by slug) rather than to a user. The stored file's URL is
+    written into the instance's `responses` payload for the matching block.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    instance = models.ForeignKey(
+        OnboardingInstance,
+        on_delete=models.CASCADE,
+        related_name="uploads",
+    )
+    block_index = models.PositiveIntegerField(null=True, blank=True)
+    file = models.FileField(upload_to="onboarding_uploads/")
+    original_name = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-uploaded_at"]
+
+    def __str__(self):
+        return f"Upload {self.original_name or self.id} ({self.instance.slug})"
