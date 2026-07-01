@@ -443,11 +443,34 @@ class OnboardingFileUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        block_index = request.data.get("block_index")
+        block_index_raw = request.data.get("block_index")
         try:
-            block_index = int(block_index) if block_index is not None else None
+            block_index = int(block_index_raw)
         except (TypeError, ValueError):
-            block_index = None
+            return Response(
+                {"error": "Invalid block_index."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        blocks = getattr(getattr(instance, "template", None), "blocks", None)
+        if not isinstance(blocks, list) or not (0 <= block_index < len(blocks)):
+            return Response(
+                {"error": "Invalid block_index."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if (blocks[block_index] or {}).get("type") != "file_upload":
+            return Response(
+                {"error": "This block does not accept file uploads."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        max_bytes = 10 * 1024 * 1024  # 10MB
+        if uploaded_file.size and uploaded_file.size > max_bytes:
+            return Response(
+                {"error": "File too large."},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
 
         upload = OnboardingUpload.objects.create(
             instance=instance,
