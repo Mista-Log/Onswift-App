@@ -8,7 +8,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
 from django.db import transaction
 
-from .models import OnboardingTemplate, OnboardingInstance
+from rest_framework.parsers import MultiPartParser, FormParser
+
+from .models import OnboardingTemplate, OnboardingInstance, OnboardingUpload
 from .serializers import (
     OnboardingTemplateSerializer,
     OnboardingTemplateListSerializer,
@@ -17,6 +19,8 @@ from .serializers import (
     OnboardingPublicSerializer,
     ClientSignupSerializer,
     ClientSubmissionSerializer,
+    CreatorClientSubmissionSerializer,
+    OnboardingUploadSerializer,
 )
 
 
@@ -173,6 +177,9 @@ class OnboardingPublicView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
 
+        creator = instance.template.creator
+        creator_profile = getattr(creator, "creatorprofile", None)
+
         # Mark as OPENED
         if instance.status == "SENT":
             instance.status = "OPENED"
@@ -186,9 +193,6 @@ class OnboardingPublicView(APIView):
                 message=f"Someone opened the onboarding link for \"{instance.template.title}\".",
                 notification_type="system",
             )
-
-        creator = instance.template.creator
-        creator_profile = getattr(creator, "creatorprofile", None)
 
         data = OnboardingPublicSerializer({
             "slug": instance.slug,
@@ -380,3 +384,102 @@ class ClientMySubmissionsView(generics.ListAPIView):
             client=self.request.user,
             status="COMPLETED",
         ).select_related("template", "template__creator")
+
+
+class CreatorClientSubmissionsView(generics.ListAPIView):
+    """
+    GET /api/v4/clients/<client_id>/submissions/
+    Returns a specific client's completed onboarding submissions (with the form
+    blocks + the options/answers they selected) for the requesting creator.
+    Scoped to templates owned by the creator, so a creator can only view the
+    responses of clients who onboarded through their own forms.
+    """
+    serializer_class = CreatorClientSubmissionSerializer
+    permission_classes = [permissions.IsAuthenticated, IsCreatorRole]
+
+    def get_queryset(self):
+        return OnboardingInstance.objects.filter(
+            template__creator=self.request.user,
+            client_id=self.kwargs["client_id"],
+            status="COMPLETED",
+        ).select_related("template", "client")
+
+
+class OnboardingFileUploadView(APIView):
+    """
+    POST /api/v4/onboard/<slug>/upload/
+    Public endpoint — stores a file a client attaches while completing an
+    onboarding form (before their account exists) and returns its URL.
+    The client writes the returned URL into the form response for the block.
+    """
+    permission_classes = [permissions.AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, slug):
+        try:
+            instance = OnboardingInstance.objects.get(slug=slug)
+        except OnboardingInstance.DoesNotExist:
+            return Response(
+                {"error": "Onboarding link not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if instance.is_expired:
+            return Response(
+                {"error": "This onboarding link has expired."},
+                status=status.HTTP_410_GONE,
+            )
+
+        if instance.status == "COMPLETED":
+            return Response(
+                {"error": "This onboarding form has already been completed."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        uploaded_file = request.FILES.get("file")
+        if not uploaded_file:
+            return Response(
+                {"error": "No file provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        block_index_raw = request.data.get("block_index")
+        try:
+            block_index = int(block_index_raw)
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "Invalid block_index."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        blocks = getattr(getattr(instance, "template", None), "blocks", None)
+        if not isinstance(blocks, list) or not (0 <= block_index < len(blocks)):
+            return Response(
+                {"error": "Invalid block_index."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if (blocks[block_index] or {}).get("type") != "file_upload":
+            return Response(
+                {"error": "This block does not accept file uploads."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        max_bytes = 10 * 1024 * 1024  # 10MB
+        if uploaded_file.size and uploaded_file.size > max_bytes:
+            return Response(
+                {"error": "File too large."},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
+        upload = OnboardingUpload.objects.create(
+            instance=instance,
+            block_index=block_index,
+            file=uploaded_file,
+            original_name=uploaded_file.name[:255],
+        )
+
+        return Response(
+            OnboardingUploadSerializer(upload, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )

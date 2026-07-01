@@ -19,8 +19,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Users, Loader2, Mail, Calendar } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { ArrowLeft, Users, Loader2, Mail, Calendar, FileText, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
+import type { FormBlock, BlockResponse } from "@/types/onboarding";
 
 interface Client {
   id: string;
@@ -33,10 +41,21 @@ interface Client {
   last_activity: string | null;
 }
 
+interface ClientSubmission {
+  id: string;
+  form_title: string;
+  client_name: string | null;
+  client_email: string | null;
+  submitted_at: string | null;
+  blocks: FormBlock[];
+  responses: BlockResponse[];
+}
+
 export default function ClientHistoryPage() {
   const navigate = useNavigate();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
   useEffect(() => {
     loadClientHistory();
@@ -147,9 +166,16 @@ export default function ClientHistoryPage() {
           <CardHeader>
             <CardTitle>Clients</CardTitle>
             <CardDescription>
-              {clients.length === 0
-                ? "No clients yet"
-                : `${clients.length} client${clients.length !== 1 ? "s" : ""}`}
+              {clients.length === 0 ? (
+                "No clients yet"
+              ) : (
+                <>
+                  {/* <span>{clients.length} client{clients.length !== 1 ? "s" : ""}</span> (should stay hidden, cards above already count clients)*/}
+                  <span className="block mt-1 text-sm font-medium text-primary">
+                    Tap a client to view their onboarding responses
+                  </span>
+                </>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0 sm:p-6">
@@ -178,7 +204,17 @@ export default function ClientHistoryPage() {
                     </TableHeader>
                     <TableBody>
                       {clients.map((client) => (
-                        <TableRow key={client.id}>
+                        <TableRow
+                          key={client.id}
+                          className="cursor-pointer"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedClient(client)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") setSelectedClient(client);
+                          }}
+                          aria-label={`View onboarding responses for ${client.client_name || "client"}`}
+                        >
                           <TableCell className="font-medium">
                             {client.client_name || "Unknown"}
                           </TableCell>
@@ -228,6 +264,131 @@ export default function ClientHistoryPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ClientSubmissionsDialog
+        client={selectedClient}
+        onClose={() => setSelectedClient(null)}
+      />
     </MainLayout>
+  );
+}
+
+/** Formats a single block's response value for read-only display. */
+function formatAnswer(block: FormBlock, value: BlockResponse["value"]) {
+  if (value === null || value === undefined || value === "") {
+    return <span className="text-muted-foreground italic">No answer</span>;
+  }
+  if (block.type === "checkbox") {
+    return value === true ? "Yes" : "No";
+  }
+  if (block.type === "file_upload" && typeof value === "string" && /^https?:\/\//.test(value)) {
+    return (
+      <a
+        href={value}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary hover:underline inline-flex items-center gap-1"
+      >
+        View file <ExternalLink className="h-3.5 w-3.5" />
+      </a>
+    );
+  }
+  if (Array.isArray(value)) {
+    return value.join(", ");
+  }
+  return String(value);
+}
+
+/** Dialog that loads and displays a client's onboarding responses for the creator. */
+function ClientSubmissionsDialog({
+  client,
+  onClose,
+}: {
+  client: Client | null;
+  onClose: () => void;
+}) {
+  const [submissions, setSubmissions] = useState<ClientSubmission[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!client) return;
+    let cancelled = false;
+    setLoading(true);
+    setSubmissions([]);
+
+    (async () => {
+      try {
+        const response = await secureFetch(`/api/v4/clients/${client.id}/submissions/`);
+        if (response.ok) {
+          const data = await response.json();
+          if (!cancelled) setSubmissions(Array.isArray(data) ? data : data.results || []);
+        } else if (!cancelled) {
+          toast.error("Failed to load client responses");
+        }
+      } catch {
+        if (!cancelled) toast.error("Something went wrong");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
+
+  return (
+    <Dialog open={!!client} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{client?.client_name || "Client"} Onboarding Responses</DialogTitle>
+          <DialogDescription>{client?.client_email}</DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : submissions.length === 0 ? (
+          <div className="text-center py-12">
+            <FileText className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+            <p className="text-muted-foreground">
+              This client has no onboarding responses on your forms yet.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {submissions.map((submission) => (
+              <div key={submission.id} className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">{submission.form_title}</h3>
+                  {submission.submitted_at && (
+                    <span className="text-xs text-muted-foreground">
+                      {format(new Date(submission.submitted_at), "MMM d, yyyy")}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-4">
+                  {submission.blocks.map((block, index) => {
+                    if (block.type === "welcome") return null;
+                    const response = submission.responses.find((r) => r.block_index === index);
+                    return (
+                      <div key={index} className="border-l-2 border-muted pl-4">
+                        <p className="text-sm font-medium">
+                          {block.label || `Question ${index + 1}`}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {formatAnswer(block, response?.value ?? null)}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
