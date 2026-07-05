@@ -87,7 +87,7 @@ export default function ClientOnboard() {
   const [currentStep, setCurrentStep] = useState(0);
 
   const { register, handleSubmit, formState: { errors } } = useForm<SignupFormData>({
-    resolver: zodResolver(signupSchema),
+    resolver: zodResolver(signupSchema),  
   });
 
   useEffect(() => {
@@ -362,7 +362,7 @@ function BlockStepScreen({
   blockIndex,
   block,
   value,
-  onChange,
+  onChange,  
   onContinue,
 }: {
   slug?: string;
@@ -375,6 +375,11 @@ function BlockStepScreen({
   const [uploading, setUploading] = useState(false);
   const answered = isBlockAnswered(block, value);
   const canContinue = (block.required ? answered : true) && !uploading;
+
+  // Enter advances to the next step (when the answer is valid).
+  const handleEnterAdvance = () => {
+    if (canContinue) onContinue();
+  };
 
   // Welcome block: rich HTML content, no answer collected.
   if (block.type === "welcome") {
@@ -414,6 +419,7 @@ function BlockStepScreen({
           onChange={onChange}
           uploading={uploading}
           setUploading={setUploading}
+          onEnterAdvance={handleEnterAdvance}
         />
       </div>
 
@@ -437,6 +443,7 @@ function BlockInput({
   onChange,
   uploading,
   setUploading,
+  onEnterAdvance,
 }: {
   slug?: string;
   blockIndex: number;
@@ -445,6 +452,7 @@ function BlockInput({
   onChange: (value: BlockResponse["value"]) => void;
   uploading: boolean;
   setUploading: (v: boolean) => void;
+  onEnterAdvance: () => void;
 }) {
   switch (block.type) {
     case "short_answer":
@@ -454,6 +462,12 @@ function BlockInput({
           autoFocus
           value={(value as string) || ""}
           onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onEnterAdvance();
+            }
+          }}
           placeholder={block.placeholder || "Your answer..."}
           className="w-full px-6 py-4 rounded-[14px] border-2 border-slate-200 focus:border-[#6B5CE7] focus:outline-none text-slate-900 placeholder-slate-400 transition-colors"
         />
@@ -466,7 +480,14 @@ function BlockInput({
           rows={5}
           value={(value as string) || ""}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={block.placeholder || "Your answer..."}
+          onKeyDown={(e) => {
+            // Enter advances; Shift+Enter inserts a newline.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              onEnterAdvance();
+            }
+          }}
+          placeholder={block.placeholder || "Your answer... (Shift+Enter for a new line)"}
           className="w-full px-6 py-4 rounded-[14px] border-2 border-slate-200 focus:border-[#6B5CE7] focus:outline-none text-slate-900 placeholder-slate-400 transition-colors resize-none"
         />
       );

@@ -1,11 +1,14 @@
 import { ReactNode, useState, useEffect } from "react";
 import { AppSidebar, TopBar } from "./AppSidebar";
+import { useAuth } from "@/contexts/AuthContext";
+import { QuickStartLauncher } from "@/components/quickstart/QuickStartLauncher";
 
 interface MainLayoutProps {
   children: ReactNode;
 }
 
 export function MainLayout({ children }: MainLayoutProps) {
+  const { user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const stored = localStorage.getItem('sidebar-collapsed');
     return stored ? JSON.parse(stored) : false;
@@ -64,6 +67,9 @@ export function MainLayout({ children }: MainLayoutProps) {
           {children}
         </main>
       </div>
+
+      {/* Creator-only guided onboarding launcher (fixed, bottom-right) */}
+      {user?.role === "creator" && <QuickStartLauncher />}
     </div>
   );
 }

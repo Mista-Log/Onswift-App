@@ -104,6 +104,8 @@ export default function ProjectDetail() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
   const [showTaskCelebration, setShowTaskCelebration] = useState(false);
+  const [showProjectDoneCelebration, setShowProjectDoneCelebration] = useState(false);
+  const [showTalentProjectDone, setShowTalentProjectDone] = useState(false);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<"planning" | "in-progress" | "completed" | null>(null);
   
@@ -132,6 +134,15 @@ export default function ProjectDetail() {
     loadTasks();
     if (user?.role !== 'talent') loadMessages();
   }, [id]);
+
+  // Celebrate a talent the first time they open a project that's been concluded.
+  useEffect(() => {
+    if (isCreator || !project) return;
+    if (project.status !== "completed") return;
+    if (localStorage.getItem("onswift_talent_project_done")) return;
+    localStorage.setItem("onswift_talent_project_done", "1");
+    setShowTalentProjectDone(true);
+  }, [project, isCreator]);
 
   const loadTasks = async () => {
     if (!id) return;
@@ -327,6 +338,18 @@ export default function ProjectDetail() {
     try {
       await updateProject(id, { status: newStatus });
       toast.success("Project status updated!");
+
+      // Concluding a project: hit the dedicated endpoint so assigned talent and
+      // the creator are notified, then celebrate the creator's first wrap-up.
+      if (newStatus === "completed") {
+        secureFetch(`/api/v2/projects/${id}/complete/`, { method: "POST" }).catch(
+          () => {}
+        );
+        if (!localStorage.getItem("onswift_creator_first_project_done")) {
+          localStorage.setItem("onswift_creator_first_project_done", "1");
+          setShowProjectDoneCelebration(true);
+        }
+      }
     } catch (error) {
       toast.error("Failed to update project status");
     }
@@ -1250,6 +1273,24 @@ export default function ProjectDetail() {
           description="You're tracking work like a pro! Assign this task to a team member to get things moving — or create more tasks to build out the project."
           cta={{ label: "Go to My Team", href: "/team" }}
           secondaryLabel="I'll keep building"
+        />
+
+        <CelebrationModal
+          open={showProjectDoneCelebration}
+          onClose={() => setShowProjectDoneCelebration(false)}
+          emoji="🎊"
+          title="First project wrapped!"
+          description="You just concluded your first project on Onswift — your team has been celebrated too. That's the full journey, start to finish. Onwards!"
+          secondaryLabel="Amazing"
+        />
+
+        <CelebrationModal
+          open={showTalentProjectDone}
+          onClose={() => setShowTalentProjectDone(false)}
+          emoji="🎊"
+          title="Project complete — great work!"
+          description="A project you contributed to has been wrapped up. Your work helped get it across the line. Congratulations!"
+          secondaryLabel="Thank you"
         />
       </div>
     </MainLayout>

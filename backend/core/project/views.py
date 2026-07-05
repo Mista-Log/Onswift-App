@@ -100,6 +100,25 @@ class ProjectCompleteView(APIView):
             status__in=["active", "on_hold"]
         ).update(status="completed")
 
+        # Celebrate the wrap-up: notify every assigned talent and the creator.
+        from notification.services import create_notification
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        talents = User.objects.filter(assigned_tasks__project=project).distinct()
+        for talent in talents:
+            create_notification(
+                user=talent,
+                title="Project Completed 🎉",
+                message=f"\"{project.name}\" has been marked complete. Great work — that's a wrap!",
+                notification_type="system",
+            )
+        create_notification(
+            user=project.creator,
+            title="Project Completed 🎉",
+            message=f"You wrapped up \"{project.name}\". Congratulations on seeing it through!",
+            notification_type="system",
+        )
+
         return Response({
             "message": "Project marked as completed",
             "project_id": str(project.id),
