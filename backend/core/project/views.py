@@ -90,6 +90,10 @@ class ProjectCompleteView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # Idempotency: only run the completion side effects (and notifications)
+        # on the first transition, so retries or repeated clicks don't spam users.
+        already_completed = project.status == "completed"
+
         # Mark project as completed
         project.status = "completed"
         project.save()
@@ -101,23 +105,23 @@ class ProjectCompleteView(APIView):
         ).update(status="completed")
 
         # Celebrate the wrap-up: notify every assigned talent and the creator.
-        from notification.services import create_notification
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        talents = User.objects.filter(assigned_tasks__project=project).distinct()
-        for talent in talents:
+        if not already_completed:
+            from notification.services import create_notification
+            User = get_user_model()
+            talents = User.objects.filter(assigned_tasks__project=project).distinct()
+            for talent in talents:
+                create_notification(
+                    user=talent,
+                    title="Project Completed 🎉",
+                    message=f"\"{project.name}\" has been marked complete. Great work — that's a wrap!",
+                    notification_type="system",
+                )
             create_notification(
-                user=talent,
+                user=project.creator,
                 title="Project Completed 🎉",
-                message=f"\"{project.name}\" has been marked complete. Great work — that's a wrap!",
+                message=f"You wrapped up \"{project.name}\". Congratulations on seeing it through!",
                 notification_type="system",
             )
-        create_notification(
-            user=project.creator,
-            title="Project Completed 🎉",
-            message=f"You wrapped up \"{project.name}\". Congratulations on seeing it through!",
-            notification_type="system",
-        )
 
         return Response({
             "message": "Project marked as completed",

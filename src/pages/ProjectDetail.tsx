@@ -336,19 +336,22 @@ export default function ProjectDetail() {
   const handleStatusChange = async (newStatus: "planning" | "in-progress" | "completed") => {
     if (!id) return;
     try {
+      // Concluding a project runs server-side side effects (client membership
+      // updates + talent/creator notifications) via a dedicated endpoint. Run it
+      // first and confirm it succeeded before reporting success — otherwise the
+      // project can look "completed" while the completion workflow silently fails.
+      if (newStatus === "completed") {
+        const res = await secureFetch(`/api/v2/projects/${id}/complete/`, { method: "POST" });
+        if (!res.ok) throw new Error("Failed to complete project");
+      }
+
       await updateProject(id, { status: newStatus });
       toast.success("Project status updated!");
 
-      // Concluding a project: hit the dedicated endpoint so assigned talent and
-      // the creator are notified, then celebrate the creator's first wrap-up.
-      if (newStatus === "completed") {
-        secureFetch(`/api/v2/projects/${id}/complete/`, { method: "POST" }).catch(
-          () => {}
-        );
-        if (!localStorage.getItem("onswift_creator_first_project_done")) {
-          localStorage.setItem("onswift_creator_first_project_done", "1");
-          setShowProjectDoneCelebration(true);
-        }
+      // Celebrate the creator's first wrap-up.
+      if (newStatus === "completed" && !localStorage.getItem("onswift_creator_first_project_done")) {
+        localStorage.setItem("onswift_creator_first_project_done", "1");
+        setShowProjectDoneCelebration(true);
       }
     } catch (error) {
       toast.error("Failed to update project status");

@@ -112,7 +112,9 @@ function Deliverables() {
 
   const handleUploadDeliverable = async (data: DeliverableFormData) => {
     // Captured before the upload so we can celebrate a talent's first-ever submission.
-    const isFirstDeliverable = deliverables.length === 0;
+    // Gated on !isLoading so an in-flight initial fetch (e.g. auto-opening the upload
+    // modal on navigation) doesn't misfire the celebration for users who already have deliverables.
+    const isFirstDeliverable = !isLoading && deliverables.length === 0;
     try {
       const formData = new FormData();
       formData.append("task", data.taskId);
