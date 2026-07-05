@@ -14,6 +14,7 @@ import { Upload, Search, Filter, Loader2 } from "lucide-react";
 import { DeliverableCard, Deliverable } from "@/components/team/DeliverableCard";
 import { UploadDeliverableModal, DeliverableFormData } from "@/components/team/UploadDeliverableModal";
 import { DeliverableDetailModal } from "@/components/team/DeliverableDetailModal";
+import { CelebrationModal } from "@/components/CelebrationModal";
 import { secureFetch, isNetworkError } from "@/api/apiClient";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +31,9 @@ function Deliverables() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [celebration, setCelebration] = useState<
+    { emoji: string; title: string; description: string } | null
+  >(null);
 
   const isCreator = user?.role === "creator";
 
@@ -47,6 +51,22 @@ function Deliverables() {
   useEffect(() => {
     fetchDeliverables();
   }, []);
+
+  // Celebrate a talent the first time they see one of their deliverables approved
+  // (approval also auto-completes the task, so this covers that milestone too).
+  useEffect(() => {
+    if (isCreator) return;
+    if (localStorage.getItem("onswift_talent_deliverable_approved")) return;
+    if (deliverables.some((d) => d.status === "approved")) {
+      localStorage.setItem("onswift_talent_deliverable_approved", "1");
+      setCelebration({
+        emoji: "🏆",
+        title: "Your work got approved!",
+        description:
+          "Your creator approved your deliverable and the task is done. That's a real win — keep it going!",
+      });
+    }
+  }, [deliverables, isCreator]);
 
   const fetchDeliverables = async () => {
     try {
@@ -91,6 +111,10 @@ function Deliverables() {
   };
 
   const handleUploadDeliverable = async (data: DeliverableFormData) => {
+    // Captured before the upload so we can celebrate a talent's first-ever submission.
+    // Gated on !isLoading so an in-flight initial fetch (e.g. auto-opening the upload
+    // modal on navigation) doesn't misfire the celebration for users who already have deliverables.
+    const isFirstDeliverable = !isLoading && deliverables.length === 0;
     try {
       const formData = new FormData();
       formData.append("task", data.taskId);
@@ -121,6 +145,19 @@ function Deliverables() {
         toast.success("Deliverable uploaded successfully!");
         setUploadModalOpen(false);
         fetchDeliverables();
+        if (
+          !isCreator &&
+          isFirstDeliverable &&
+          !localStorage.getItem("onswift_talent_first_deliverable")
+        ) {
+          localStorage.setItem("onswift_talent_first_deliverable", "1");
+          setCelebration({
+            emoji: "🎉",
+            title: "First deliverable sent!",
+            description:
+              "You just shipped your first piece of work on Onswift. Your creator will review it shortly — nice momentum!",
+          });
+        }
       } else {
         const error = await response.json();
         toast.error(error.detail || "Hmm, I'm having trouble uploading your deliverable. Please try again.");
@@ -381,6 +418,16 @@ function Deliverables() {
               handleUploadDeliverable({ projectId: "", taskId, title, description, urls, mentionedUserIds: [] });
             } : undefined}
             onDelete={handleDeleteDeliverable}
+          />
+
+          {/* Talent milestone celebration (first submit / first approval) */}
+          <CelebrationModal
+            open={!!celebration}
+            onClose={() => setCelebration(null)}
+            emoji={celebration?.emoji ?? "🎉"}
+            title={celebration?.title ?? ""}
+            description={celebration?.description ?? ""}
+            secondaryLabel="Nice!"
           />
         </div>
       </MainLayout>

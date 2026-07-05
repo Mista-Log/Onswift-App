@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Crown, Lightbulb, ChevronLeft, Check } from 'lucide-react';
+import { Crown, Lightbulb, ChevronLeft, Check, UserRound } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAnalytics } from '@/hooks/useAnalytics';
 
@@ -910,75 +910,127 @@ function EmailConfirmScreen({
   );
 }
 
+// A single selectable role card. Accent colors are passed in so each card can
+// carry its own visual identity (purple for Creator/Agency, teal for Talent).
+function RoleCard({
+  icon,
+  eyebrow,
+  title,
+  bullets,
+  accent,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  eyebrow: string;
+  title: string;
+  bullets: string[];
+  accent: {
+    gradient: string;
+    border: string;
+    hoverOverlay: string;
+    icon: string;
+    text: string;
+    check: string;
+  };
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="group relative overflow-hidden rounded-[20px] p-8 text-left transition-all duration-300 hover:shadow-xl"
+      style={{ background: accent.gradient, border: `1px solid ${accent.border}` }}
+    >
+      {/* Hover overlay */}
+      <div
+        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        style={{ background: accent.hoverOverlay }}
+      />
+
+      <div className="relative z-10">
+        <div className="mb-5 flex justify-center">
+          <div className="w-16 h-16 bg-white rounded-[14px] flex items-center justify-center group-hover:shadow-lg group-hover:scale-110 transition-all duration-300 shadow-md">
+            {icon}
+          </div>
+        </div>
+
+        <p
+          className="text-[11px] font-bold tracking-wider text-center uppercase mb-2"
+          style={{ color: accent.text }}
+        >
+          {eyebrow}
+        </p>
+        <h3 className="text-2xl font-bold text-slate-900 mb-4 text-center">{title}</h3>
+
+        <ul className="space-y-2">
+          {bullets.map((bullet) => (
+            <li key={bullet} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+              <Check className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: accent.check }} />
+              <span>{bullet}</span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <span className="text-sm font-semibold" style={{ color: accent.text }}>Get Started →</span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 // Role Select Screen Component
 function RoleSelectScreen({ onRoleSelect }: { onRoleSelect: (role: 'creator' | 'talent') => void }) {
   return (
     <div className="space-y-8">
       <div className="text-center animate-fade-in">
-        <h2 className="text-3xl font-bold text-slate-900 mb-2">Let's Get You Signed Up 🤩!!</h2>
-        <p className="text-slate-600">How'd you like to get started with OnSwift?</p>
+        <h2 className="text-3xl font-bold text-slate-900 mb-2">Which best describes you?</h2>
+        <p className="text-slate-600 max-w-md mx-auto">
+          Pick the option that matches how you'll use OnSwift. You can't get this wrong, it just tailors your setup.
+        </p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 animate-fade-in-delay-1">
-        {/* Creator Card */}
-        <button
+        {/* Creator / Agency — purple identity */}
+        <RoleCard
+          icon={<Crown className="h-8 w-8 text-[#6B5CE7]" />}
+          eyebrow="For agencies, teams & clients"
+          title="Creator / Agency"
+          bullets={[
+            'Hire and manage talented professionals',
+            'Run projects, tasks & deliverables',
+            'Bring your own clients onboard',
+          ]}
+          accent={{
+            gradient: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)',
+            border: 'rgba(107, 92, 231, 0.15)',
+            hoverOverlay: 'linear-gradient(135deg, rgba(107,92,231,0.05) 0%, rgba(90,75,209,0.10) 100%)',
+            icon: '#6B5CE7',
+            text: '#6B5CE7',
+            check: '#6B5CE7',
+          }}
           onClick={() => onRoleSelect('creator')}
-          className="group relative overflow-hidden rounded-[20px] p-8 transition-all duration-300 hover:shadow-xl"
-          style={{
-            background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)',
-            border: '1px solid rgba(107, 92, 231, 0.1)'
-          }}
-        >
-          {/* Hover overlay */}
-          <div className="absolute inset-0 bg-gradient-to-br from-[#6B5CE7]/5 to-[#5A4BD1]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          
-          <div className="relative z-10">
-            <div className="mb-6 flex justify-center">
-              <div className="w-16 h-16 bg-white rounded-[14px] flex items-center justify-center group-hover:shadow-lg group-hover:scale-110 transition-all duration-300 shadow-md">
-                <Crown className="h-8 w-8 text-[#6B5CE7]" />
-              </div>
-            </div>
-            
-            <h3 className="text-2xl font-bold text-slate-900 mb-3 text-center">Creator/Agency</h3>
-            <p className="text-slate-600 text-center text-sm leading-relaxed">
-              Hire and manage talented professionals for your projects
-            </p>
-            
-            <div className="mt-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-              <span className="text-sm font-semibold text-[#6B5CE7]">Get Started →</span>
-            </div>
-          </div>
-        </button>
+        />
 
-        {/* Talent Card */}
-        <button
-          onClick={() => onRoleSelect('talent')}
-          className="group relative overflow-hidden rounded-[20px] p-8 transition-all duration-300 hover:shadow-xl"
-          style={{
-            background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)',
-            border: '1px solid rgba(107, 92, 231, 0.1)'
+        {/* Talent — distinct teal accent */}
+        <RoleCard
+          icon={<UserRound className="h-8 w-8 text-[#0E9488]" />}
+          eyebrow="For freelancers & professionals"
+          title="Talent"
+          bullets={[
+            'Get discovered and hired',
+            'Showcase your skills & portfolio',
+            'Work on exciting projects',
+          ]}
+          accent={{
+            gradient: 'linear-gradient(135deg, #ECFEFF 0%, #CCFBF1 100%)',
+            border: 'rgba(14, 148, 136, 0.18)',
+            hoverOverlay: 'linear-gradient(135deg, rgba(14,148,136,0.05) 0%, rgba(13,120,110,0.12) 100%)',
+            icon: '#0E9488',
+            text: '#0E9488',
+            check: '#0E9488',
           }}
-        >
-          {/* Hover overlay */}
-          <div className="absolute inset-0 bg-gradient-to-br from-[#6B5CE7]/5 to-[#5A4BD1]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          
-          <div className="relative z-10">
-            <div className="mb-6 flex justify-center">
-              <div className="w-16 h-16 bg-white rounded-[14px] flex items-center justify-center group-hover:shadow-lg group-hover:scale-110 transition-all duration-300 shadow-md">
-                <Lightbulb className="h-8 w-8 text-[#6B5CE7]" />
-              </div>
-            </div>
-            
-            <h3 className="text-2xl font-bold text-slate-900 mb-3 text-center">Talent</h3>
-            <p className="text-slate-600 text-center text-sm leading-relaxed">
-              Showcase your skills and work on exciting projects
-            </p>
-            
-            <div className="mt-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-              <span className="text-sm font-semibold text-[#6B5CE7]">Get Started →</span>
-            </div>
-          </div>
-        </button>
+          onClick={() => onRoleSelect('talent')}
+        />
       </div>
     </div>
   );
