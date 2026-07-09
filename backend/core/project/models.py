@@ -113,6 +113,8 @@ class Task(models.Model):
     task_time = models.TimeField(null=True, blank=True)
     recurrence_type = models.CharField(max_length=10, choices=RECURRENCE_CHOICES, null=True, blank=True)
     recurrence_days = models.PositiveIntegerField(null=True, blank=True)
+    # Set when an assignee marks a task done without a deliverable; awaits creator approval.
+    awaiting_approval = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

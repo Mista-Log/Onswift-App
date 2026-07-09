@@ -1,15 +1,12 @@
 import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { TalentStatCard } from "@/components/talent/TalentStatCard";
-import { TaskCard } from "@/components/talent/TaskCard";
 import { ActivityFeed } from "@/components/talent/ActivityFeed";
 import { ProfileCompletionBanner } from "@/components/talent/ProfileCompletionBanner";
 import { ProfileStrengthCard } from "@/components/talent/ProfileStrengthCard";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Folder, CheckSquare, Clock, Star, Trophy, Target, Calendar, Loader2 } from "lucide-react";
+import { MyTasksPanel } from "@/components/tasks/MyTasksPanel";
+import { Folder, CheckSquare, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Link } from "react-router-dom";
 import { useProjects, type Task } from "@/contexts/ProjectContext";
 import { secureFetch } from "@/api/apiClient";
 import { toast } from "sonner";
@@ -23,7 +20,6 @@ export default function DashboardTalent() {
   const { projects, updateTask } = useProjects();
   const [tasks, setTasks] = useState<TalentTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("todo");
 
   // Fetch tasks assigned to this talent
   useEffect(() => {
@@ -76,33 +72,11 @@ export default function DashboardTalent() {
     }
   };
 
-  const handleStatusChange = async (taskId: string, newStatus: "planning" | "in-progress" | "completed") => {
-    try {
-      await updateTask(taskId, { status: newStatus });
-      setTasks(prev => prev.map(task =>
-        task.id === taskId ? { ...task, status: newStatus } : task
-      ));
-      toast.success("Task status updated!");
-    } catch (error) {
-      toast.info(
-        "Task stages are controlled by your project creator. Submit a deliverable to show your progress on this task.",
-        { duration: 4000 }
-      );
-    }
-  };
-
   // Get project name for a task
   const getProjectName = (task: TalentTask) => {
     const project = projects.find(p => p.id === task.project);
     return project?.name || "Unknown Project";
   };
-
-  // Filter tasks based on active tab
-  const filteredTasks = tasks.filter(task => {
-    if (activeTab === "todo") return task.status !== "completed";
-    if (activeTab === "completed") return task.status === "completed";
-    return true;
-  });
 
   // Calculate stats
   const completedTasksCount = tasks.filter(t => t.status === "completed").length;
@@ -183,57 +157,8 @@ export default function DashboardTalent() {
         <div className="grid gap-6 sm:gap-8 lg:grid-cols-3">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* My Tasks */}
-            <section className="glass-card p-5 sm:p-6 md:p-7">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-foreground">My Tasks</h2>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/projects">View All</Link>
-                </Button>
-              </div>
-
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="mb-4">
-                  <TabsTrigger value="todo">
-                    To Do <span className="ml-1 text-xs">({pendingTasksCount})</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="completed">
-                    Completed <span className="ml-1 text-xs">({completedTasksCount})</span>
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value={activeTab} className="space-y-2">
-                  {isLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                  ) : filteredTasks.length > 0 ? (
-                    filteredTasks.map(task => (
-                      <TaskCard
-                        key={task.id}
-                        id={task.id}
-                        name={task.name}
-                        description={task.description}
-                        deadline={task.deadline}
-                        projectName={getProjectName(task)}
-                        status={task.status}
-                        onStatusChange={handleStatusChange}
-                      />
-                    ))
-                  ) : (
-                    <div className="text-center py-8">
-                      <CheckSquare className="h-12 w-12 text-primary mx-auto mb-2" />
-                      <p className="text-foreground font-medium">
-                        {activeTab === "todo" ? "You're all caught up!" : "No completed tasks yet"}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {activeTab === "todo" ? "No pending tasks at the moment" : "Complete some tasks to see them here"}
-                      </p>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </section>
+            {/* My Tasks — shared with the creator dashboard */}
+            <MyTasksPanel variant="talent" />
 
             {/* Recent Activity */}
             <section className="glass-card p-5 sm:p-6 md:p-7">

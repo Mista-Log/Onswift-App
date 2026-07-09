@@ -3,9 +3,18 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageCircle, Send, Search, Loader2, ChevronLeft, Plus, Users, Info } from "lucide-react";
+import { MessageCircle, Send, Search, Loader2, ChevronLeft, Plus, Users, Info, UserPlus } from "lucide-react";
 import { CreateGroupModal } from "@/components/messaging/CreateGroupModal";
+import { InviteMemberModal } from "@/components/dashboard/InviteMemberModal";
+import { ConversationInfoPanel } from "@/components/messaging/ConversationInfoPanel";
 import { MentionDropdown, MentionMember } from "@/components/messaging/MentionDropdown";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useNavigate } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -86,7 +95,8 @@ interface GroupMember {
 
 export default function Messages() {
   const { user } = useAuth();
-  const { teamMembers } = useTeam();
+  const { teamMembers, removeTeamMember } = useTeam();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"direct" | "groups">("direct");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -102,6 +112,8 @@ export default function Messages() {
   const [isSending, setIsSending] = useState(false);
   const [myCreators, setMyCreators] = useState<Contact[]>([]);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showContactInfo, setShowContactInfo] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -114,6 +126,23 @@ export default function Messages() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isCreator = user?.role === "creator";
+
+  // Team record for the person in the open DM (creator side), used to surface
+  // their role/email/join date in the contact info panel.
+  const selectedMember = teamMembers.find(
+    (m) => m.user_id === selectedConversation?.other_user?.id
+  );
+
+  const handleRemoveFromTeam = async () => {
+    if (!selectedMember) return;
+    const ok = await removeTeamMember(selectedMember.id);
+    if (ok) {
+      toast.success(`${selectedMember.name} removed from your team`);
+      setShowContactInfo(false);
+    } else {
+      toast.error("Failed to remove team member");
+    }
+  };
 
   // Fetch conversations, groups, and contacts
   useEffect(() => {
@@ -561,14 +590,23 @@ export default function Messages() {
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-base font-semibold text-foreground sm:text-lg">Messages</h2>
                   {isCreator && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setShowCreateGroup(true)}
-                      title="Create new group"
-                    >
-                      <Plus className="h-5 w-5" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost" title="New">
+                          <Plus className="h-5 w-5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setShowCreateGroup(true)}>
+                          <Users className="h-4 w-4 mr-2" />
+                          Create group
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setShowInviteModal(true)}>
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Invite member
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </div>
 
@@ -753,29 +791,48 @@ export default function Messages() {
               {selectedConversation ? (
                 <>
                   {/* Chat Header - Direct Message */}
-                  <div className="flex items-center gap-2 border-b border-border/50 p-4 sm:p-5">
-                    <button
-                      onClick={() => setSelectedConversation(null)}
-                      className="md:hidden p-1 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
-                      aria-label="Back to conversations"
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                    </button>
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage
-                        src={selectedConversation.other_user?.avatar || undefined}
-                        alt={selectedConversation.other_user?.name || "User"}
-                      />
-                      <AvatarFallback className="bg-primary/20 text-primary">
-                        {selectedConversation.other_user?.name?.charAt(0) || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium text-foreground">{selectedConversation.other_user?.name || "Unknown"}</p>
-                      {selectedConversation.other_user?.company && (
-                        <p className="text-sm text-muted-foreground">{selectedConversation.other_user.company}</p>
-                      )}
+                  <div className="flex items-center justify-between gap-2 border-b border-border/50 p-4 sm:p-5">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <button
+                        onClick={() => setSelectedConversation(null)}
+                        className="md:hidden p-1 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
+                        aria-label="Back to conversations"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowContactInfo(true)}
+                        className="-mx-1 flex min-w-0 cursor-pointer items-center gap-3 rounded-lg px-1 py-1 text-left transition-colors hover:bg-secondary/40 active:scale-[0.99]"
+                        title="View contact info"
+                        aria-label="View contact info"
+                      >
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage
+                            src={selectedConversation.other_user?.avatar || undefined}
+                            alt={selectedConversation.other_user?.name || "User"}
+                          />
+                          <AvatarFallback className="bg-primary/20 text-primary">
+                            {selectedConversation.other_user?.name?.charAt(0) || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">{selectedConversation.other_user?.name || "Unknown"}</p>
+                          {(selectedMember?.role || selectedConversation.other_user?.company) && (
+                            <p className="text-sm text-muted-foreground truncate">{selectedMember?.role || selectedConversation.other_user?.company}</p>
+                          )}
+                        </div>
+                      </button>
                     </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setShowContactInfo(true)}
+                      aria-label="Contact info"
+                      title="Contact info"
+                    >
+                      <Info className="h-5 w-5" />
+                    </Button>
                   </div>
 
                   {/* Messages */}
@@ -1019,6 +1076,21 @@ export default function Messages() {
         open={showCreateGroup}
         onClose={() => setShowCreateGroup(false)}
         onGroupCreated={fetchGroups}
+      />
+
+      <InviteMemberModal
+        open={showInviteModal}
+        onOpenChange={setShowInviteModal}
+        onNavigateToTalent={() => navigate('/talent')}
+      />
+
+      <ConversationInfoPanel
+        open={showContactInfo}
+        onOpenChange={setShowContactInfo}
+        otherUser={selectedConversation?.other_user}
+        member={selectedMember}
+        canRemove={isCreator}
+        onRemoveFromTeam={handleRemoveFromTeam}
       />
 
       <Dialog open={showGroupInfo} onOpenChange={setShowGroupInfo}>

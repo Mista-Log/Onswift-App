@@ -112,9 +112,10 @@ class TaskSerializer(serializers.ModelSerializer):
             "id", "project", "name", "description", "assignees", "assignee_names",
             "status", "priority", "deadline", "task_time",
             "recurrence_type", "recurrence_days",
+            "awaiting_approval",
             "created_at",
         ]
-        read_only_fields = ["project", "created_at"]
+        read_only_fields = ["project", "awaiting_approval", "created_at"]
 
     def get_assignee_names(self, obj):
         return [u.full_name for u in obj.assignees.all()]
@@ -143,6 +144,11 @@ class TaskSerializer(serializers.ModelSerializer):
 
         if old_status != "completed" and task.status == "completed" and task.recurrence_type:
             spawn_recurring_task(task)
+
+        # A creator completing the task resolves any pending "awaiting approval" request.
+        if task.status == "completed" and task.awaiting_approval:
+            task.awaiting_approval = False
+            task.save(update_fields=["awaiting_approval"])
 
         return task
 
@@ -429,7 +435,8 @@ class DeliverableReviewSerializer(serializers.ModelSerializer):
         if new_status == "approved":
             task = instance.task
             task.status = "completed"
-            task.save(update_fields=["status"])
+            task.awaiting_approval = False
+            task.save(update_fields=["status", "awaiting_approval"])
             if task.recurrence_type:
                 spawn_recurring_task(task)
         elif new_status == "pending" and old_status == "approved":

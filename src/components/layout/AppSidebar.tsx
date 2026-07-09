@@ -1,6 +1,7 @@
-import { LayoutGrid, Users, UsersRound, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, Upload, ClipboardList, FileArchive, Wrench, NotebookPen, Loader2 } from "lucide-react";
+import { LayoutGrid, Users, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, ClipboardList, FileArchive, Wrench, Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
+import { useDeadlineCount } from "@/hooks/useDeadlineCount";
 import type { SearchResult } from "@/hooks/useGlobalSearch";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -19,21 +20,17 @@ import { useTheme } from "next-themes";
 const creatorNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
-  { label: "My Team", icon: UsersRound, route: "/team" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
-  { label: "Deliverables", icon: Upload, route: "/deliverables" },
   { label: "Client Portal", icon: ClipboardList, route: "/onboarding" },
-  { label: "Files", icon: FileArchive, route: "/library" },
-  { label: "Docs Editor", icon: NotebookPen, route: "/docs" },
+  { label: "My Files", icon: FileArchive, route: "/library" },
   { label: "Deadlines", icon: Calendar, route: "/calendar" },
-  { label: "Marketplace", icon: Users, route: "/talent" },
+  // { label: "Marketplace", icon: Users, route: "/talent" },
 ];
 
 const clientNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
-  { label: "Deliverables", icon: Upload, route: "/deliverables" },
   { label: "Client Portal", icon: ClipboardList, route: "/onboarding" },
   { label: "Docs", icon: FileArchive, route: "/library" },
   { label: "CRM", icon: Wrench, route: "/library/crm" },
@@ -44,10 +41,8 @@ const talentNavItems = [
   { label: "Dashboard", icon: LayoutGrid, route: "/dashboard" },
   { label: "My Profile", icon: User, route: "/profile/edit" },
   { label: "My Projects", icon: FolderKanban, route: "/projects" },
-  { label: "Deliverables", icon: Upload, route: "/deliverables" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
-  { label: "Files", icon: FileArchive, route: "/library" },
-  { label: "Docs Editor", icon: NotebookPen, route: "/docs" },
+  { label: "My Files", icon: FileArchive, route: "/library" },
   { label: "CRM", icon: Wrench, route: "/library/crm" },
   { label: "Deadlines", icon: Calendar, route: "/calendar" },
 ];
@@ -57,7 +52,7 @@ const bottomNavItems = [
 ];
 
 const toolNavItems = [
-  { label: "Spreadsheet", icon: Wrench, route: "/library/crm" },
+  // { label: "Spreadsheet", icon: Wrench, route: "/library/crm" },
 ];
 
 interface AppSidebarProps {
@@ -69,6 +64,7 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
   const location = useLocation();
   const { user } = useAuth();
   const { resolvedTheme } = useTheme();
+  const deadlineCount = useDeadlineCount();
 
   const navItems =
     user?.role === 'talent' ? talentNavItems :
@@ -131,6 +127,8 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
           {navItems.map((item) => {
             const isActive = location.pathname === item.route ||
               (item.route !== "/dashboard" && location.pathname.startsWith(item.route));
+            const showDeadlineBadge = item.route === "/calendar" && deadlineCount > 0;
+            const badgeLabel = deadlineCount > 99 ? "99+" : deadlineCount;
 
             return (
               <NavLink
@@ -149,6 +147,20 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
                   <span className="font-medium">{item.label}</span>
                 )}
 
+                {/* Deadline count badge — inline when expanded, on the icon when collapsed */}
+                {showDeadlineBadge && (
+                  <span
+                    className={cn(
+                      "flex items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm",
+                      isCollapsed
+                        ? "absolute right-1 top-1 h-[18px] min-w-[18px]"
+                        : "ml-auto h-5 min-w-[20px]"
+                    )}
+                  >
+                    {badgeLabel}
+                  </span>
+                )}
+
                 {/* Tooltip for collapsed state */}
                 {isCollapsed && (
                   <span className="absolute left-full ml-3 hidden rounded-lg bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground shadow-lg group-hover:block whitespace-nowrap">
@@ -162,11 +174,12 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
 
         {showTools && (
           <nav className={cn("mt-4 flex flex-col gap-2", isCollapsed ? "items-center" : "") }>
+            {/* We'll suspend thid for now, since we don't have any tools yet. We can re-enable it when we add more tools.
             {!isCollapsed && (
               <p className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                 Tools
               </p>
-            )}
+            )} */}
 
             {toolNavItems.map((item) => {
               const isActive = location.pathname === item.route || location.pathname.startsWith(item.route);

@@ -5,7 +5,7 @@ import { CelebrationModal } from "@/components/CelebrationModal";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ArrowLeft,
   Calendar as CalendarIcon,
@@ -66,6 +66,8 @@ import { useTeam } from "@/contexts/TeamContext";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { DeliverablesPanel } from "@/components/team/DeliverablesPanel";
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -108,7 +110,9 @@ export default function ProjectDetail() {
   const [showTalentProjectDone, setShowTalentProjectDone] = useState(false);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<"planning" | "in-progress" | "completed" | null>(null);
-  
+  const [activeTab, setActiveTab] = useState<"board" | "deliverables">("board");
+  const [deliverablePrefill, setDeliverablePrefill] = useState<string | undefined>(undefined);
+
   // Messages state
   const [messages, setMessages] = useState<any[]>([]);
   const [messageContent, setMessageContent] = useState("");
@@ -333,31 +337,6 @@ export default function ProjectDetail() {
     }
   };
 
-  const handleStatusChange = async (newStatus: "planning" | "in-progress" | "completed") => {
-    if (!id) return;
-    try {
-      // Concluding a project runs server-side side effects (client membership
-      // updates + talent/creator notifications) via a dedicated endpoint. Run it
-      // first and confirm it succeeded before reporting success — otherwise the
-      // project can look "completed" while the completion workflow silently fails.
-      if (newStatus === "completed") {
-        const res = await secureFetch(`/api/v2/projects/${id}/complete/`, { method: "POST" });
-        if (!res.ok) throw new Error("Failed to complete project");
-      }
-
-      await updateProject(id, { status: newStatus });
-      toast.success("Project status updated!");
-
-      // Celebrate the creator's first wrap-up.
-      if (newStatus === "completed" && !localStorage.getItem("onswift_creator_first_project_done")) {
-        localStorage.setItem("onswift_creator_first_project_done", "1");
-        setShowProjectDoneCelebration(true);
-      }
-    } catch (error) {
-      toast.error("Failed to update project status");
-    }
-  };
-
   const handleDrop = (e: React.DragEvent, targetStatus: "planning" | "in-progress" | "completed") => {
     e.preventDefault();
     if (dragTaskId) {
@@ -501,16 +480,6 @@ export default function ProjectDetail() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleStatusChange("planning")}>
-                  Set to Planning
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleStatusChange("in-progress")}>
-                  Set to In Progress
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleStatusChange("completed")}>
-                  Set to Completed
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => {
                     setRenameValue(project.name);
@@ -691,7 +660,7 @@ export default function ProjectDetail() {
 
         {/* Project Info */}
         <div className="glass-card p-6 rounded-lg border border-border/50">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Status</p>
               <StatusBadge status={project.status} />
@@ -715,24 +684,17 @@ export default function ProjectDetail() {
                 </div>
               </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Team</p>
-              <div className="flex -space-x-2">
-                {project.teamMembers?.slice(0, 5).map((member) => (
-                  <Avatar key={member.id} className="h-8 w-8 border-2 border-background">
-                    <AvatarImage src={member.avatar} />
-                    <AvatarFallback className="text-xs">{member.name[0]}</AvatarFallback>
-                  </Avatar>
-                ))}
-                {project.teamMembers && project.teamMembers.length > 5 && (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-secondary text-xs">
-                    +{project.teamMembers.length - 5}
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
         </div>
+
+        {/* Board / Deliverables tabs */}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "board" | "deliverables")}>
+          <TabsList>
+            <TabsTrigger value="board" className="text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Board</TabsTrigger>
+            <TabsTrigger value="deliverables" className="text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Deliverables</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="board" className="mt-6 space-y-6">
 
         {/* Tasks Section */}
         <div className="flex items-center justify-between">
@@ -956,7 +918,7 @@ export default function ProjectDetail() {
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
                       onEdit={() => handleOpenTaskDetail(task.id)}
                       onDelete={() => handleDeleteTask(task.id)}
-                      onAddDeliverable={!isCreator ? () => navigate("/deliverables", { state: { prefillTaskId: task.id } }) : undefined}
+                      onAddDeliverable={!isCreator ? () => { setActiveTab("deliverables"); setDeliverablePrefill(task.id); } : undefined}
                       onDragStart={() => setDragTaskId(task.id)}
                       onDragEnd={() => { setDragTaskId(null); setDragOverCol(null); }}
                     />
@@ -991,7 +953,7 @@ export default function ProjectDetail() {
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
                       onEdit={() => handleOpenTaskDetail(task.id)}
                       onDelete={() => handleDeleteTask(task.id)}
-                      onAddDeliverable={!isCreator ? () => navigate("/deliverables", { state: { prefillTaskId: task.id } }) : undefined}
+                      onAddDeliverable={!isCreator ? () => { setActiveTab("deliverables"); setDeliverablePrefill(task.id); } : undefined}
                       onDragStart={() => setDragTaskId(task.id)}
                       onDragEnd={() => { setDragTaskId(null); setDragOverCol(null); }}
                     />
@@ -1026,7 +988,7 @@ export default function ProjectDetail() {
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
                       onEdit={() => handleOpenTaskDetail(task.id)}
                       onDelete={() => handleDeleteTask(task.id)}
-                      onAddDeliverable={!isCreator ? () => navigate("/deliverables", { state: { prefillTaskId: task.id } }) : undefined}
+                      onAddDeliverable={!isCreator ? () => { setActiveTab("deliverables"); setDeliverablePrefill(task.id); } : undefined}
                       onDragStart={() => setDragTaskId(task.id)}
                       onDragEnd={() => { setDragTaskId(null); setDragOverCol(null); }}
                     />
@@ -1039,6 +1001,18 @@ export default function ProjectDetail() {
 
           </div>
         )}
+
+          </TabsContent>
+
+          <TabsContent value="deliverables" className="mt-6">
+            <DeliverablesPanel
+              projectId={id}
+              openUploadForTask={deliverablePrefill}
+              onUploadOpened={() => setDeliverablePrefill(undefined)}
+              hideStats
+            />
+          </TabsContent>
+        </Tabs>
 
         {/* Client Invites Section UNFINISHED BUSINESS HERE, WOULD BE REVISED LATER */} 
         {/* {id && isCreator && (

@@ -1621,11 +1621,12 @@ export default function CRMBuilder() {
             </div>
             <h2 className="text-xl font-bold text-foreground mb-2">Create your first CRM sheet</h2>
             <p className="text-sm text-muted-foreground mb-8 max-w-xs leading-relaxed">
-              Track contacts, deals, and pipelines — fully customised with your own columns and fields.
+              Track your contacts, deals, and pipelines. 
+              Fully customisable with your own columns and fields.
             </p>
             <Button size="lg" className="gap-2 text-base px-8" onClick={() => setIsSetupOpen(true)}>
-              <Sparkles className="h-5 w-5" />
-              Create My First CRM
+              <Plus className="h-5 w-5" />
+              Create CRM
             </Button>
             <p className="mt-3 text-xs text-muted-foreground">Takes less than a minute</p>
           </div>
