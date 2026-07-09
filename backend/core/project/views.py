@@ -286,6 +286,18 @@ class TaskRequestCompletionView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # A completed task has nothing to approve — reject rather than flag it,
+        # which would otherwise leave it "completed + awaiting approval".
+        if task.status == "completed":
+            return Response(
+                {"error": "This task is already completed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Idempotent: if the request is already pending, don't re-flag or re-notify.
+        if task.awaiting_approval:
+            return Response({"status": "ok", "awaiting_approval": True})
+
         task.awaiting_approval = True
         task.save(update_fields=["awaiting_approval"])
 
