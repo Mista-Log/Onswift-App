@@ -11,8 +11,8 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  Plus, Paperclip, Send, Trash2, Link as LinkIcon,
-  FileText, X, Loader2, ExternalLink, CheckSquare, Tag, Repeat,
+  Plus, Send, Trash2, Link as LinkIcon,
+  FileText, X, Loader2, CheckSquare, Tag, Repeat,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
@@ -56,7 +56,6 @@ const PRIORITY_CONFIG: Record<TaskPriority, { label: string; dot: string; badge:
 const ADD_MENU_ITEMS = [
   { id: "checklist",  icon: CheckSquare, label: "Checklist",  sub: "Add subtasks" },
   { id: "labels",     icon: Tag,         label: "Labels",     sub: "Organise and prioritise", soon: true },
-  { id: "attachment", icon: Paperclip,   label: "Attachment", sub: "Add files or links", soon: true },
 ];
 
 function formatRelative(iso: string) {
@@ -189,7 +188,6 @@ export function TaskDetailModal({
   const {
     task, isLoading, fetchTask, updateTask, deleteTask,
     addComment, deleteComment,
-    addAttachment, deleteAttachment,
     createChecklist, deleteChecklist,
     addChecklistItem, toggleChecklistItem, deleteChecklistItem,
     clearTask,
@@ -200,10 +198,6 @@ export function TaskDetailModal({
   const [descDraft, setDescDraft]           = useState("");
   const [commentDraft, setCommentDraft]     = useState("");
   const [isSendingComment, setIsSendingComment] = useState(false);
-  const [isAddingLink, setIsAddingLink]     = useState(false);
-  const [linkDraft, setLinkDraft]           = useState("");
-  const [linkNameDraft, setLinkNameDraft]   = useState("");
-  const [isSavingLink, setIsSavingLink]     = useState(false);
   const [recurringDaysDraft, setRecurringDaysDraft] = useState<number>(2);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -213,7 +207,6 @@ export function TaskDetailModal({
   const [isCreatingChecklist, setIsCreatingChecklist] = useState(false);
 
   const commentsEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef   = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open && taskId) fetchTask(taskId);
@@ -221,7 +214,6 @@ export function TaskDetailModal({
       clearTask();
       setEditingTitle(false);
       setCommentDraft("");
-      setIsAddingLink(false);
       setShowChecklistInput(false);
       setShowDeleteConfirm(false);
     }
@@ -266,30 +258,6 @@ export function TaskDetailModal({
     try { await addComment(task.id, commentDraft.trim()); setCommentDraft(""); }
     catch { toast.error("Failed to post comment"); }
     finally { setIsSendingComment(false); }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!task || !e.target.files?.[0]) return;
-    const file = e.target.files[0];
-    const fd = new FormData();
-    fd.append("file", file); fd.append("name", file.name);
-    try { await addAttachment(task.id, fd); toast.success("File attached"); }
-    catch { toast.error("Failed to upload file"); }
-    e.target.value = "";
-  };
-
-  const handleSaveLink = async () => {
-    if (!task || !linkDraft.trim()) return;
-    setIsSavingLink(true);
-    const fd = new FormData();
-    fd.append("url", linkDraft.trim());
-    fd.append("name", linkNameDraft.trim() || linkDraft.trim());
-    try {
-      await addAttachment(task.id, fd);
-      toast.success("Link added");
-      setLinkDraft(""); setLinkNameDraft(""); setIsAddingLink(false);
-    } catch { toast.error("Failed to add link"); }
-    finally { setIsSavingLink(false); }
   };
 
   const handleAddMenuSelect = (id: string) => {
@@ -604,7 +572,6 @@ export function TaskDetailModal({
 
               {/* Action toolbar: Status · File · Link · + Add */}
               <div className="flex items-center gap-2 flex-wrap rounded-xl border border-border/50 bg-secondary/10 px-4 py-3">
-                <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
                 {isCreator ? (
                   <Select value={task.status} onValueChange={(v) => handleField({ status: v as TaskDetail["status"] })}>
                     <SelectTrigger className="w-36 h-8 text-xs font-medium rounded-lg px-3 border hover:border-purple-400 hover:text-purple-700 transition-colors">
@@ -621,18 +588,6 @@ export function TaskDetailModal({
                     {STATUS_CONFIG[task.status].label}
                   </Badge>
                 )}
-                <div className="h-4 w-px bg-border/60 mx-1 shrink-0" />
-                {/*This should be hidden for now */}
-                {/* <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8 px-3 hover:bg-purple-50 hover:border-purple-400 hover:text-purple-700 transition-colors" onClick={() => fileInputRef.current?.click()}>
-                  <Paperclip className="h-3.5 w-3.5" />File
-                </Button> */}
-                <Button
-                  variant="outline" size="sm"
-                  className={cn("gap-1.5 text-xs h-8 px-3 transition-colors", isAddingLink ? "bg-purple-50 border-purple-400 text-purple-700" : "hover:bg-purple-50 hover:border-purple-400 hover:text-purple-700")}
-                  onClick={() => setIsAddingLink((v) => !v)}
-                >
-                  <LinkIcon className="h-3.5 w-3.5" />Link
-                </Button>
                 <div className="flex-1" />
                 <Popover open={addMenuOpen} onOpenChange={setAddMenuOpen}>
                   <PopoverTrigger asChild>
@@ -706,22 +661,6 @@ export function TaskDetailModal({
                 </div>
               )}
 
-              {/* Link input form */}
-              {isAddingLink && (
-                <div className="space-y-2 rounded-lg border border-purple-200 bg-purple-50/50 p-3">
-                  <Input autoFocus placeholder="https://..." value={linkDraft} onChange={(e) => setLinkDraft(e.target.value)} className="h-8 text-sm" />
-                  <Input placeholder="Display name (optional)" value={linkNameDraft} onChange={(e) => setLinkNameDraft(e.target.value)} className="h-8 text-sm" />
-                  <div className="flex gap-2">
-                    <Button size="sm" className="h-7 text-xs" onClick={handleSaveLink} disabled={!linkDraft.trim() || isSavingLink}>
-                      {isSavingLink ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setIsAddingLink(false); setLinkDraft(""); setLinkNameDraft(""); }}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-
               {/* Checklists */}
               {((task.checklists ?? []).length > 0 || showChecklistInput) && (
                 <div className="space-y-8">
@@ -763,10 +702,10 @@ export function TaskDetailModal({
                 </div>
               )}
 
-              {/* Deliverables (read-only sync from Deliverables page) */}
-              {(task.deliverables ?? []).length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Deliverables</p>
+              {/* Deliverables & Files — the single canonical list of submitted work */}
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Deliverables &amp; Files</p>
+                {(task.deliverables ?? []).length > 0 ? (
                   <div className="space-y-2">
                     {(task.deliverables ?? []).map((del: TaskDeliverable) => (
                       <div key={del.id} className="rounded-lg border border-border/50 bg-secondary/20 px-4 py-3 space-y-2">
@@ -821,39 +760,8 @@ export function TaskDetailModal({
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* Attachments */}
-              <div className="space-y-3">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Attachments</p>
-
-                {(task.attachments ?? []).length > 0 && (
-                  <div className="space-y-2">
-                    {(task.attachments ?? []).map((att) => (
-                      <div key={att.id} className="flex items-center gap-2 rounded-lg border border-border/50 bg-secondary/20 px-4 py-3 text-sm">
-                        {att.url && !att.file_url
-                          ? <LinkIcon className="h-4 w-4 shrink-0 text-primary" />
-                          : <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        }
-                        <span className="flex-1 truncate text-foreground">{att.name}</span>
-                        {(att.file_url || att.url) && (
-                          <a href={att.file_url ?? att.url ?? "#"} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 shrink-0">
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
-                        )}
-                        {(isCreator || att.uploaded_by === currentUserId) && (
-                          <button onClick={() => deleteAttachment(task.id, att.id).catch(() => toast.error("Failed to delete"))} className="text-muted-foreground hover:text-destructive transition-colors shrink-0">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {(task.attachments ?? []).length === 0 && (
-                  <p className="text-sm text-muted-foreground italic">No attachments yet.</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No deliverables yet.</p>
                 )}
               </div>
             </div>

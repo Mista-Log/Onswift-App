@@ -269,6 +269,37 @@ def _get_task_for_user(user, task_id):
     raise Http404
 
 
+class TaskRequestCompletionView(APIView):
+    """
+    POST /api/v2/tasks/<task_id>/request-completion/
+    An assignee marks a task done without a deliverable: flag it for the creator's
+    approval and notify them. Does not change the task's status (only creators can).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, task_id):
+        task = _get_task_for_user(request.user, task_id)
+
+        if not task.assignees.filter(id=request.user.id).exists():
+            return Response(
+                {"error": "Only an assignee can request completion."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        task.awaiting_approval = True
+        task.save(update_fields=["awaiting_approval"])
+
+        from notification.services import create_notification
+        create_notification(
+            user=task.project.creator,
+            title="Task Ready for Approval",
+            message=f"{request.user.full_name} marked '{task.name}' as ready — awaiting your approval.",
+            notification_type="system",
+        )
+
+        return Response({"status": "ok", "awaiting_approval": True})
+
+
 class TaskCommentListCreateView(generics.ListCreateAPIView):
     serializer_class = TaskCommentSerializer
     permission_classes = [IsAuthenticated]
@@ -448,6 +479,147 @@ class TalentTasksListView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         return Task.objects.filter(assignees=user).select_related('project').distinct()
+
+
+class CreatorAnalyticsView(APIView):
+    """
+    GET /api/v2/creator/analytics/?range=6m
+    Aggregated dashboard analytics for a creator:
+      - completion: approved deliverables per month (real completion events)
+      - clients: newly-acquired distinct clients per month
+      - talent: per team member output (current-standing snapshot)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if user.role != "creator":
+            return Response(
+                {"error": "Only creators can access analytics."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # ── Range → time buckets (oldest → newest); granularity scales with window ──
+        from datetime import date, timedelta
+        RANGES = {
+            "24h": ("hour", 24),
+            "7d":  ("day", 7),
+            "30d": ("day", 30),
+            "3m":  ("month", 3),
+            "12m": ("month", 12),
+            "24m": ("month", 24),
+        }
+        sel = str(request.query_params.get("range", "30d"))
+        gran, count = RANGES.get(sel, ("day", 30))
+
+        raw_now = timezone.now()
+        now = timezone.localtime(raw_now) if timezone.is_aware(raw_now) else raw_now
+
+        keys, labels = [], {}
+        if gran == "hour":
+            base = now.replace(minute=0, second=0, microsecond=0)
+            for i in range(count - 1, -1, -1):
+                dt = base - timedelta(hours=i)
+                k = dt.strftime("%Y-%m-%d %H")
+                keys.append(k)
+                labels[k] = f"{dt.hour % 12 or 12}{'am' if dt.hour < 12 else 'pm'}"
+            range_start = base - timedelta(hours=count - 1)
+        elif gran == "day":
+            base = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            for i in range(count - 1, -1, -1):
+                dt = base - timedelta(days=i)
+                k = dt.strftime("%Y-%m-%d")
+                keys.append(k)
+                labels[k] = f"{dt.strftime('%b')} {dt.day}"
+            range_start = base - timedelta(days=count - 1)
+        else:  # month
+            months = []
+            y, m = now.year, now.month
+            for _ in range(count):
+                months.append((y, m))
+                m -= 1
+                if m == 0:
+                    m, y = 12, y - 1
+            months.reverse()
+            for (yy, mm) in months:
+                k = f"{yy:04d}-{mm:02d}"
+                keys.append(k)
+                labels[k] = date(yy, mm, 1).strftime("%b")
+            range_start = now.replace(
+                year=months[0][0], month=months[0][1], day=1,
+                hour=0, minute=0, second=0, microsecond=0,
+            )
+
+        def bucket(dt):
+            d = timezone.localtime(dt) if timezone.is_aware(dt) else dt
+            if gran == "hour":
+                return d.strftime("%Y-%m-%d %H")
+            if gran == "day":
+                return d.strftime("%Y-%m-%d")
+            return f"{d.year:04d}-{d.month:02d}"
+
+        # ── Completion: approved deliverables per month ──
+        completion_counts = {k: 0 for k in keys}
+        approved_dates = Deliverable.objects.filter(
+            task__project__creator=user,
+            status="approved",
+            updated_at__gte=range_start,
+        ).values_list("updated_at", flat=True)
+        for dt in approved_dates:
+            key = bucket(dt)
+            if key in completion_counts:
+                completion_counts[key] += 1
+        completion = [{"month": k, "label": labels[k], "approved": completion_counts[k]} for k in keys]
+
+        # ── Client acquisition: new distinct clients per month (by earliest membership) ──
+        from django.db.models import Min
+        client_counts = {k: 0 for k in keys}
+        first_joins = (
+            ProjectClientMembership.objects
+            .filter(project__creator=user)
+            .values("client")
+            .annotate(first=Min("added_at"))
+        )
+        for row in first_joins:
+            first = row["first"]
+            if first is None or first < range_start:
+                continue
+            key = bucket(first)
+            if key in client_counts:
+                client_counts[key] += 1
+        clients = [{"month": k, "label": labels[k], "new_clients": client_counts[k]} for k in keys]
+
+        # ── Talent performance: per accepted team member (current snapshot) ──
+        from notification.models import HireRequest
+        team = HireRequest.objects.filter(
+            creator=user, status="accepted"
+        ).select_related("talent")
+        talent = []
+        for hr in team:
+            t = hr.talent
+            dels = Deliverable.objects.filter(task__project__creator=user, submitted_by=t)
+            submitted = dels.count()
+            approved = dels.filter(status="approved").count()
+            pending = dels.filter(status="pending").count()
+            tasks_completed = Task.objects.filter(
+                project__creator=user, assignees=t, status="completed"
+            ).count()
+            talent.append({
+                "user_id": str(t.id),
+                "name": t.full_name or t.email,
+                "approved": approved,
+                "submitted": submitted,
+                "approval_rate": round(approved / submitted * 100) if submitted else 0,
+                "tasks_completed": tasks_completed,
+                "pending": pending,
+            })
+
+        return Response({
+            "range": sel,
+            "completion": completion,
+            "clients": clients,
+            "talent": talent,
+        })
 
 
 # Deliverable Views

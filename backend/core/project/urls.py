@@ -6,6 +6,7 @@ from .views import (
     ProjectArchiveView,
     TaskListCreateView,
     TaskDetailView,
+    TaskRequestCompletionView,
     TaskCommentListCreateView,
     TaskCommentDeleteView,
     TaskAttachmentListCreateView,
@@ -17,6 +18,7 @@ from .views import (
     ProjectSampleDeleteView,
     ProjectSampleListCreateView,
     TalentTasksListView,
+    CreatorAnalyticsView,
     DeliverableListCreateView,
     DeliverableDetailView,
     DeliverableReviewView,
@@ -57,7 +59,9 @@ urlpatterns = [
 
     # Tasks
     path("tasks/<uuid:pk>/", TaskDetailView.as_view(), name="task-detail"),
+    path("tasks/<uuid:task_id>/request-completion/", TaskRequestCompletionView.as_view(), name="task-request-completion"),
     path("my-tasks/", TalentTasksListView.as_view(), name="talent-tasks"),
+    path("creator/analytics/", CreatorAnalyticsView.as_view(), name="creator-analytics"),
 
     # Task Comments
     path("tasks/<uuid:task_id>/comments/", TaskCommentListCreateView.as_view(), name="task-comment-list"),

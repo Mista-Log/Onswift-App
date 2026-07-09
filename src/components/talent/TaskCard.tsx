@@ -15,6 +15,8 @@ interface TaskCardProps {
   deadline?: string | null;
   projectName: string;
   status: "planning" | "in-progress" | "completed";
+  awaitingApproval?: boolean;
+  assignedToMe?: boolean;
   onStatusChange?: (id: string, status: "planning" | "in-progress" | "completed") => void;
   onClick?: () => void;
 }
@@ -26,6 +28,8 @@ export function TaskCard({
   deadline,
   projectName,
   status,
+  awaitingApproval,
+  assignedToMe,
   onStatusChange,
   onClick
 }: TaskCardProps) {
@@ -121,6 +125,16 @@ export function TaskCard({
           <Badge variant="outline" className="text-xs">
             {getStatusLabel()}
           </Badge>
+          {awaitingApproval && (
+            <Badge variant="outline" className="text-xs border-yellow-400/50 bg-yellow-500/10 text-yellow-600">
+              Pending approval
+            </Badge>
+          )}
+          {assignedToMe && (
+            <Badge variant="outline" className="text-xs text-muted-foreground">
+              Assigned to you
+            </Badge>
+          )}
         </div>
       </div>
 

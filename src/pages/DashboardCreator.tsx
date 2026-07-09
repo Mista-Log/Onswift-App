@@ -10,6 +10,8 @@ import { useNavigate } from "react-router-dom";
 import { useProjects } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { InviteMemberModal } from "@/components/dashboard/InviteMemberModal";
+import { MyTasksPanel } from "@/components/tasks/MyTasksPanel";
+import { AnalyticsSection } from "@/components/dashboard/analytics/AnalyticsSection";
 import { toast } from "sonner";
 
 // const teamMembers = [
@@ -47,7 +49,19 @@ export default function DashboardCreator() {
   };
 
   // Show only the first 3 projects
-  const projects = allProjects.slice(0, 3);
+  // Hide completed projects, then order by progress (most-complete first),
+  // falling back to soonest due date, and show the top few that fit.
+  const projects = allProjects
+    .filter((p) => p.status !== "completed")
+    .sort((a, b) => {
+      const pa = a.task_count ? a.completed_tasks / a.task_count : 0;
+      const pb = b.task_count ? b.completed_tasks / b.task_count : 0;
+      if (pb !== pa) return pb - pa;
+      const da = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+      const db = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+      return da - db;
+    })
+    .slice(0, 3);
 
   return (
     <MainLayout>
@@ -114,7 +128,10 @@ export default function DashboardCreator() {
                 </div>
               )}
             </section>
-                    
+
+            {/* My Tasks — creator's own self-assigned tasks */}
+            <MyTasksPanel variant="creator" />
+
           </div>
 
           {/* Right Column - Team */}
@@ -170,6 +187,9 @@ export default function DashboardCreator() {
             </section>
           </div>
         </div>
+
+        {/* Analytics — completion, client acquisition, talent performance */}
+        <AnalyticsSection />
       </div>
 
       <InviteMemberModal
