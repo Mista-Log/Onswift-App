@@ -68,6 +68,9 @@ class Notification(models.Model):
         blank=True
     )
 
+    # Optional in-app deep link (relative path) the notification navigates to when clicked.
+    link = models.CharField(max_length=512, null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

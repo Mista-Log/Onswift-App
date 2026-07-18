@@ -30,7 +30,7 @@ import Settings from "./pages/Settings";
 import Calendar from "./pages/Calendar";
 import TalentProfileEdit from "./pages/TalentProfileEdit";
 import CreatorProfileEdit from "./pages/CreatorProfileEdit";
-import TalentPublicProfile from "./pages/TalentPublicProfile";
+// import TalentPublicProfile from "./pages/TalentPublicProfile";
 import Messages from "./pages/Messages";
 import Deliverables from "./pages/Deliverables";
 import NotFound from "./pages/NotFound";
@@ -75,6 +75,14 @@ import { BlogDetailPage } from "./pages/blog/BlogDetailPage";
 
 // Analytics
 import { PageTracker } from "./components/analytics/PageTracker";
+
+/** Signed-in users skip the landing page and go straight to the app. */
+function RootRoute() {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return null;
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  return <Landing />;
+}
 
 /** Role-based router for /projects */
 function ProjectsRoute() {
@@ -156,7 +164,7 @@ const App = () => (
                     <Route path="/blog/:slug" element={<BlogDetailPage />} />
 
                     {/* Public routes */}
-                    <Route path="/" element={<Landing />} />
+                    <Route path="/" element={<RootRoute />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/signup" element={<SignUp />} />
                     <Route path="/signup/creator" element={<SignUpCreator />} />
@@ -178,7 +186,7 @@ const App = () => (
                     <Route path="/profile/creator/edit" element={<ProtectedRoute><CreatorProfileEdit /></ProtectedRoute>} />
                     <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
                     <Route path="/deliverables" element={<ProtectedRoute><Deliverables /></ProtectedRoute>} />
-                    <Route path="/talent/:userId" element={<ProtectedRoute><TalentPublicProfile /></ProtectedRoute>} />
+                    {/* <Route path="/talent/:userId" element={<ProtectedRoute><TalentPublicProfile /></ProtectedRoute>} /> */}
                     <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
                     <Route path="/auth/google/callback" element={<GoogleOAuthCallback />} />
 

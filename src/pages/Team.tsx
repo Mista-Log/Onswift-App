@@ -294,7 +294,7 @@ export default function Team() {
           onClose={() => setShowInviteCelebration(false)}
           emoji="🎉"
           title="Your first invite is out!"
-          description="Your team is growing! While your talent gets set up, create your first project — then create a task and assign it to them to kick things off."
+          description="Your team is growing! While your talent gets set up, create your first project, then create a task and assign it to them to kick things off."
           cta={{ label: "Create My First Project", href: "/projects" }}
           secondaryLabel="I'll explore on my own"
         />

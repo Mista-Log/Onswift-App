@@ -109,8 +109,17 @@ class OnboardingInstanceCreateView(APIView):
             creator=request.user,
         )
 
+        # Every link must carry a project so the onboarded client joins it
+        # (membership is created in ClientOnboardingSubmitView).
+        if template.project_id is None:
+            return Response(
+                {"error": "Link this form to a project first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         instance = OnboardingInstance.objects.create(
             template=template,
+            project=template.project,
             expires_at=serializer.validated_data.get("expires_at"),
         )
 
@@ -192,6 +201,7 @@ class OnboardingPublicView(APIView):
                 title="Onboarding Link Opened",
                 message=f"Someone opened the onboarding link for \"{instance.template.title}\".",
                 notification_type="system",
+                priority=1,
             )
 
         data = OnboardingPublicSerializer({
@@ -288,6 +298,7 @@ class ClientOnboardingSubmitView(APIView):
                     title="New Client Onboarded",
                     message=f"{client_user.full_name} completed the onboarding form \"{instance.template.title}\".",
                     notification_type="system",
+                    priority=1,
                 )
 
             # Generate JWT tokens for the new client

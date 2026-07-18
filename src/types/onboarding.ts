@@ -9,6 +9,8 @@ export type BlockType =
   | "checkbox";
 
 export interface FormBlock {
+  /** Stable id so @references survive label renames and reordering. Older blocks may lack one. */
+  id?: string;
   type: BlockType;
   label?: string;
   content?: string; // For welcome block rich text
@@ -22,6 +24,8 @@ export interface OnboardingTemplate {
   creator: string;
   title: string;
   blocks: FormBlock[];
+  project?: string | null;
+  project_name?: string | null;
   instance_count?: number;
   created_at: string;
   updated_at: string;

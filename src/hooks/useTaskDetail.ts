@@ -76,6 +76,7 @@ export interface TaskDetail {
   assignee_names: string[];
   assignee_avatars: string[];
   status: "planning" | "in-progress" | "completed";
+  awaiting_approval: boolean;
   priority: TaskPriority | null;
   deadline: string | null;
   task_time: string | null;
@@ -115,6 +116,16 @@ export function useTaskDetail() {
     const partial = await res.json();
     setTask((prev) => prev ? { ...prev, ...partial } : partial as TaskDetail);
     return partial as TaskDetail;
+  }, []);
+
+  // Creator bounces a task awaiting approval back to its assignees with feedback.
+  const requestTaskRevision = useCallback(async (taskId: string, feedback: string) => {
+    const res = await secureFetch(`/api/v2/tasks/${taskId}/request-revision/`, {
+      method: "POST",
+      body: JSON.stringify({ feedback }),
+    });
+    if (!res.ok) throw new Error("Failed to request revision");
+    setTask((prev) => prev ? { ...prev, awaiting_approval: false } : prev);
   }, []);
 
   // ── Comments ──────────────────────────────────────────────────────────────
@@ -255,6 +266,7 @@ export function useTaskDetail() {
     isLoading,
     fetchTask,
     updateTask,
+    requestTaskRevision,
     deleteTask,
     addComment,
     deleteComment,

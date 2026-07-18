@@ -110,11 +110,17 @@ class SignupSerializer(serializers.ModelSerializer):
                             message=f"{user.full_name} has joined your team via invite link.",
                             notification_type="system",
                         )
+
+                        from assistant.services import send_team_join_congrats
+                        send_team_join_congrats(user, invite.creator)
                 except InviteToken.DoesNotExist:
                     pass  # Silently ignore invalid tokens
 
         elif role == "creator":
             CreatorProfile.objects.create(user=user, **creator_fields)
+
+        from assistant.services import send_signup_welcome
+        send_signup_welcome(user)
 
         return user
 

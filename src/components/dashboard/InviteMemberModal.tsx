@@ -281,7 +281,7 @@ export function InviteMemberModal({
                 onClick={() => { setStep("choice"); setInviteLink(""); setExpiresInDays(7); }}
                 disabled={isGenerating}
               >
-                ← Back
+                Back
               </Button>
             </div>
           </>

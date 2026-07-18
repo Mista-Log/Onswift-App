@@ -1,7 +1,8 @@
-import { LayoutGrid, Users, FolderKanban, Calendar, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, ClipboardList, FileArchive, Wrench, Loader2 } from "lucide-react";
+import { LayoutGrid, Users, FolderKanban, Clock, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, ClipboardList, FileArchive, Wrench, Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { useDeadlineCount } from "@/hooks/useDeadlineCount";
+import { useUnreadChatCount } from "@/hooks/useUnreadChatCount";
 import type { SearchResult } from "@/hooks/useGlobalSearch";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -23,18 +24,18 @@ const creatorNavItems = [
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Client Portal", icon: ClipboardList, route: "/onboarding" },
   { label: "My Files", icon: FileArchive, route: "/library" },
-  { label: "Deadlines", icon: Calendar, route: "/calendar" },
+  { label: "Deadlines", icon: Clock, route: "/calendar" },
   // { label: "Marketplace", icon: Users, route: "/talent" },
 ];
 
 const clientNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
-  { label: "Projects", icon: FolderKanban, route: "/projects" },
+  //{ label: "Projects", icon: FolderKanban, route: "/projects" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Client Portal", icon: ClipboardList, route: "/onboarding" },
   { label: "Docs", icon: FileArchive, route: "/library" },
   { label: "CRM", icon: Wrench, route: "/library/crm" },
-  { label: "Deadlines", icon: Calendar, route: "/calendar" },
+  { label: "Deadlines", icon: Clock, route: "/calendar" },
 ];
 
 const talentNavItems = [
@@ -44,7 +45,7 @@ const talentNavItems = [
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "My Files", icon: FileArchive, route: "/library" },
   { label: "CRM", icon: Wrench, route: "/library/crm" },
-  { label: "Deadlines", icon: Calendar, route: "/calendar" },
+  { label: "Deadlines", icon: Clock, route: "/calendar" },
 ];
 
 const bottomNavItems = [
@@ -65,6 +66,7 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
   const { user } = useAuth();
   const { resolvedTheme } = useTheme();
   const deadlineCount = useDeadlineCount();
+  const unreadChatCount = useUnreadChatCount();
 
   const navItems =
     user?.role === 'talent' ? talentNavItems :
@@ -127,8 +129,11 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
           {navItems.map((item) => {
             const isActive = location.pathname === item.route ||
               (item.route !== "/dashboard" && location.pathname.startsWith(item.route));
-            const showDeadlineBadge = item.route === "/calendar" && deadlineCount > 0;
-            const badgeLabel = deadlineCount > 99 ? "99+" : deadlineCount;
+            const badgeCount =
+              item.route === "/calendar" ? deadlineCount :
+              item.route === "/messages" ? unreadChatCount : 0;
+            const showBadge = badgeCount > 0;
+            const badgeLabel = badgeCount > 99 ? "99+" : badgeCount;
 
             return (
               <NavLink
@@ -147,8 +152,8 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
                   <span className="font-medium">{item.label}</span>
                 )}
 
-                {/* Deadline count badge — inline when expanded, on the icon when collapsed */}
-                {showDeadlineBadge && (
+                {/* Count badge (deadlines / unread chats) — inline when expanded, on the icon when collapsed */}
+                {showBadge && (
                   <span
                     className={cn(
                       "flex items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm",
@@ -387,7 +392,7 @@ export function TopBar({ onToggleSidebar, onToggleMobileSidebar, isCollapsed }: 
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => { if (query.length >= 2) setOpen(true); }}
             onKeyDown={(e) => { if (e.key === "Escape") { clear(); inputRef.current?.blur(); } }}
-            placeholder="Search docs, projects, talents… ⌘K"
+            placeholder="Search docs, projects, talents…"
             className="h-10 w-full rounded-full border-border/50 bg-secondary/50 pl-10 pr-8 text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-primary"
           />
           {query && (

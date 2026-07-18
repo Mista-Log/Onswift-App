@@ -4,7 +4,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Calendar as CalendarIcon, Users, FolderKanban, MoreVertical, Trash2, ExternalLink, Sparkles, ArrowRight, Pencil } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Users, FolderKanban, MoreVertical, Trash2, ExternalLink, ArrowRight, Pencil } from "lucide-react";
 import { CelebrationModal } from "@/components/CelebrationModal";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -252,7 +252,7 @@ export default function Projects() {
                 className="gap-2 text-base px-8"
                 onClick={() => setIsDialogOpen(true)}
               >
-                <Sparkles className="h-5 w-5" />
+                
                 Create My First Project
               </Button>
               <p className="mt-3 text-xs text-muted-foreground">Takes less than a minute</p>
@@ -270,7 +270,7 @@ export default function Projects() {
                 <div
                   key={project.id}
                   onClick={() => navigate(`/projects/${project.id}`)}
-                  className="cursor-pointer p-6 rounded-lg border group hover:border-primary/50 transition-colors"
+                  className="glass-card-hover cursor-pointer p-6 group hover:-translate-y-1"
                 >
                   <div className="flex justify-between mb-3">
                     <h3 className="font-semibold">{project.name}</h3>

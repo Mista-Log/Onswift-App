@@ -90,7 +90,7 @@ function docToUnified(d: DocListItem): UnifiedItem {
     kind: "doc",
     id: d.id,
     name: d.title || "Untitled",
-    icon: d.icon || "📄",
+    icon: d.icon || undefined,
     updatedAt: d.updated_at,
     createdAt: d.updated_at,
   };
@@ -122,10 +122,10 @@ function ItemIcon({ item, size = 40 }: { item: UnifiedItem; size?: number }) {
   if (item.kind === "doc") {
     return (
       <div
-        className="flex items-center justify-center rounded-xl bg-primary/10 text-primary flex-shrink-0"
+        className="flex items-center justify-center rounded-xl bg-blue-500/10 flex-shrink-0"
         style={{ width: size, height: size, fontSize: size * 0.45 }}
       >
-        {item.icon}
+        {item.icon || <FileText size={size * 0.5} className="text-blue-500" />}
       </div>
     );
   }
@@ -133,10 +133,10 @@ function ItemIcon({ item, size = 40 }: { item: UnifiedItem; size?: number }) {
   if (item.kind === "crm") {
     return (
       <div
-        className="flex items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-950/30 text-violet-500 flex-shrink-0"
+        className="flex items-center justify-center rounded-xl bg-green-500/10 flex-shrink-0"
         style={{ width: size, height: size }}
       >
-        <Wrench size={size * 0.45} />
+        <Table2 size={size * 0.5} className="text-green-500" />
       </div>
     );
   }
@@ -229,7 +229,7 @@ function ItemCard({
             item.kind === "doc" ? "bg-primary/10 text-primary border-0" : ""
           )}
         >
-          {item.kind === "doc" ? "Page" : item.kind === "crm" ? "CRM Sheet" : item.fileType?.split("/")[1]?.toUpperCase() || "File"}
+          {item.kind === "doc" ? "Docs" : item.kind === "crm" ? "CRM Sheet" : item.fileType?.split("/")[1]?.toUpperCase() || "File"}
         </Badge>
         {item.tags?.slice(0, 2).map((t) => (
           <Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0">
@@ -264,7 +264,7 @@ function ItemRow({
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
         <p className="text-[11px] text-muted-foreground">
-          {item.kind === "doc" ? "Page" : item.kind === "crm" ? "CRM Sheet" : item.fileType || "File"}
+          {item.kind === "doc" ? "Docs" : item.kind === "crm" ? "CRM Sheet" : item.fileType || "File"}
           {item.folderName ? ` · ${item.folderName}` : ""}
         </p>
       </div>
@@ -653,9 +653,9 @@ export default function DocumentLibrary() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Files</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">Files</h1>
             <p className="text-sm text-muted-foreground">
-              {files.length + docs.length + crmSheets.length} item{files.length + docs.length + crmSheets.length !== 1 ? "s" : ""} · pages, uploads, CRM sheets, and shared documents
+               Manage and organize your creative documents and spreadsheets.
             </p>
           </div>
 
@@ -766,7 +766,7 @@ export default function DocumentLibrary() {
                 </TabsTrigger>
                 <TabsTrigger value="docs" className="text-xs gap-1.5">
                   <NotebookPen size={12} />
-                  Pages
+                  Docs
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-0.5">{filteredDocs.length}</Badge>
                 </TabsTrigger>
                 <TabsTrigger value="crm" className="text-xs gap-1.5">

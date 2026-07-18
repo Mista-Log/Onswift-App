@@ -9,7 +9,7 @@ import {
 import { useCreatorAnalytics, type AnalyticsRange } from "@/hooks/useCreatorAnalytics";
 import { CompletionChart } from "./CompletionChart";
 import { ClientAcquisitionChart } from "./ClientAcquisitionChart";
-import { TalentPerformanceChart } from "./TalentPerformanceChart";
+import { TeamStatusDonut } from "./TeamStatusDonut";
 
 const RANGES: { value: AnalyticsRange; label: string }[] = [
   { value: "24h", label: "Last 24 hours" },
@@ -40,7 +40,7 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border/50 p-4">
+    <div className="min-w-0 rounded-xl border border-border/50 p-4">
       <div className="mb-1 flex items-center gap-2">
         <Icon className="h-4 w-4 text-primary" />
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
@@ -77,11 +77,11 @@ export function AnalyticsSection() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard icon={TrendingUp} title="Completed work" subtitle="Approved deliverables per month">
+        <ChartCard icon={TrendingUp} title="Completed work" subtitle="Approved deliverables">
           {isLoading ? <ChartSkeleton /> : <CompletionChart data={data?.completion ?? []} />}
         </ChartCard>
 
-        <ChartCard icon={UserPlus} title="Client acquisition" subtitle="New clients per month">
+        <ChartCard icon={UserPlus} title="Client acquisition" subtitle="New clients">
           {isLoading ? <ChartSkeleton /> : <ClientAcquisitionChart data={data?.clients ?? []} />}
         </ChartCard>
       </div>
@@ -90,7 +90,7 @@ export function AnalyticsSection() {
         {isLoading ? (
           <ChartSkeleton />
         ) : data && data.talent.length > 0 ? (
-          <TalentPerformanceChart data={data.talent} />
+          <TeamStatusDonut data={data.talent} />
         ) : (
           <div className="flex h-[220px] flex-col items-center justify-center text-center text-muted-foreground">
             <Users className="mb-2 h-10 w-10 opacity-40" />

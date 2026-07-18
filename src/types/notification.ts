@@ -8,6 +8,7 @@ export interface Notification {
   notification_type: NotificationType;
   is_read: boolean;
   hire_request?: string; // HireRequest ID if applicable
+  link?: string | null; // Optional in-app deep link (relative path) to navigate to on click
   created_at: string;
 }
 

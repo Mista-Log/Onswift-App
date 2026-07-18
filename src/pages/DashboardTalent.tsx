@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { TalentStatCard } from "@/components/talent/TalentStatCard";
 import { ActivityFeed } from "@/components/talent/ActivityFeed";
 import { ProfileCompletionBanner } from "@/components/talent/ProfileCompletionBanner";
-import { ProfileStrengthCard } from "@/components/talent/ProfileStrengthCard";
+import { DeadlineCountdown } from "@/components/talent/DeadlineCountdown";
 import { MyTasksPanel } from "@/components/tasks/MyTasksPanel";
 import { Folder, CheckSquare, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -192,16 +192,8 @@ export default function DashboardTalent() {
               <p className="text-sm text-muted-foreground">Current Rank</p>
             </div> */}
 
-            {/* Profile Strength */}
-            <ProfileStrengthCard
-              percentage={profileCompletion}
-              tips={[
-                // { text: "Add profile photo", completed: !!user?.avatarUrl },
-                { text: "Upload portfolio samples", completed: !!user?.portfolioLink },
-                { text: "Get 3+ client reviews", completed: false },
-                { text: "Complete your bio", completed: !!user?.bio },
-              ]}
-            />
+            {/* Countdown to the next task deadline */}
+            <DeadlineCountdown tasks={tasks} />
 
             {/* Upcoming Deadlines */}
             <section className="glass-card p-5 sm:p-6 md:p-7">

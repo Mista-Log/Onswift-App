@@ -61,7 +61,8 @@ export default function OnboardingTemplates() {
       <div className="container max-w-5xl mx-auto py-6 px-4">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Onboarding</h1>
+            
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">Onboarding</h1>
             <p className="text-muted-foreground">
               Build onboarding forms and manage client intake links.
             </p>
@@ -120,7 +121,13 @@ export default function OnboardingTemplates() {
                           <CardTitle className="text-lg">{template.title}</CardTitle>
                           <CardDescription>
                             {template.instance_count || 0} links generated
+                            {template.project_name ? ` · ${template.project_name}` : ""}
                           </CardDescription>
+                          {!template.project_name && (
+                            <p className="text-xs text-destructive mt-1">
+                              No project linked — open to fix before sharing
+                            </p>
+                          )}
                         </div>
                         <Button
                           variant="ghost"

@@ -13,6 +13,7 @@ import { publicFetch } from "@/api/apiClient";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { FIXED_PROCESSING_MESSAGE, runWithFixedProcessingDelay } from "@/lib/loadingGate";
+import { sanitize } from "isomorphic-dompurify";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle, Clock, CheckCircle2, ChevronLeft, Check, Loader2 } from "lucide-react";
@@ -71,6 +72,37 @@ function isBlockAnswered(block: FormBlock, value: BlockResponse["value"]): boole
   if (block.type === "checkbox") return value === true;
   if (Array.isArray(value)) return value.length > 0;
   return value !== null && value !== undefined && String(value).trim().length > 0;
+}
+
+/** Escape client-typed text before it re-enters welcome HTML. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Replace @field reference pills in welcome HTML with the client's answers.
+ * Pills carry the referenced block's stable id (data-id), never its label text,
+ * so renamed/reordered fields still resolve. Unanswered or deleted fields fall
+ * back to the field's current label (or the pill's own text).
+ */
+function resolveMentions(html: string, blocks: FormBlock[], responses: BlockResponse[]): string {
+  return html.replace(
+    /<span[^>]*data-type="mention"[^>]*data-id="([^"]*)"[^>]*>(.*?)<\/span>/g,
+    (_match, id: string, inner: string) => {
+      const blockIndex = blocks.findIndex((b) => b.id === id);
+      const value = blockIndex >= 0 ? responses[blockIndex]?.value : undefined;
+      let text: string;
+      if (typeof value === "string" && value.trim()) text = value;
+      else if (Array.isArray(value) && value.length > 0) text = value.join(", ");
+      else if (typeof value === "boolean") text = value ? "Yes" : "No";
+      else text = blocks[blockIndex]?.label || inner.replace(/^@/, "");
+      return escapeHtml(text);
+    },
+  );
 }
 
 export default function ClientOnboard() {
@@ -301,6 +333,8 @@ export default function ClientOnboard() {
               slug={slug}
               blockIndex={blockIndex}
               block={currentBlock}
+              allBlocks={formData.blocks}
+              responses={responses}
               value={responses[blockIndex]?.value ?? null}
               onChange={(value) => updateResponse(blockIndex, value)}
               onContinue={goNext}
@@ -361,13 +395,17 @@ function BlockStepScreen({
   slug,
   blockIndex,
   block,
+  allBlocks,
+  responses,
   value,
-  onChange,  
+  onChange,
   onContinue,
 }: {
   slug?: string;
   blockIndex: number;
   block: FormBlock;
+  allBlocks: FormBlock[];
+  responses: BlockResponse[];
   value: BlockResponse["value"];
   onChange: (value: BlockResponse["value"]) => void;
   onContinue: () => void;
@@ -387,7 +425,9 @@ function BlockStepScreen({
       <div className="onboard-fade-in space-y-8">
         <div
           className="prose prose-slate max-w-none"
-          dangerouslySetInnerHTML={{ __html: block.content || "" }}
+          dangerouslySetInnerHTML={{
+            __html: sanitize(resolveMentions(block.content || "", allBlocks, responses)),
+          }}
         />
         <button
           onClick={onContinue}

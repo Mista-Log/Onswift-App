@@ -162,7 +162,7 @@ class TaskSerializer(serializers.ModelSerializer):
         else:
             message = f"You've been assigned to '{task.name}' in project '{project_name}'."
         for user in assignees:
-            create_notification(user=user, title=title, message=message, notification_type="system")
+            create_notification(user=user, title=title, message=message, notification_type="system", priority=1)
 
 class TaskCommentSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source="author.full_name", read_only=True)
@@ -412,6 +412,7 @@ class DeliverableCreateSerializer(serializers.ModelSerializer):
             title="New Deliverable Submitted",
             message=f"{user.full_name} submitted '{deliverable.title}' for task '{deliverable.task.name}'.",
             notification_type="system",
+            priority=1,
         )
 
         return deliverable
@@ -464,6 +465,7 @@ class DeliverableReviewSerializer(serializers.ModelSerializer):
             title=title,
             message=message,
             notification_type="system",
+            priority=1,
         )
 
         return instance

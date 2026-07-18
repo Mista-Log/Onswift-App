@@ -567,3 +567,25 @@
   height: 0;
   pointer-events: none;
 }
+
+/* Onboarding welcome-block editor (Tally-style inline TipTap) */
+.welcome-rich-text p.is-editor-empty:first-child::before {
+  color: hsl(var(--muted-foreground) / 0.4);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+/* @field reference pill — shown in the editor, preview, and portal */
+span[data-type="mention"] {
+  color: hsl(262 68% 48%);
+  background: hsl(262 68% 48% / 0.1);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.3rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.dark span[data-type="mention"] {
+  color: hsl(262 80% 75%);
+  background: hsl(262 68% 60% / 0.15);
+}

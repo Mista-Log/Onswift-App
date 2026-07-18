@@ -1,15 +1,16 @@
 /**
  * useQuickStart — progress state for the creator Quick Start checklist.
  *
- * All progress lives in localStorage (matching the existing
- * `onswift_celebrated_first_*` milestone pattern). Flags are re-read on every
- * route change and whenever the window regains focus, so an item strikes through
- * as soon as the creator returns from completing the action. Visit-based items
- * (Docs, Onboarding) are marked complete simply by opening their page — no edits
- * to those pages required.
+ * Project/task/invite completion is derived live from ProjectContext/TeamContext
+ * data, with the existing `onswift_celebrated_first_*` localStorage flags kept as
+ * a fallback while data loads. Visit-based items (Docs, Onboarding) are marked
+ * complete simply by opening their page — no edits to those pages required.
+ * Dismissed/rewarded/open state lives in localStorage.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { useProjects } from "@/contexts/ProjectContext";
+import { useTeam } from "@/contexts/TeamContext";
 import {
   QUICK_START_ITEMS,
   QUICK_START_KEYS,
@@ -29,6 +30,8 @@ export interface QuickStartItemState extends QuickStartItem {
 
 export function useQuickStart() {
   const location = useLocation();
+  const { projects } = useProjects();
+  const { teamMembers } = useTeam();
   // Bumped to force a re-read of localStorage-backed values.
   const [version, setVersion] = useState(0);
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
@@ -51,12 +54,20 @@ export function useQuickStart() {
     }
   }, [location.pathname, refresh]);
 
-  const items = useMemo<QuickStartItemState[]>(
-    () =>
-      QUICK_START_ITEMS.map((item) => ({ ...item, done: readFlag(item.doneFlag) })),
+  const items = useMemo<QuickStartItemState[]>(() => {
+    // Live completion derived from real app data — flags remain as a fallback
+    // (e.g. data still loading) so a tick never regresses.
+    const derived: Record<string, boolean> = {
+      project: projects.length > 0,
+      task: projects.some((p) => (p.task_count ?? 0) > 0),
+      invite: teamMembers.length > 0,
+    };
+    return QUICK_START_ITEMS.map((item) => ({
+      ...item,
+      done: readFlag(item.doneFlag) || !!derived[item.id],
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [version, location.pathname]
-  );
+  }, [version, location.pathname, projects, teamMembers]);
 
   const total = items.length;
   const completedCount = items.filter((i) => i.done).length;

@@ -189,7 +189,7 @@ const SCREENS: Screen[] = [
     step: 6,
     total_steps: 6,
     question: 'How did you hear about us?',
-    subtitle: 'We\'re curious — no wrong answers.',
+    subtitle: 'We\'re curious. There are no wrong answers.',
     options: [
       'LinkedIn',
       'Twitter / X',
@@ -821,7 +821,7 @@ function CompletionScreen({
           onClick={onContinue}
           className="w-full px-6 py-3 bg-[#6B5CE7] text-white font-semibold rounded-[100px] hover:bg-[#5A4BD1] transition-colors animate-fade-in-delay-2 mt-8"
         >
-          Enter your workspace →
+          Enter your workspace
         </button>
       )}
     </div>

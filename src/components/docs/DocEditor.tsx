@@ -7,13 +7,16 @@ import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { saveDoc } from "@/hooks/useDocs";
 import type { DocDetail } from "@/hooks/useDocs";
+import { downloadBlob, exportDocAsPdf, exportDocAsDocx } from "@/lib/docExport";
+import { toast } from "sonner";
 import {
   Check,
   Loader2,
   Share2,
   MoreHorizontal,
   FileText,
-
+  Printer,
+  FileType,
   PanelLeft,
   Eye,
 } from "lucide-react";
@@ -109,19 +112,29 @@ export function DocEditor({ doc, onTitleChange, onToggleSidebar }: DocEditorProp
     [triggerSave, readOnly],
   );
 
-  const downloadBlob = (content: string, filename: string, mime: string) => {
-    const blob = new Blob([content], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleExportMarkdown = useCallback(() => {
     const md = editor.blocksToMarkdownLossy(editor.document);
     downloadBlob(md, `${title || "untitled"}.md`, "text/markdown");
+  }, [editor, title]);
+
+  const handleExportPdf = useCallback(async () => {
+    try {
+      const html = await editor.blocksToHTMLLossy(editor.document);
+      exportDocAsPdf(html, title || "Untitled");
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      toast.error("Failed to export PDF");
+    }
+  }, [editor, title]);
+
+  const handleExportDocx = useCallback(async () => {
+    try {
+      const html = await editor.blocksToHTMLLossy(editor.document);
+      await exportDocAsDocx(html, title || "Untitled");
+    } catch (err) {
+      console.error("DOCX export failed:", err);
+      toast.error("Failed to export Word document");
+    }
   }, [editor, title]);
 
 
@@ -150,7 +163,7 @@ export function DocEditor({ doc, onTitleChange, onToggleSidebar }: DocEditorProp
             value={icon}
             onChange={handleIconChange}
             readOnly={readOnly}
-            placeholder="📄"
+            placeholder="🟪"
             maxLength={2}
             title={readOnly ? "Page icon" : "Click to set page icon"}
           />
@@ -211,6 +224,14 @@ export function DocEditor({ doc, onTitleChange, onToggleSidebar }: DocEditorProp
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={handleExportPdf} className="gap-2">
+                <Printer size={14} />
+                Export as PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportDocx} className="gap-2">
+                <FileType size={14} />
+                Export as Word (.docx)
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleExportMarkdown} className="gap-2">
                 <FileText size={14} />
                 Export as Markdown

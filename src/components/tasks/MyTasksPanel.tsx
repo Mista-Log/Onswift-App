@@ -159,6 +159,7 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
                 awaitingApproval={task.awaiting_approval}
                 assignedToMe={isCreator}
                 onStatusChange={handleStatusChange}
+                onClick={() => navigate(`/projects/${task.project}?task=${task.id}`)}
               />
             ))
           ) : (

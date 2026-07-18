@@ -3,7 +3,8 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageCircle, Send, Search, Loader2, ChevronLeft, Plus, Users, Info, UserPlus } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { MessageCircle, Send, Search, Loader2, ChevronLeft, Plus, Users, Info, UserPlus, FolderKanban } from "lucide-react";
 import { CreateGroupModal } from "@/components/messaging/CreateGroupModal";
 import { InviteMemberModal } from "@/components/dashboard/InviteMemberModal";
 import { ConversationInfoPanel } from "@/components/messaging/ConversationInfoPanel";
@@ -14,13 +15,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/contexts/TeamContext";
+import { useTheme } from "next-themes";
 import { secureFetch } from "@/api/apiClient";
 import { toast } from "sonner";
 
@@ -98,6 +100,13 @@ export default function Messages() {
   const { teamMembers, removeTeamMember } = useTeam();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"direct" | "groups">("direct");
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Captured before any effect runs: when arriving via /messages?user=<id>,
+  // fetchConversations must NOT auto-select the first (pinned assistant)
+  // conversation — the deep-link handler picks the right one instead.
+  const deepLinkUserRef = useRef<string | null>(
+    new URLSearchParams(window.location.search).get("user")
+  );
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -123,9 +132,72 @@ export default function Messages() {
   const [mentionQuery, setMentionQuery] = useState("");
   const [selectedMemberIndex, setSelectedMemberIndex] = useState(0);
   const [mentions, setMentions] = useState<MentionMember[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const directInputRef = useRef<HTMLTextAreaElement>(null);
 
   const isCreator = user?.role === "creator";
+
+  // Auto-grow the chat textareas (up to ~5 lines) so long messages wrap
+  // visibly instead of scrolling off to the left.
+  const autoGrow = (el: HTMLTextAreaElement) => {
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+  };
+
+  // Collapse both inputs back to one line after a message is sent/cleared.
+  useEffect(() => {
+    if (message !== "") return;
+    [directInputRef.current, inputRef.current].forEach((el) => {
+      if (el) el.style.height = "auto";
+    });
+  }, [message]);
+
+  // Client-side: the per-project creator thread (portal chat) lives on its own
+  // page — surface those threads here in Chats so clients actually find them.
+  const [projectThreads, setProjectThreads] = useState<
+    { id: string; name: string; creator_name?: string; unread: number }[]
+  >([]);
+
+  useEffect(() => {
+    if (user?.role !== "client") return;
+    let cancelled = false;
+    const loadThreads = async () => {
+      try {
+        const res = await secureFetch("/api/v5/projects/");
+        if (!res.ok) return;
+        const data = await res.json();
+        const projects: { id: string; name: string; creator_name?: string }[] =
+          data.projects || [];
+        const withUnread = await Promise.all(
+          projects.map(async (p) => {
+            try {
+              const r = await secureFetch(`/api/v5/projects/${p.id}/messages/unread/`);
+              const d = r.ok ? await r.json() : {};
+              return { ...p, unread: d.unread_count || 0 };
+            } catch {
+              return { ...p, unread: 0 };
+            }
+          })
+        );
+        if (!cancelled) setProjectThreads(withUnread);
+      } catch {
+        // Leave the current list on failure.
+      }
+    };
+    loadThreads();
+    const timer = setInterval(loadThreads, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [user?.role]);
+
+  // OnSwift Assistant branding — logo avatar matches the sidebar's theme swap.
+  const { resolvedTheme } = useTheme();
+  const assistantLogo =
+    resolvedTheme === "light" ? "/onswift-purple-logo.png" : "/onswift%20logo.png";
+  const isAssistantConv = (c: Conversation | null | undefined) =>
+    c?.other_user?.role === "assistant";
 
   // Team record for the person in the open DM (creator side), used to surface
   // their role/email/join date in the contact info panel.
@@ -198,10 +270,20 @@ export default function Messages() {
       setIsLoadingConversations(true);
       const response = await secureFetch('/api/v2/conversations/');
       if (response.ok) {
-        const data = await response.json();
-        setConversations(data);
-        if (data.length > 0 && !selectedConversation && activeTab === "direct") {
-          setSelectedConversation(data[0]);
+        const data: Conversation[] = await response.json();
+        // Pin the OnSwift Assistant to the top (stable sort keeps recency order
+        // for everyone else).
+        const sorted = [...data].sort(
+          (a, b) => Number(isAssistantConv(b)) - Number(isAssistantConv(a))
+        );
+        setConversations(sorted);
+        if (
+          sorted.length > 0 &&
+          !selectedConversation &&
+          activeTab === "direct" &&
+          !deepLinkUserRef.current
+        ) {
+          setSelectedConversation(sorted[0]);
         }
       }
     } catch (error) {
@@ -332,6 +414,23 @@ export default function Messages() {
       toast.error("Failed to start conversation");
     }
   };
+
+  // Deep link: /messages?user=<id> (e.g. a talent picked from global search)
+  // opens — creating if needed — the direct conversation with that person.
+  useEffect(() => {
+    const userId = searchParams.get("user");
+    if (!userId) return;
+    // Strip the param so back/refresh doesn't re-trigger it.
+    setSearchParams(
+      (prev) => {
+        prev.delete("user");
+        return prev;
+      },
+      { replace: true },
+    );
+    setActiveTab("direct");
+    startConversation(userId);
+  }, [searchParams]);
 
   const handleSendMessage = async () => {
     if (!message.trim() || !selectedConversation || isSending) return;
@@ -490,9 +589,10 @@ export default function Messages() {
     }));
 
   // Handle message input change with mention detection
-  const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setMessage(value);
+    autoGrow(e.target);
 
     // Only check for mentions in group chat
     if (activeTab !== "groups" || !selectedGroup) {
@@ -546,7 +646,7 @@ export default function Messages() {
   };
 
   // Handle keyboard navigation in mention dropdown
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (showMentionDropdown && mentionMembers.length > 0) {
       const filteredMembers = mentionMembers.filter(m => 
         m.name.toLowerCase().includes(mentionQuery.toLowerCase())
@@ -636,7 +736,47 @@ export default function Messages() {
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     </div>
-                  ) : filteredConversations.length > 0 ? (
+                  ) : (
+                  <>
+                  {/* Client-only: per-project creator threads (portal chat) */}
+                  {user?.role === "client" && projectThreads.length > 0 && (
+                    <>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Project chats
+                      </p>
+                      {projectThreads
+                        .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => navigate(`/projects/${p.id}/messages`)}
+                            className="w-full border-b border-border/30 p-4 text-left transition-colors hover:bg-secondary/50"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-11 w-11 sm:h-12 sm:w-12">
+                                <AvatarFallback className="bg-primary/10 text-primary">
+                                  <FolderKanban className="h-5 w-5" />
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate sm:text-base">
+                                  {p.name}
+                                </p>
+                                <p className="text-xs text-muted-foreground truncate sm:text-sm">
+                                  Project thread with {p.creator_name || "your creator"}
+                                </p>
+                              </div>
+                              {p.unread > 0 && (
+                                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                                  {p.unread}
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                    </>
+                  )}
+                  {filteredConversations.length > 0 ? (
                   filteredConversations.map((conv) => (
                     <button
                       key={conv.id}
@@ -648,7 +788,11 @@ export default function Messages() {
                     >
                       <div className="flex items-center gap-3">
                         <Avatar className="h-11 w-11 sm:h-12 sm:w-12">
-                          <AvatarImage src={conv.other_user?.avatar || undefined} alt={conv.other_user?.name || "User"} />
+                          <AvatarImage
+                            src={isAssistantConv(conv) ? assistantLogo : conv.other_user?.avatar || undefined}
+                            alt={conv.other_user?.name || "User"}
+                            className={isAssistantConv(conv) ? "object-contain p-1.5" : undefined}
+                          />
                           <AvatarFallback className="bg-primary/20 text-primary">
                             {conv.other_user?.name?.charAt(0) || "?"}
                           </AvatarFallback>
@@ -674,12 +818,14 @@ export default function Messages() {
                       </div>
                     </button>
                   ))
-                ) : (
+                  ) : !(user?.role === "client" && projectThreads.length > 0) ? (
                   <div className="p-4 text-center text-muted-foreground">
                     <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p className="text-sm">No conversations yet</p>
                   </div>
-                )
+                  ) : null}
+                  </>
+                  )
                 ) : (
                   /* Groups List */
                   isLoadingGroups ? (
@@ -809,8 +955,9 @@ export default function Messages() {
                       >
                         <Avatar className="h-10 w-10">
                           <AvatarImage
-                            src={selectedConversation.other_user?.avatar || undefined}
+                            src={isAssistantConv(selectedConversation) ? assistantLogo : selectedConversation.other_user?.avatar || undefined}
                             alt={selectedConversation.other_user?.name || "User"}
+                            className={isAssistantConv(selectedConversation) ? "object-contain p-1.5" : undefined}
                           />
                           <AvatarFallback className="bg-primary/20 text-primary">
                             {selectedConversation.other_user?.name?.charAt(0) || "?"}
@@ -853,13 +1000,13 @@ export default function Messages() {
                           >
                             <div
                               className={cn(
-                                "max-w-[85%] sm:max-w-[75%] md:max-w-[70%] rounded-2xl px-3 py-2 sm:px-4",
+                                "min-w-0 max-w-[85%] sm:max-w-[75%] md:max-w-[70%] rounded-2xl px-3 py-2 sm:px-4",
                                 msg.sender === user?.id
                                   ? "bg-primary text-primary-foreground"
                                   : "bg-secondary text-foreground"
                               )}
                             >
-                              <p className="text-sm break-words">{msg.content}</p>
+                              <p className="text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.content}</p>
                               <p
                                 className={cn(
                                   "mt-1 text-xs",
@@ -886,18 +1033,23 @@ export default function Messages() {
 
                   {/* Message Input - Direct Message */}
                   <div className="border-t border-border/50 p-3 sm:p-4 md:p-5">
-                    <div className="flex gap-2 sm:gap-3">
-                      <Input
+                    <div className="flex items-end gap-2 sm:gap-3">
+                      <Textarea
+                        ref={directInputRef}
+                        rows={1}
                         placeholder="Type a message..."
                         value={message}
-                        onChange={(e) => setMessage(e.target.value)}
+                        onChange={(e) => {
+                          setMessage(e.target.value);
+                          autoGrow(e.target);
+                        }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && !e.shiftKey) {
                             e.preventDefault();
                             handleSend();
                           }
                         }}
-                        className="flex-1"
+                        className="flex-1 min-h-10 max-h-32 resize-none"
                         disabled={isSending}
                       />
                       <Button onClick={handleSend} size="icon" className="sm:w-auto sm:px-4 shrink-0" disabled={isSending || !message.trim()}>
@@ -977,19 +1129,19 @@ export default function Messages() {
                                 </AvatarFallback>
                               </Avatar>
                             )}
-                            <div>
+                            <div className="min-w-0 max-w-[85%] sm:max-w-[75%] md:max-w-[70%]">
                               {!msg.is_mine && (
                                 <p className="text-xs text-muted-foreground mb-1">{msg.sender_name}</p>
                               )}
                               <div
                                 className={cn(
-                                  "max-w-[85%] sm:max-w-[75%] md:max-w-[70%] rounded-2xl px-3 py-2 sm:px-4",
+                                  "rounded-2xl px-3 py-2 sm:px-4",
                                   msg.is_mine
                                     ? "bg-primary text-primary-foreground"
                                     : "bg-secondary text-foreground"
                                 )}
                               >
-                                <p className="text-sm break-words">{msg.content}</p>
+                                <p className="text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.content}</p>
                                 <p
                                   className={cn(
                                     "mt-1 text-xs",
@@ -1017,15 +1169,16 @@ export default function Messages() {
 
                   {/* Message Input - Group */}
                   <div className="border-t border-border/50 p-3 sm:p-4 md:p-5">
-                    <div className="flex gap-2 sm:gap-3 relative">
+                    <div className="flex items-end gap-2 sm:gap-3 relative">
                       <div className="flex-1 relative">
-                        <Input
+                        <Textarea
                           ref={inputRef}
+                          rows={1}
                           placeholder="Type a message... (use @ to mention)"
                           value={message}
                           onChange={handleMessageChange}
                           onKeyDown={handleKeyDown}
-                          className="w-full"
+                          className="w-full min-h-10 max-h-32 resize-none"
                           disabled={isSending}
                         />
                         <MentionDropdown

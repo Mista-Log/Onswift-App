@@ -46,7 +46,7 @@ export const QUICK_START_ITEMS: QuickStartItem[] = [
   },
   {
     id: "onboarding",
-    label: "Send your first client onboarding form",
+    label: "Create your first client onboarding form",
     description: "Collect what you need from a client in one link.",
     href: "/onboarding",
     doneFlag: "onswift_quickstart_onboarding",

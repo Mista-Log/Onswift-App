@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import {
@@ -30,6 +30,7 @@ export default function ClientMessages() {
   const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const msgInputRef = useRef<HTMLTextAreaElement>(null);
 
   const [messages, setMessages] = useState<PortalMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +47,13 @@ export default function ClientMessages() {
     const interval = setInterval(pollNewMessages, POLL_INTERVAL);
     return () => clearInterval(interval);
   }, [projectId, messages]);
+
+  // Collapse the input back to one line after a message is sent/cleared.
+  useEffect(() => {
+    if (content === "" && msgInputRef.current) {
+      msgInputRef.current.style.height = "auto";
+    }
+  }, [content]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -75,9 +83,26 @@ export default function ClientMessages() {
       const response = await secureFetch(`/api/v5/projects/${projectId}/messages/`);
       if (response.ok) {
         const data = await response.json();
-        const newMessages: PortalMessage[] = data.messages || [];
-        if (newMessages.length > messages.length) {
-          setMessages(newMessages);
+        const latest: PortalMessage[] = data.messages || [];
+        if (latest.length === 0) return;
+        // The server returns only the newest page (max 50), so length
+        // comparison stalls once a thread hits the cap. Instead, append
+        // whatever follows our last known message; this also preserves any
+        // older pages the client has loaded.
+        const lastId = messages[messages.length - 1]?.id;
+        if (!lastId) {
+          setMessages(latest);
+          markMessagesRead();
+          return;
+        }
+        const lastIdx = latest.findIndex((m) => m.id === lastId);
+        if (lastIdx === -1) {
+          // Our tail isn't in the newest page (many new messages at once) —
+          // resync to the latest page.
+          setMessages(latest);
+          markMessagesRead();
+        } else if (lastIdx < latest.length - 1) {
+          setMessages((prev) => [...prev, ...latest.slice(lastIdx + 1)]);
           markMessagesRead();
         }
       }
@@ -202,7 +227,7 @@ export default function ClientMessages() {
                         </AvatarFallback>
                       </Avatar>
                     )}
-                    <div className={cn("max-w-[75%]", isMine ? "items-end" : "items-start")}>
+                    <div className={cn("min-w-0 max-w-[75%]", isMine ? "items-end" : "items-start")}>
                       {!isMine && (
                         <p className="text-xs text-muted-foreground mb-1">{msg.sender_name}</p>
                       )}
@@ -214,7 +239,7 @@ export default function ClientMessages() {
                             : "bg-muted rounded-bl-md"
                         )}
                       >
-                        {msg.content && <p className="text-sm whitespace-pre-wrap">{msg.content}</p>}
+                        {msg.content && <p className="text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.content}</p>}
                         {msg.file && (
                           <a
                             href={msg.file}
@@ -258,7 +283,7 @@ export default function ClientMessages() {
             </div>
           )}
 
-          <div className="border-t p-3 flex items-center gap-2">
+          <div className="border-t p-3 flex items-end gap-2">
             <input
               ref={fileInputRef}
               type="file"
@@ -272,12 +297,19 @@ export default function ClientMessages() {
             <Button variant="ghost" size="icon" className="shrink-0" onClick={() => fileInputRef.current?.click()}>
               <Paperclip className="h-4 w-4" />
             </Button>
-            <Input
+            <Textarea
+              ref={msgInputRef}
+              rows={1}
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={(e) => {
+                setContent(e.target.value);
+                const el = e.target;
+                el.style.height = "auto";
+                el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
-              className="flex-1"
+              className="flex-1 min-h-10 max-h-32 resize-none"
             />
             <Button size="icon" disabled={sending || (!content.trim() && !file)} onClick={sendMessage}>
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

@@ -10,7 +10,7 @@
  */
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Circle, ChevronDown, X, Rocket, Heart } from "lucide-react";
+import { CheckCircle2, Circle, ChevronDown, X, Heart, CheckCircle2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useQuickStart } from "@/hooks/useQuickStart";
@@ -130,7 +130,7 @@ export function QuickStartLauncher() {
           className="flex w-full items-center gap-3 rounded-t-2xl border border-b-0 border-border/60 bg-card px-4 py-3 text-left shadow-glow transition-colors hover:bg-secondary/40"
         >
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Rocket className="h-4 w-4" />
+            <CheckCircle2Icon className="h-4 w-4" />
           </span>
           <span className="flex-1">
             <span className="block text-sm font-semibold text-foreground">
@@ -154,12 +154,12 @@ export function QuickStartLauncher() {
         {/* Header */}
         <div className="flex items-center gap-2 border-b border-border/50 bg-gradient-to-br from-primary/10 to-transparent px-4 py-3">
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Rocket className="h-4 w-4" />
+            <CheckCircle2Icon className="h-4 w-4" />
           </span>
           <div className="flex-1">
             <h3 className="text-sm font-semibold text-foreground">Quick Start</h3>
             <p className="text-xs text-muted-foreground">
-              A quick crash course through OnSwift
+              A quick tour guide through OnSwift
             </p>
           </div>
           <button

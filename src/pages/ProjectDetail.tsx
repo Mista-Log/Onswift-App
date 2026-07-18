@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Switch } from "@/components/ui/switch";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { CelebrationModal } from "@/components/CelebrationModal";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { secureFetch, isNetworkError } from "@/api/apiClient";
 import { ClientInviteModal } from "@/components/project/ClientInviteModal";
+import { ClientChatModal } from "@/components/project/ClientChatModal";
 import { ClientInvitesTable } from "@/components/project/ClientInvitesTable";
 import { TaskDetailModal } from "@/components/project/TaskDetailModal";
 import type { TaskDetail } from "@/hooks/useTaskDetail";
@@ -72,6 +73,7 @@ import { DeliverablesPanel } from "@/components/team/DeliverablesPanel";
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { projects, fetchProjectTasks, addTask, updateTask, deleteTask, deleteProject, updateProject } = useProjects();
   const { teamMembers } = useTeam();
@@ -113,30 +115,30 @@ export default function ProjectDetail() {
   const [activeTab, setActiveTab] = useState<"board" | "deliverables">("board");
   const [deliverablePrefill, setDeliverablePrefill] = useState<string | undefined>(undefined);
 
-  // Messages state
-  const [messages, setMessages] = useState<any[]>([]);
-  const [messageContent, setMessageContent] = useState("");
-  const [messageFile, setMessageFile] = useState<File | null>(null);
-  const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [isMessagesCollapsed, setIsMessagesCollapsed] = useState(false);
+  // Client chat now lives in a modal (ClientChatModal) instead of an inline card.
+  const [isClientChatOpen, setIsClientChatOpen] = useState(false);
 
+  // Deep link: /projects/:id?task=<taskId> opens that task's detail (e.g. from a notification).
   useEffect(() => {
-    if (!id) return;
-    try {
-      const stored = localStorage.getItem(`onswift_project_${id}_messages_collapsed`);
-      setIsMessagesCollapsed(stored === "1");
-    } catch (e) {
-      // ignore
-    }
-  }, [id]);
+    const taskParam = searchParams.get("task");
+    if (!taskParam) return;
+    setSelectedTaskId(taskParam);
+    setIsTaskDetailOpen(true);
+    // Strip the param so closing the modal doesn't re-open it on back/refresh.
+    setSearchParams(
+      (prev) => {
+        prev.delete("task");
+        return prev;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
 
   const project = projects.find((p) => p.id === id);
   const isCreator = user?.role === "creator";
 
   useEffect(() => {
     loadTasks();
-    if (user?.role !== 'talent') loadMessages();
   }, [id]);
 
   // Celebrate a talent the first time they open a project that's been concluded.
@@ -369,61 +371,6 @@ export default function ProjectDetail() {
     }
   };
 
-  const loadMessages = async () => {
-    if (!id) return;
-    setIsLoadingMessages(true);
-    try {
-      const response = await secureFetch(`/api/v5/projects/${id}/messages/`);
-      console.log("Messages response status:", response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Messages data:", data);
-        setMessages(data.messages || []);
-      } else {
-        const errorText = await response.text();
-        console.error("Failed to load messages:", response.status, errorText);
-        toast.error(`Failed to load messages: ${response.status}`);
-      }
-    } catch (error) {
-      console.error("Error loading messages:", error);
-      toast.error("Failed to load messages");
-    } finally {
-      setIsLoadingMessages(false);
-    }
-  };
-
-  const sendMessage = async () => {
-    if (!id || (!messageContent.trim() && !messageFile)) return;
-
-    setIsSendingMessage(true);
-    try {
-      const formData = new FormData();
-      if (messageContent.trim()) formData.append("content", messageContent.trim());
-      if (messageFile) formData.append("file", messageFile);
-
-      const response = await secureFetch(`/api/v5/projects/${id}/messages/send/`, {
-        method: "POST",
-        body: formData,
-        headers: {},
-      });
-
-      if (response.ok) {
-        const newMessage = await response.json();
-        setMessages((prev) => [...prev, newMessage]);
-        setMessageContent("");
-        setMessageFile(null);
-        toast.success("Message sent!");
-      } else {
-        toast.error("Failed to send message");
-      }
-    } catch {
-      toast.error("Something went wrong");
-    } finally {
-      setIsSendingMessage(false);
-    }
-  };
-
   if (!project) {
     return (
       <MainLayout>
@@ -472,6 +419,18 @@ export default function ProjectDetail() {
             </div>
           </div>
 
+          <div className="flex items-center gap-2">
+            {id && user?.role !== "talent" && project?.has_clients && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setIsClientChatOpen(true)}
+              >
+                <MessageCircle className="h-4 w-4" />
+                <span className="hidden sm:inline">Client Chat</span>
+              </Button>
+            )}
           {isCreator && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -500,6 +459,7 @@ export default function ProjectDetail() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          </div>
         </div>
 
         <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
@@ -1025,194 +985,13 @@ export default function ProjectDetail() {
           </div>
         )} */}
 
-        {/* Messages Section — only shown once the project has at least one invited/linked client */}
+        {/* Client chat modal — opened from the header button */}
         {id && user?.role !== 'talent' && project?.has_clients && (
-          <div className="mt-8 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold flex items-center gap-2">
-                <MessageCircle className="h-5 w-5" />
-                Client Chats
-              </h2>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline"
-                  size="sm"
-                  onClick={loadMessages}
-                  disabled={isLoadingMessages}
-                >
-                  {isLoadingMessages ? "Loading..." : "Refresh"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    const next = !isMessagesCollapsed;
-                    setIsMessagesCollapsed(next);
-                    try { localStorage.setItem(`onswift_project_${id}_messages_collapsed`, next ? "1" : "0"); } catch (e) {}
-                  }}
-                  aria-label={isMessagesCollapsed ? "Expand messages" : "Collapse messages"}
-                >
-                  {isMessagesCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-
-            {!isMessagesCollapsed && (
-              <Card className="overflow-hidden border-border/50 bg-white shadow-sm">
-                <CardContent className="p-0">
-                  {/* Thread header */}
-                  <div className="border-b border-border/50 px-3 py-3 sm:px-5 sm:py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Project Thread</p>
-                        <p className="text-xs text-muted-foreground">Messages from your client and your replies</p>
-                      </div>
-                      <div className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                        {messages.length} messages
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Message list */}
-                  <div className="max-h-[16rem] sm:max-h-[28rem] space-y-4 overflow-y-auto px-3 py-3 sm:px-5 sm:py-5 bg-[#f8f6ff]">
-                    {isLoadingMessages ? (
-                      <div className="flex justify-center py-10">
-                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                      </div>
-                    ) : messages.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-border/70 bg-white px-4 py-6 text-center text-sm text-muted-foreground">
-                        No messages yet. Start a conversation with your clients!
-                      </div>
-                    ) : (
-                      messages.map((msg: any) => {
-                        const isMine = msg.sender === user?.id;
-
-                        return (
-                          <div
-                            key={msg.id}
-                            className={cn(
-                              "flex items-end gap-2",
-                              isMine ? "justify-end" : "justify-start"
-                            )}
-                          >
-                            {!isMine && (
-                              <Avatar className="h-8 w-8 shrink-0 self-end">
-                                <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                                  {(msg.sender_name || "?").charAt(0)}
-                                </AvatarFallback>
-                              </Avatar>
-                            )}
-
-                            <div className={cn("max-w-[75%]", isMine && "text-right")}>
-                              {!isMine && (
-                                <p className="mb-1 text-xs font-medium text-muted-foreground">{msg.sender_name}</p>
-                              )}
-                              <div
-                                className={cn(
-                                  "rounded-2xl px-4 py-3 shadow-sm",
-                                  isMine
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-white text-foreground border border-border/40"
-                                )}
-                              >
-                                <p className="text-sm leading-relaxed">{msg.content}</p>
-                                {msg.file_name && (
-                                  <a
-                                    href={msg.file}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className={cn(
-                                      "mt-3 inline-flex items-center gap-1 text-xs font-medium underline-offset-4 hover:underline",
-                                      isMine ? "text-primary-foreground/90" : "text-primary"
-                                    )}
-                                  >
-                                    <FileIcon className="h-3 w-3" />
-                                    {msg.file_name}
-                                  </a>
-                                )}
-                              </div>
-                              <p className={cn("mt-1 text-[10px] text-muted-foreground", isMine && "text-right")}>
-                                {msg.created_at && format(new Date(msg.created_at), "hh:mm a")}
-                              </p>
-                            </div>
-
-                            {isMine && (
-                              <Avatar className="h-8 w-8 shrink-0 self-end">
-                                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                                  {user?.full_name?.charAt(0) || "Y"}
-                                </AvatarFallback>
-                              </Avatar>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-
-                  {/* Composer */}
-                  <div className="border-t border-border/50 space-y-3 p-3 sm:p-5">
-                    <div className="flex items-end gap-2">
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        disabled={isSendingMessage}
-                        className="shrink-0"
-                      >
-                        <label className="cursor-pointer">
-                          <input
-                            ref={(input) => {
-                              if (input) {
-                                const fileInput = input as HTMLInputElement;
-                                fileInput.onchange = (e) => {
-                                  const file = (e.target as HTMLInputElement).files?.[0];
-                                  if (file) setMessageFile(file);
-                                };
-                              }
-                            }}
-                            type="file"
-                            className="hidden"
-                          />
-                          <Paperclip className="h-4 w-4" />
-                        </label>
-                      </Button>
-
-                      <Textarea
-                        placeholder="Type your message..."
-                        value={messageContent}
-                        onChange={(e) => setMessageContent(e.target.value)}
-                        className="min-h-[52px] flex-1 resize-none rounded-2xl"
-                      />
-
-                      <Button
-                        onClick={sendMessage}
-                        className="shrink-0 rounded-full px-4"
-                        disabled={(!messageContent.trim() && !messageFile) || isSendingMessage}
-                      >
-                        {isSendingMessage ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-
-                    {messageFile && (
-                      <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-secondary/40 p-3 text-xs text-muted-foreground">
-                        <FileIcon className="h-3 w-3" />
-                        <span className="truncate">{messageFile.name}</span>
-                        <button
-                          onClick={() => setMessageFile(null)}
-                          className="ml-auto rounded-full p-1 hover:bg-secondary"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          <ClientChatModal
+            projectId={id}
+            open={isClientChatOpen}
+            onClose={() => setIsClientChatOpen(false)}
+          />
         )}
 
         {/* ClientInviteModal */}

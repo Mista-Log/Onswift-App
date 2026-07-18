@@ -376,6 +376,9 @@ class GoogleAuthView(APIView):
                     user=user
                 )
 
+            from assistant.services import send_signup_welcome
+            send_signup_welcome(user)
+
         # Update full name if empty
         if not user.full_name:
             user.full_name = full_name
