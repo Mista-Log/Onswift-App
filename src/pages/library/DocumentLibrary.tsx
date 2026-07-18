@@ -520,7 +520,7 @@ export default function DocumentLibrary() {
     } catch { /* ignore */ }
 
     if (!folderId) {
-      toast.error("No folder found — create a folder in the legacy Files section first");
+      toast.error("No folder found, create a folder in the legacy Files section first");
       setUploading(false);
       return;
     }

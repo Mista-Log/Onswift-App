@@ -182,7 +182,7 @@ export default function OnboardingBuilder() {
     if (!projectId) {
       toast.error(
         projects.length === 0
-          ? "Create a project first — your client lands in it after onboarding."
+          ? "Create a project first, your client lands in it after onboarding."
           : "Link this form to a project before saving."
       );
       return;
@@ -355,35 +355,15 @@ export default function OnboardingBuilder() {
               <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
                 <FolderKanban className="h-4 w-4 text-primary shrink-0 hidden sm:block" />
                 <p className="text-sm text-foreground flex-1 min-w-0">
-                  Forms must be linked to a project — that's where your client lands
-                  after onboarding. You don't have any projects yet.
+                  Forms must be linked to a project, that's where your Client lands
+                  after Onboarding. You don't have any projects yet.
                 </p>
                 <Button size="sm" onClick={() => navigate("/projects")}>
                   Create a project
                 </Button>
               </div>
             )}
-            {/* {projects.length > 0 && !projectId && (
-              <div className="mb-6 flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 sm:flex-row sm:items-center">
-                <FolderKanban className="hidden h-4 w-4 shrink-0 text-primary sm:block" />
-                <p className="min-w-0 flex-1 text-sm text-foreground">
-                  Link this form to a project your client joins it the moment
-                  they finish onboarding.
-                </p>
-                <Select value={projectId} onValueChange={setProjectId}>
-                  <SelectTrigger className="h-9 w-full gap-1.5 rounded-md border-input bg-background px-3 text-sm font-medium shadow-sm sm:w-[200px]">
-                    <SelectValue placeholder="Choose a project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )} */}
+            
             {draftBanner && (
               <div className="mb-6 flex items-center gap-3 rounded-xl bg-muted/60 border border-border px-4 py-3">
                 <History className="h-4 w-4 text-muted-foreground shrink-0" />

@@ -343,7 +343,7 @@ export function AdminPostEditor() {
     if (!isOnline) return (
       <span className="flex items-center gap-1.5 text-xs text-amber-500">
         <CloudOff className="h-3.5 w-3.5" />
-        Offline — saved locally
+        Offline, saved locally
       </span>
     )
     if (autoSaveStatus === 'saving') return (
@@ -553,7 +553,7 @@ export function AdminPostEditor() {
                             }}
                           />
                           <p hidden className="px-4 py-3 text-sm text-slate-400">
-                            Could not load preview — check the URL
+                            Could not load preview, check the URL
                           </p>
                           <button
                             type="button"
@@ -686,7 +686,7 @@ export function AdminPostEditor() {
           <WifiOff className="h-4 w-4 shrink-0 text-yellow-400" />
           <div>
             <p className="text-sm font-semibold leading-tight">You're offline</p>
-            <p className="text-xs leading-tight opacity-60">Changes saved locally — will sync when you reconnect</p>
+            <p className="text-xs leading-tight opacity-60">Changes saved locally, will sync when you reconnect</p>
           </div>
         </div>
       )}

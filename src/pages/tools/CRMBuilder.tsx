@@ -482,7 +482,7 @@ export default function CRMBuilder() {
       try {
         await crm.deleteRow(activeSheet.id, selectedRowId);
         setSelectedRowId(null);
-        toast.success("Row cut — Ctrl+Z to undo");
+        toast.success("Row cut, Ctrl+Z to undo");
       } catch {
         toast.error("Failed to cut row");
         setUndoStack((prev) => prev.slice(0, -1));
@@ -496,7 +496,7 @@ export default function CRMBuilder() {
       try {
         await crm.deleteColumn(activeSheet.id, colPanel.columnId);
         closeColPanel();
-        toast.success("Column cut — Ctrl+Z to undo");
+        toast.success("Column cut. Ctrl+Z to undo");
       } catch {
         toast.error("Failed to cut column");
         setUndoStack((prev) => prev.slice(0, -1));

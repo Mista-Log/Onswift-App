@@ -182,7 +182,7 @@ export function DeliverablesPanel({
     } catch (error) {
       console.error("Error uploading deliverable:", error);
       if (isNetworkError(error)) {
-        toast.warning("Slow connection — your upload may have gone through. Refreshing...");
+        toast.warning("Slow connection, your upload may have gone through. Refreshing...");
         setTimeout(fetchDeliverables, 2000);
       } else {
         toast.error("Hmm, I'm having trouble uploading your deliverable. Please try again.");
@@ -232,7 +232,7 @@ export function DeliverablesPanel({
     } catch (error) {
       console.error("Error deleting deliverable:", error);
       if (isNetworkError(error)) {
-        toast.warning("Slow connection — checking status...");
+        toast.warning("Slow connection, your delete may have gone through. Refreshing...");
         setTimeout(fetchDeliverables, 2000);
       } else {
         toast.error("Unable to delete deliverable. Please try again.");

@@ -101,7 +101,7 @@ export function useDocs() {
       await fetchAll();
       return doc;
     } catch {
-      toast.error("Connection issue — couldn't create the page. Check your network and try again.");
+      toast.error("Connection issue, couldn't create the page. Check your network and try again.");
       return null;
     }
   }, [fetchAll]);
@@ -116,7 +116,7 @@ export function useDocs() {
       await fetchAll();
       return true;
     } catch {
-      toast.error("Connection issue — couldn't delete the page. Check your network and try again.");
+      toast.error("Connection issue,couldn't delete the page. Check your network and try again.");
       return false;
     }
   }, [fetchAll]);
