@@ -411,7 +411,7 @@ export default function Calendar() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground bg-gradient-to-r from-primary to-primary/50 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight ">
               Project Deadlines
             </h1>
             <p className="mt-1 text-muted-foreground">

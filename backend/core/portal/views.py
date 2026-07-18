@@ -228,24 +228,31 @@ class PortalMessageCreateView(APIView):
             return
 
         if sender.role == "client":
-            # Notify the creator
-            recipient = project.creator
+            # Notify the creator (their chat lives in the project page modal)
+            recipients = [project.creator]
+            link = f"/projects/{project_id}"
         else:
-            # Notify the client
-            from onboarding.models import OnboardingInstance
-            instance = OnboardingInstance.objects.filter(
-                project=project,
-                status="COMPLETED",
-                client__isnull=False,
-            ).first()
-            recipient = instance.client if instance else None
+            # Notify every linked client via membership — the canonical
+            # project↔client link (covers invite-added, direct-added AND
+            # onboarded clients; the old OnboardingInstance lookup missed
+            # everyone who didn't come through an onboarding form).
+            from project.models import ProjectClientMembership
+            recipients = [
+                m.client
+                for m in ProjectClientMembership.objects.filter(
+                    project=project,
+                    status__in=["active", "on_hold"],
+                ).select_related("client")
+            ]
+            link = f"/projects/{project_id}/messages"
 
-        if recipient:
+        for recipient in recipients:
             create_notification(
                 user=recipient,
                 title="New Portal Message",
                 message=f"{sender.full_name}: {message.content[:100]}",
                 notification_type="system",
+                link=link,
             )
 
 

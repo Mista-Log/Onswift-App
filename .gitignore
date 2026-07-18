@@ -45,3 +45,9 @@ temp-landing-repo/
 CLAUDE.md
 ONBOARDING.md
 WEB_PUSH_NOTIFICATIONS_PLAN.md
+ONSWIFT_INFRASTRUCTURE_FOR_DOCS.md
+MEETING_TRANSCRIPTION_PLAN.md
+
+# Test scripts stay local — not shipped to the repo
+src/**/*.test.ts
+src/**/*.test.tsx

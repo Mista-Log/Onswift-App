@@ -31,6 +31,13 @@ export function isNetworkError(err: unknown): boolean {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Remove only auth session keys — never wipe user prefs/progress. */
+function clearAuthStorage() {
+  localStorage.removeItem("onswift_access");
+  localStorage.removeItem("onswift_refresh");
+  localStorage.removeItem("onswift_user");
+}
+
 // ---------- public fetch ----------
 
 export const publicFetch = async (endpoint: string, options: RequestInit = {}): Promise<Response> => {
@@ -55,7 +62,7 @@ export const secureFetch = async (
     const publicPaths = ['/', '/login', '/signup', '/signup/talent', '/signup/creator', '/forgot-password', '/reset-password'];
     const isPublicPage = publicPaths.some((p) => window.location.pathname.includes(p));
     if (!isPublicPage) {
-      localStorage.clear();
+      clearAuthStorage();
       window.location.href = '/login';
     }
     throw new Error("No access token");
@@ -111,17 +118,17 @@ export const secureFetch = async (
           });
         } else {
           console.warn("Token refresh failed, redirecting to login");
-          localStorage.clear();
+          clearAuthStorage();
           if (!isPublicPage) window.location.href = '/login';
         }
       } catch (refreshError) {
         console.error("Token refresh error:", refreshError);
-        localStorage.clear();
+        clearAuthStorage();
         if (!isPublicPage) window.location.href = '/login';
       }
     } else {
       console.warn("No refresh token found, redirecting to login");
-      localStorage.clear();
+      clearAuthStorage();
       if (!isPublicPage) window.location.href = '/login';
     }
   }

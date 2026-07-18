@@ -12,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Plus, Send, Trash2, Link as LinkIcon,
-  FileText, X, Loader2, CheckSquare, Tag, Repeat,
+  FileText, X, Loader2, CheckSquare, Tag, Repeat, Clock, RotateCcw,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Switch } from "@/components/ui/switch";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { toast } from "sonner";
@@ -185,8 +186,9 @@ export function TaskDetailModal({
   taskId, open, onOpenChange, onTaskUpdated, onTaskDeleted,
   availableAssignees, currentUserId, isCreator,
 }: TaskDetailModalProps) {
+  const navigate = useNavigate();
   const {
-    task, isLoading, fetchTask, updateTask, deleteTask,
+    task, isLoading, fetchTask, updateTask, requestTaskRevision, deleteTask,
     addComment, deleteComment,
     createChecklist, deleteChecklist,
     addChecklistItem, toggleChecklistItem, deleteChecklistItem,
@@ -201,6 +203,10 @@ export function TaskDetailModal({
   const [recurringDaysDraft, setRecurringDaysDraft] = useState<number>(2);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [isRequestingRevision, setIsRequestingRevision] = useState(false);
+  const [showRevisionInput, setShowRevisionInput] = useState(false);
+  const [revisionFeedback, setRevisionFeedback] = useState("");
   const [addMenuOpen, setAddMenuOpen]       = useState(false);
   const [newChecklistTitle, setNewChecklistTitle] = useState("");
   const [showChecklistInput, setShowChecklistInput] = useState(false);
@@ -250,6 +256,32 @@ export function TaskDetailModal({
     if (!task) return;
     try { const u = await updateTask(task.id, updates); onTaskUpdated?.(u); }
     catch { toast.error("Failed to update task"); }
+  };
+
+  // Creator approves a task an assignee flagged: completing it clears awaiting_approval server-side.
+  const handleApprove = async () => {
+    if (!task) return;
+    setIsApproving(true);
+    try {
+      const u = await updateTask(task.id, { status: "completed" });
+      onTaskUpdated?.(u);
+      toast.success("Task approved");
+    } catch { toast.error("Failed to approve task"); }
+    finally { setIsApproving(false); }
+  };
+
+  // Creator sends the task back to the assignee with feedback instead of approving.
+  const handleRequestRevision = async () => {
+    if (!task) return;
+    setIsRequestingRevision(true);
+    try {
+      await requestTaskRevision(task.id, revisionFeedback.trim());
+      onTaskUpdated?.({ ...task, awaiting_approval: false });
+      toast.success("Revision requested");
+      setShowRevisionInput(false);
+      setRevisionFeedback("");
+    } catch { toast.error("Failed to request revision"); }
+    finally { setIsRequestingRevision(false); }
   };
 
   const handleSendComment = async () => {
@@ -304,6 +336,78 @@ export function TaskDetailModal({
 
             {/* ── Left panel ──────────────────────────────────────────── */}
             <div className="flex-1 overflow-y-auto scrollbar-hide p-10 space-y-7 border-b md:border-b-0 md:border-r border-border/50">
+
+              {/* Pending-approval banner — shown to both roles; creator gets Approve / Request revision. */}
+              {task.awaiting_approval && (
+                <div className="rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <Clock className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-purple-800 dark:text-purple-300">
+                        {isCreator ? "Pending your approval" : "Pending creator approval"}
+                      </p>
+                      <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">
+                        {isCreator
+                          ? "The assignee marked this task as ready. Approve it, or request a revision."
+                          : "You've marked this task as ready. Awaiting your creator's approval..."}
+                      </p>
+                    </div>
+                    {isCreator && (
+                      <div className="flex flex-col gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          onClick={handleApprove}
+                          disabled={isApproving || isRequestingRevision}
+                          className="gap-1.5 bg-green-600 text-white hover:bg-green-700"
+                        >
+                          {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckSquare className="h-3.5 w-3.5" />}
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowRevisionInput((v) => !v)}
+                          disabled={isApproving || isRequestingRevision}
+                          className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-100 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-900/40"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Request revision
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {isCreator && showRevisionInput && (
+                    <div className="mt-3 space-y-2">
+                      <Textarea
+                        value={revisionFeedback}
+                        onChange={(e) => setRevisionFeedback(e.target.value)}
+                        placeholder="What needs changing?"
+                        className="min-h-[72px] text-sm bg-white dark:bg-background"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => { setShowRevisionInput(false); setRevisionFeedback(""); }}
+                          disabled={isRequestingRevision}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleRequestRevision}
+                          disabled={isRequestingRevision}
+                          className="gap-1.5 bg-purple-600 text-white hover:bg-purple-700"
+                        >
+                          {isRequestingRevision ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                          Send request
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Recurring reminder banner — visible to all roles */}
               {task.recurrence_type && (() => {
@@ -704,7 +808,20 @@ export function TaskDetailModal({
 
               {/* Deliverables & Files — the single canonical list of submitted work */}
               <div className="space-y-3">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Deliverables &amp; Files</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Deliverables &amp; Files</p>
+                  {isCreator && (task.deliverables ?? []).length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs text-primary hover:text-primary"
+                      onClick={() => { onOpenChange(false); navigate("/deliverables"); }}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      Review in Deliverables
+                    </Button>
+                  )}
+                </div>
                 {(task.deliverables ?? []).length > 0 ? (
                   <div className="space-y-2">
                     {(task.deliverables ?? []).map((del: TaskDeliverable) => (

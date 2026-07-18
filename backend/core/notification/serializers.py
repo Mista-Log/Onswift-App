@@ -33,6 +33,7 @@ class HireRequestCreateSerializer(serializers.ModelSerializer):
             message=f"{creator.full_name} wants to hire you.",
             notification_type="hire",
             hire_request=hire_request,
+            priority=1,
         )
 
         return hire_request

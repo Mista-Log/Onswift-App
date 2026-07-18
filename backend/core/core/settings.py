@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'library',
     'crm',
     'docs',
+    'assistant',
     "corsheaders",
     "rest_framework",
     "rest_framework.authtoken",
@@ -189,6 +190,9 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+# Service-account identity for the scripted OnSwift Assistant (chat facade).
+ASSISTANT_EMAIL = os.environ.get("ASSISTANT_EMAIL", "assistant@onswift.org")
 
 CLOUDINARY_STORAGE = {
     "CLOUD_NAME": os.environ.get("CLOUDINARY_CLOUD_NAME"),

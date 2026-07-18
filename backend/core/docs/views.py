@@ -300,7 +300,9 @@ class GlobalSearchView(APIView):
                         "title": t.full_name or t.email,
                         "subtitle": t.email,
                         "icon": "👤",
-                        "route": f"/talent/{t.id}",
+                        # Deep link: Messages.tsx reads ?user= and opens (or
+                        # creates) the direct conversation with this talent.
+                        "route": f"/messages?user={t.id}",
                         "avatar": None,
                     }
                     for t in talent_qs

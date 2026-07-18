@@ -133,6 +133,18 @@ class NotificationListView(generics.ListAPIView):
     def get_queryset(self):
         return self.request.user.notifications.all()
 
+    def list(self, request, *args, **kwargs):
+        # Piggyback the assistant's deadline sweep on this frequently-polled
+        # endpoint (no cron infra exists). Throttled inside; must never break
+        # the notification feed.
+        try:
+            from assistant.services import maybe_sweep_deadlines
+            maybe_sweep_deadlines()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Assistant deadline sweep failed")
+        return super().list(request, *args, **kwargs)
+
 
 class NotificationReadView(generics.UpdateAPIView):
     serializer_class = NotificationSerializer
@@ -278,6 +290,9 @@ class InviteTokenAcceptView(APIView):
         invite.used_by = request.user
         invite.used_at = timezone.now()
         invite.save()
+
+        from assistant.services import send_team_join_congrats
+        send_team_join_congrats(request.user, invite.creator)
 
         return Response({
             "success": True,

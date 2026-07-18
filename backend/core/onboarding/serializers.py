@@ -10,23 +10,34 @@ from .models import OnboardingTemplate, OnboardingInstance, OnboardingUpload
 
 class OnboardingTemplateSerializer(serializers.ModelSerializer):
     """Full template representation for CRUD."""
+    project_name = serializers.CharField(source="project.name", read_only=True, default=None)
 
     class Meta:
         model = OnboardingTemplate
         fields = [
             "id", "creator", "title", "blocks",
+            "project", "project_name",
             "created_at", "updated_at",
         ]
         read_only_fields = ["id", "creator", "created_at", "updated_at"]
+        # Every new form must land its client in a real project.
+        extra_kwargs = {"project": {"required": True, "allow_null": False}}
+
+    def validate_project(self, value):
+        user = self.context["request"].user
+        if value.creator_id != user.id:
+            raise serializers.ValidationError("Project not found or not owned by you.")
+        return value
 
 
 class OnboardingTemplateListSerializer(serializers.ModelSerializer):
     """Lightweight list representation (no blocks payload)."""
     instance_count = serializers.SerializerMethodField()
+    project_name = serializers.CharField(source="project.name", read_only=True, default=None)
 
     class Meta:
         model = OnboardingTemplate
-        fields = ["id", "title", "instance_count", "created_at", "updated_at"]
+        fields = ["id", "title", "instance_count", "project", "project_name", "created_at", "updated_at"]
 
     def get_instance_count(self, obj):
         return obj.instances.count()

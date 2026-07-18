@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronRight, File, FilePlus, MoreHorizontal, Trash2, Plus } from "lucide-react";
+import {
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  FileText,
+  FilePlus,
+  MoreHorizontal,
+  Trash2,
+  Plus,
+} from "lucide-react";
 import type { DocListItem } from "@/hooks/useDocs";
 
 interface DocTreeProps {
@@ -21,7 +30,8 @@ interface DocTreeProps {
 interface DocNodeProps {
   node: DocListItem;
   allDocs: DocListItem[];
-  depth: number;
+  expandedIds: Set<string>;
+  onToggle: (id: string) => void;
   onNewPage: (parentId?: string) => void;
   onDelete: (id: string) => void;
 }
@@ -32,79 +42,75 @@ function buildTree(docs: DocListItem[], parentId: string | null): DocListItem[] 
     .sort((a, b) => a.order - b.order);
 }
 
-function DocNode({ node, allDocs, depth, onNewPage, onDelete }: DocNodeProps) {
+function DocNode({ node, allDocs, expandedIds, onToggle, onNewPage, onDelete }: DocNodeProps) {
   const { docId } = useParams<{ docId: string }>();
   const navigate = useNavigate();
-  const [expanded, setExpanded] = useState(false);
   const children = buildTree(allDocs, node.id);
   const hasChildren = node.children_count > 0 || children.length > 0;
+  const expanded = expandedIds.has(node.id);
   const isActive = docId === node.id;
-
-  const toggle = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setExpanded((v) => !v);
-  }, []);
 
   return (
     <div>
       <div
         className={cn(
-          "group flex items-center gap-1 rounded-md px-2 py-1 text-sm cursor-pointer select-none",
+          "group flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-sm cursor-pointer select-none",
           "hover:bg-muted/60 transition-colors",
-          isActive && "bg-muted font-medium text-foreground"
+          isActive ? "bg-muted font-medium text-foreground" : "text-foreground/80"
         )}
-        style={{ paddingLeft: `${8 + depth * 16}px` }}
         onClick={() => navigate(`/docs/${node.id}`)}
       >
         {/* Expand chevron */}
         <button
           className={cn(
-            "flex-shrink-0 w-4 h-4 flex items-center justify-center rounded text-muted-foreground hover:text-foreground",
+            "flex-shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
             !hasChildren && "invisible"
           )}
-          onClick={toggle}
+          title={expanded ? "Collapse" : "Expand"}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle(node.id);
+          }}
         >
           <ChevronRight
-            size={12}
+            size={14}
             className={cn("transition-transform", expanded && "rotate-90")}
           />
         </button>
 
         {/* Icon + title */}
-        <span className="flex-shrink-0 w-4 text-center text-xs leading-none">
-          {node.icon || <File size={13} className="text-muted-foreground" />}
+        <span className="flex-shrink-0 h-6 w-6 rounded-md bg-blue-500/10 flex items-center justify-center text-[13px] leading-none">
+          {node.icon || <FileText size={13} className="text-blue-500" />}
         </span>
-        <span className="flex-1 truncate text-muted-foreground group-[.active]:text-foreground">
-          {node.title || "Untitled"}
-        </span>
+        <span className="flex-1 truncate">{node.title || "Untitled"}</span>
 
         {/* Actions */}
         <div className="flex items-center gap-0.5 flex-shrink-0">
           {/* Add sub-page — desktop hover only */}
           <button
-            className="hidden group-hover:flex w-5 h-5 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-            title="Add sub-page"
+            className="hidden group-hover:flex h-6 w-6 items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
+            title="Add sub-document"
             onClick={(e) => { e.stopPropagation(); onNewPage(node.id); }}
           >
-            <Plus size={12} />
+            <Plus size={14} />
           </button>
           {/* More menu — always visible on mobile, hover-reveal on desktop */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 className={cn(
-                  "w-5 h-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground",
+                  "h-6 w-6 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground",
                   "md:invisible md:group-hover:visible"
                 )}
                 onClick={(e) => e.stopPropagation()}
               >
-                <MoreHorizontal size={12} />
+                <MoreHorizontal size={14} />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-40">
+            <DropdownMenuContent align="start" className="w-44">
               <DropdownMenuItem onClick={() => onNewPage(node.id)}>
                 <FilePlus size={14} className="mr-2" />
-                Add sub-page
+                Add sub-document
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -119,15 +125,16 @@ function DocNode({ node, allDocs, depth, onNewPage, onDelete }: DocNodeProps) {
         </div>
       </div>
 
-      {/* Children */}
+      {/* Children — indented with a branch guide line */}
       {expanded && children.length > 0 && (
-        <div>
+        <div className="ml-[15px] border-l border-border/60 pl-1.5">
           {children.map((child) => (
             <DocNode
               key={child.id}
               node={child}
               allDocs={allDocs}
-              depth={depth + 1}
+              expandedIds={expandedIds}
+              onToggle={onToggle}
               onNewPage={onNewPage}
               onDelete={onDelete}
             />
@@ -140,27 +147,63 @@ function DocNode({ node, allDocs, depth, onNewPage, onDelete }: DocNodeProps) {
 
 export function DocTree({ docs, onNewPage, onDelete }: DocTreeProps) {
   const roots = buildTree(docs, null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // Every doc that has children — the target set for "Expand all".
+  const parentIds = useMemo(
+    () =>
+      new Set(
+        docs
+          .filter((d) => d.children_count > 0 || docs.some((c) => c.parent === d.id))
+          .map((d) => d.id)
+      ),
+    [docs]
+  );
+  const anyExpanded = expandedIds.size > 0;
+
+  const toggleNode = (id: string) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const toggleAll = () => setExpandedIds(anyExpanded ? new Set() : new Set(parentIds));
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-3 py-2">
+      <div className="flex items-center justify-between pl-3 pr-2 py-2.5">
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Pages
+          Docs
         </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          title="New page"
-          onClick={() => onNewPage()}
-        >
-          <Plus size={14} />
-        </Button>
+        <div className="flex items-center gap-0.5">
+          {parentIds.size > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title={anyExpanded ? "Collapse all" : "Expand all"}
+              onClick={toggleAll}
+            >
+              {anyExpanded ? <ChevronsDownUp size={15} /> : <ChevronsUpDown size={15} />}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title="New page"
+            onClick={() => onNewPage()}
+          >
+            <Plus size={15} />
+          </Button>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-1 pb-4">
+      <div className="flex-1 overflow-y-auto px-1.5 pb-4">
         {roots.length === 0 ? (
-          <p className="px-3 py-4 text-xs text-muted-foreground text-center">
+          <p className="px-3 py-4 text-sm text-muted-foreground text-center">
             No pages yet.
             <br />
             <button
@@ -176,7 +219,8 @@ export function DocTree({ docs, onNewPage, onDelete }: DocTreeProps) {
               key={node.id}
               node={node}
               allDocs={docs}
-              depth={0}
+              expandedIds={expandedIds}
+              onToggle={toggleNode}
               onNewPage={onNewPage}
               onDelete={onDelete}
             />

@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { sanitize } from "isomorphic-dompurify";
 import type { FormBlock, BlockResponse } from "@/types/onboarding";
 
 interface BlockRendererProps {
@@ -23,7 +24,7 @@ export function BlockRenderer({ block, index, value, onChange, readOnly = false 
     case "welcome":
       return (
         <div className="prose prose-sm dark:prose-invert max-w-none py-4">
-          <div dangerouslySetInnerHTML={{ __html: block.content || "" }} />
+          <div dangerouslySetInnerHTML={{ __html: sanitize(block.content || "") }} />
         </div>
       );
 

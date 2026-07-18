@@ -217,6 +217,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
                 title="New Task Assigned",
                 message=f"{user.full_name} assigned you \"{task.name}\" in {project.name}.",
                 notification_type="system",
+                priority=1,
             )
 
 
@@ -307,9 +308,52 @@ class TaskRequestCompletionView(APIView):
             title="Task Ready for Approval",
             message=f"{request.user.full_name} marked '{task.name}' as ready — awaiting your approval.",
             notification_type="system",
+            link=f"/projects/{task.project.id}?task={task.id}",
+            priority=1,
         )
 
         return Response({"status": "ok", "awaiting_approval": True})
+
+
+class TaskRequestRevisionView(APIView):
+    """
+    POST /api/v2/tasks/<task_id>/request-revision/
+    The project creator bounces a task awaiting approval back to its assignees
+    instead of completing it: clear the pending flag and notify the talent with
+    the creator's feedback.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, task_id):
+        task = _get_task_for_user(request.user, task_id)
+
+        if task.project.creator_id != request.user.id:
+            return Response(
+                {"error": "Only the creator can request a revision."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Idempotent: nothing to bounce back if it isn't awaiting approval.
+        if not task.awaiting_approval:
+            return Response({"status": "ok", "awaiting_approval": False})
+
+        feedback = (request.data.get("feedback") or "").strip()
+
+        task.awaiting_approval = False
+        task.save(update_fields=["awaiting_approval"])
+
+        from notification.services import create_notification
+        for assignee in task.assignees.all():
+            create_notification(
+                user=assignee,
+                title="Revision Requested",
+                message=f"{request.user.full_name} requested changes on '{task.name}': {feedback or 'No feedback provided'}",
+                notification_type="system",
+                link=f"/projects/{task.project.id}?task={task.id}",
+                priority=1,
+            )
+
+        return Response({"status": "ok", "awaiting_approval": False})
 
 
 class TaskCommentListCreateView(generics.ListCreateAPIView):
@@ -806,14 +850,24 @@ class MessageCreateView(APIView):
         conversation.last_message = message
         conversation.save()
 
-        # Notify recipient
-        from notification.services import create_notification
-        create_notification(
-            user=other_user,
-            title="New Message",
-            message=f"{user.full_name} sent you a message.",
-            notification_type="system",
-        )
+        if other_user.role == "assistant":
+            # Message sent TO the OnSwift Assistant: relay/ack instead of
+            # notifying the (unmonitored) service account.
+            try:
+                from assistant.services import handle_message_to_assistant
+                handle_message_to_assistant(sender=user, content=content)
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception("Assistant reply handling failed")
+        else:
+            # Notify recipient
+            from notification.services import create_notification
+            create_notification(
+                user=other_user,
+                title="New Message",
+                message=f"{user.full_name} sent you a message.",
+                notification_type="system",
+            )
 
         serializer = MessageSerializer(message, context={"request": request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)

@@ -79,9 +79,10 @@ export function DeliverablesPanel({
         emoji: "🏆",
         title: "Your work got approved!",
         description:
-          "Your creator approved your deliverable and the task is done. That's a real win — keep it going!",
+          "Your creator approved your deliverable and the task is done. That's a real win, keep it going!",
       });
     }
+    
   }, [deliverables, isCreator]);
 
   const fetchDeliverables = async () => {

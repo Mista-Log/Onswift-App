@@ -29,6 +29,16 @@ class OnboardingTemplate(models.Model):
     )
     title = models.CharField(max_length=255)
     blocks = models.JSONField(default=list, help_text="JSON array of typed form block objects")
+    # Required for new forms (enforced in the serializer/UI; nullable for
+    # legacy rows): onboarded clients join this project so they never land on
+    # an empty dashboard.
+    project = models.ForeignKey(
+        "project.Project",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="onboarding_templates",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

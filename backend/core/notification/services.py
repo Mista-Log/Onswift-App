@@ -1,15 +1,29 @@
+import logging
+
 from .models import Notification
 from utils.email_service import send_email
 
+logger = logging.getLogger(__name__)
 
-def create_notification(*, user, title, message, notification_type="system", hire_request=None, **kwargs):
+
+def create_notification(*, user, title, message, notification_type="system", hire_request=None, link=None, priority=None, **kwargs):
     notification = Notification.objects.create(
         user=user,
         title=title,
         message=message,
         notification_type=notification_type,
         hire_request=hire_request,
+        link=link,
     )
+
+    # Priority-1 notifications are mirrored into the OnSwift Assistant chat
+    # (no extra email — the email block below already covers that).
+    if priority == 1:
+        try:
+            from assistant.services import send_assistant_message
+            send_assistant_message(user, message, link=link)
+        except Exception:
+            logger.exception("Failed to mirror priority notification to assistant chat")
 
     # Mirror every in-app notification to the user's email address.
     if user.email:

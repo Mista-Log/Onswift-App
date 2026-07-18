@@ -105,9 +105,10 @@ export function NotificationItem({
       }
     }
 
-    const route = resolveRoute(notification);
-    if (route) {
-      navigate(route);
+    // Prefer the notification's explicit deep link; fall back to keyword-based routing.
+    const target = notification.link ?? resolveRoute(notification);
+    if (target) {
+      navigate(target);
       if (onClose) onClose();
     }
   };
@@ -121,7 +122,7 @@ export function NotificationItem({
   };
 
   const { icon: Icon, bg, color } = getIconMeta(notification);
-  const route = resolveRoute(notification);
+  const route = notification.link ?? resolveRoute(notification);
 
   const showActions =
     user?.role === "talent" &&
