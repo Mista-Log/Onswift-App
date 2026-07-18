@@ -210,15 +210,15 @@ class TaskListCreateView(generics.ListCreateAPIView):
             from rest_framework.exceptions import NotFound
             raise NotFound("Project not found.")
 
-        from notification.services import create_notification
-        for assignee in task.assignees.all():
-            create_notification(
-                user=assignee,
-                title="New Task Assigned",
-                message=f"{user.full_name} assigned you \"{task.name}\" in {project.name}.",
-                notification_type="system",
-                priority=1,
-            )
+        # from notification.services import create_notification
+        # for assignee in task.assignees.all():
+        #     create_notification(
+        #         user=assignee,
+        #         title="New Task Assigned",
+        #         message=f"{user.full_name} assigned you \"{task.name}\" in {project.name}.",
+        #         notification_type="system",
+        #         priority=1,
+        #     )
 
 
 
