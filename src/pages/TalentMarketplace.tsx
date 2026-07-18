@@ -206,7 +206,7 @@ export default function TalentMarketplace() {
             <div style={{ textAlign: "center" }}>
               <p style={{ fontWeight: 800, fontSize: 18, color: "white" }}>The stage is being set</p>
               <p style={{ marginTop: 8, fontSize: 14, color: "hsl(0, 0%, 100%)", maxWidth: 280 }}>
-                Talented creators are joining Onswift. Check back soon — it's going to be exciting.
+                Talented creators are joining Onswift. Check back soon, it's going to be exciting.
               </p>
             </div>
           </div>
@@ -267,7 +267,7 @@ export default function TalentMarketplace() {
       <Dialog open={agentsModalOpen} onOpenChange={setAgentsModalOpen}>
         <DialogContent className="max-w-md p-0 overflow-hidden" style={{ borderRadius: 20, border: "1px solid hsla(290, 100%, 50%, 0.12)" }}>
           <DialogHeader className="sr-only">
-            <DialogTitle>AI Agents — Coming Soon</DialogTitle>
+            <DialogTitle>AI Agents, Coming Soon</DialogTitle>
           </DialogHeader>
 
           {/* White header */}

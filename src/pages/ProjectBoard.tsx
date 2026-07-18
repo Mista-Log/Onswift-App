@@ -162,7 +162,7 @@ export default function ProjectBoard() {
       if (newStatus === "completed") {
         const done = prev.find(t => t.id === taskId);
         if (done?.recurrence) {
-          toast.success("Task completed — next occurrence scheduled!");
+          toast.success("Task completed, next occurrence scheduled!");
           return [...updated, spawnRecurringTask(done)];
         }
       }

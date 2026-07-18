@@ -67,7 +67,7 @@ export default function Projects() {
       toast.success("Project deleted successfully");
     } catch (error) {
       if (isNetworkError(error)) {
-        toast.warning("Slow connection — your request may have gone through. Refreshing...");
+        toast.warning("Slow connection, your request may have gone through. Refreshing...");
       } else {
         toast.error("Failed to delete project");
       }
@@ -97,7 +97,7 @@ export default function Projects() {
       toast.success("Project renamed successfully");
     } catch (error) {
       if (isNetworkError(error)) {
-        toast.warning("Slow connection — your rename may have been saved. Refreshing...");
+        toast.warning("Slow connection, your rename may have been saved. Refreshing...");
       } else {
         toast.error("Failed to rename project");
       }

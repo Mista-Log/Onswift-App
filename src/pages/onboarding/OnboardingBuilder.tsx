@@ -182,7 +182,7 @@ export default function OnboardingBuilder() {
     if (!projectId) {
       toast.error(
         projects.length === 0
-          ? "Create a project first — your client lands in it after onboarding."
+          ? "Create a project first, your client lands in it after onboarding."
           : "Link this form to a project before saving."
       );
       return;

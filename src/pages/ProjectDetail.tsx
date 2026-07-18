@@ -227,7 +227,7 @@ export default function ProjectDetail() {
       }
     } catch (error) {
       if (isNetworkError(error)) {
-        toast.warning("Slow connection — your task may have been created. Refreshing...");
+        toast.warning("Slow connection, your task may have been created. Refreshing...");
         setTimeout(loadTasks, 2000);
       } else {
         toast.error("Failed to create task");
@@ -249,7 +249,7 @@ export default function ProjectDetail() {
       await loadTasks();
     } catch (error) {
       if (isNetworkError(error)) {
-        toast.warning("Slow connection — your change may have been saved. Refreshing...");
+        toast.warning("Slow connection, your change may have been saved. Refreshing...");
         setTimeout(loadTasks, 2000);
       } else {
         toast.error("Failed to update task");
@@ -264,7 +264,7 @@ export default function ProjectDetail() {
       await loadTasks();
     } catch (error) {
       if (isNetworkError(error)) {
-        toast.warning("Slow connection — checking status...");
+        toast.warning("Slow connection, checking status...");
         setTimeout(loadTasks, 2000);
       } else {
         toast.error("Failed to delete task");
@@ -316,7 +316,7 @@ export default function ProjectDetail() {
       await loadTasks();
     } catch (error) {
       if (isNetworkError(error)) {
-        toast.warning("Slow connection — your change may have been saved. Refreshing...");
+        toast.warning("Slow connection, your change may have been saved. Refreshing...");
         setTimeout(loadTasks, 2000);
       } else {
         toast.error("Failed to update task");
@@ -1026,7 +1026,7 @@ export default function ProjectDetail() {
           onClose={() => setShowTaskCelebration(false)}
           emoji="✅"
           title="First task is rolling!"
-          description="You're tracking work like a pro! Assign this task to a team member to get things moving — or create more tasks to build out the project."
+          description="You're tracking work like a pro! Assign this task to a team member to get things moving, or create more tasks to build out the project."
           cta={{ label: "Go to My Team", href: "/team" }}
           secondaryLabel="I'll keep building"
         />
@@ -1036,7 +1036,7 @@ export default function ProjectDetail() {
           onClose={() => setShowProjectDoneCelebration(false)}
           emoji="🎊"
           title="First project wrapped!"
-          description="You just concluded your first project on Onswift — your team has been celebrated too. That's the full journey, start to finish. Onwards!"
+          description="You just concluded your first project on Onswift, your team has been celebrated too. That's the full journey, start to finish. Onwards!"
           secondaryLabel="Amazing"
         />
 
@@ -1044,7 +1044,7 @@ export default function ProjectDetail() {
           open={showTalentProjectDone}
           onClose={() => setShowTalentProjectDone(false)}
           emoji="🎊"
-          title="Project complete — great work!"
+          title="Project complete. Great work!"
           description="A project you contributed to has been wrapped up. Your work helped get it across the line. Congratulations!"
           secondaryLabel="Thank you"
         />

@@ -125,7 +125,7 @@ export default function OnboardingTemplates() {
                           </CardDescription>
                           {!template.project_name && (
                             <p className="text-xs text-destructive mt-1">
-                              No project linked — open to fix before sharing
+                              No project linked, open to fix before sharing
                             </p>
                           )}
                         </div>

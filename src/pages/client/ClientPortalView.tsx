@@ -59,7 +59,7 @@ export default function ClientPortalView() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold">Client Portal</h1>
           <p className="text-muted-foreground mt-1">
-            Your submitted onboarding forms — read-only view.
+            Your submitted onboarding forms, read-only view.
           </p>
         </div>
 
