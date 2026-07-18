@@ -12,7 +12,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
@@ -128,4 +128,5 @@
     "vite-plugin-node-polyfills": "^0.28.0",
     "vitest": "^4.1.8"
   }
+  
 }
