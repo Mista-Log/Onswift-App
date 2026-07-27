@@ -110,48 +110,58 @@ function CountdownTimer({ targetDate }: { targetDate: Date }) {
         <h3 className="font-semibold text-foreground">Next Deadline</h3>
       </div>
 
-      <div className="grid grid-cols-4 gap-3 mb-4">
-        <div className="text-center">
-          <div className={cn(
-            "text-3xl font-bold mb-1",
-            isUrgent ? "text-destructive" : "text-foreground"
-          )}>
-            {timeLeft.days}
-          </div>
-          <div className="text-xs text-muted-foreground uppercase">Days</div>
-        </div>
-        <div className="text-center">
-          <div className={cn(
-            "text-3xl font-bold mb-1",
-            isUrgent ? "text-destructive" : "text-foreground"
-          )}>
-            {timeLeft.hours}
-          </div>
-          <div className="text-xs text-muted-foreground uppercase">Hours</div>
-        </div>
-        <div className="text-center">
-          <div className={cn(
-            "text-3xl font-bold mb-1",
-            isUrgent ? "text-destructive" : "text-foreground"
-          )}>
-            {timeLeft.minutes}
-          </div>
-          <div className="text-xs text-muted-foreground uppercase">Min</div>
-        </div>
-        <div className="text-center">
-          <div className={cn(
-            "text-3xl font-bold mb-1",
-            isUrgent ? "text-destructive" : "text-foreground"
-          )}>
-            {timeLeft.seconds}
-          </div>
-          <div className="text-xs text-muted-foreground uppercase">Sec</div>
-        </div>
-      </div>
+      <div className="flex items-start justify-center gap-2 mb-4">
+  <div className="text-center">
+    <div className={cn(
+      "text-3xl font-bold mb-1",
+      isUrgent ? "text-destructive" : "text-foreground"
+    )}>
+      {timeLeft.days}
+    </div>
+    <div className="text-xs text-muted-foreground uppercase">Days</div>
+  </div>
+
+  <div className="text-3xl font-bold mb-1 text-destructive">:</div>
+
+  <div className="text-center">
+    <div className={cn(
+      "text-3xl font-bold mb-1",
+      isUrgent ? "text-destructive" : "text-foreground"
+    )}>
+      {timeLeft.hours}
+    </div>
+    <div className="text-xs text-muted-foreground uppercase">Hours</div>
+  </div>
+
+  <div className="text-3xl font-bold mb-1 text-destructive">:</div>
+
+  <div className="text-center">
+    <div className={cn(
+      "text-3xl font-bold mb-1",
+      isUrgent ? "text-destructive" : "text-foreground"
+    )}>
+      {timeLeft.minutes}
+    </div>
+    <div className="text-xs text-muted-foreground uppercase">Min</div>
+  </div>
+
+  <div className="text-3xl font-bold mb-1 text-destructive">:</div>
+
+  <div className="text-center">
+    <div className={cn(
+      "text-3xl font-bold mb-1",
+      isUrgent ? "text-destructive" : "text-foreground"
+    )}>
+      {timeLeft.seconds}
+    </div>
+    <div className="text-xs text-muted-foreground uppercase">Sec</div>
+  </div>
+</div>
 
       {isUrgent && (
         <div className="flex items-center gap-2 text-destructive text-sm font-medium">
           <AlertCircle className="h-4 w-4" />
+
           <span>URGENT: Due in less than 24 hours!</span>
         </div>
       )}

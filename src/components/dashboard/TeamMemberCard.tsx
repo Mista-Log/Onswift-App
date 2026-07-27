@@ -73,10 +73,10 @@ export function TeamMemberCard({
           </AvatarFallback>
         </Avatar>
 
-        <div className="flex flex-col flex-1">
-          <span className="font-medium text-foreground">{name}</span>
-          <span className="text-sm text-muted-foreground">{role}</span>
-        </div>
+        <div className="flex min-w-0 flex-1 flex-col">
+  <span className="font-medium text-foreground truncate">{name}</span>
+  <span className="text-sm text-muted-foreground truncate">{role}</span>
+</div>
 
         {showActions && id && (onRemove || onMessage) && (
           <DropdownMenu>

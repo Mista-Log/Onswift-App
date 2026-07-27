@@ -14,13 +14,6 @@ import { MyTasksPanel } from "@/components/tasks/MyTasksPanel";
 import { AnalyticsSection } from "@/components/dashboard/analytics/AnalyticsSection";
 import { toast } from "sonner";
 
-// const teamMembers = [
-//   { id: "1", name: "Alia Vance", role: "Manager", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alia" },
-//   { id: "2", name: "Ben Carter", role: "Video Editor", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ben" },
-//   { id: "3", name: "Clara Dane", role: "Illustrator", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Clara" },
-// ];
-
-
 export default function DashboardCreator() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -48,9 +41,7 @@ export default function DashboardCreator() {
     }
   };
 
-  // Show only the first 3 projects
-  // Hide completed projects, then order by progress (most-complete first),
-  // falling back to soonest due date, and show the top few that fit.
+
   const projects = allProjects
     .filter((p) => p.status !== "completed")
     .sort((a, b) => {
@@ -77,13 +68,15 @@ export default function DashboardCreator() {
           {/* Left Column - Projects & Stats */}
           <div className="space-y-6 lg:col-span-2">
             {/* Active Projects */}
-            <section className="glass-card p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">Active Projects</h2>
+            <section className="glass-card p-4 sm:p-6 space-y-4 sm:space-y-6">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-base sm:text-lg font-semibold text-foreground truncate">
+                  Active Projects
+                </h2>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
                   onClick={() => navigate('/projects')}
                 >
                   View All
@@ -91,9 +84,9 @@ export default function DashboardCreator() {
               </div>
 
               {projects.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center gap-4">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                    <Plus className="h-8 w-8 text-primary" />
+                <div className="flex flex-col items-center justify-center py-8 sm:py-12 text-center gap-4">
+                  <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-primary/10">
+                    <Plus className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
                   </div>
                   <div>
                     <p className="text-base font-semibold text-foreground mb-1">No active projects yet</p>
@@ -103,7 +96,7 @@ export default function DashboardCreator() {
                   </div>
                   <Button
                     variant="glow"
-                    className="gap-2"
+                    className="w-full sm:w-auto gap-2"
                     onClick={() => navigate('/projects')}
                   >
                     <Plus className="h-4 w-4" />
@@ -131,61 +124,60 @@ export default function DashboardCreator() {
 
             {/* My Tasks — creator's own self-assigned tasks */}
             <MyTasksPanel variant="creator" />
-
           </div>
 
           {/* Right Column - Team */}
-          <div className="space-y-6">
-            <section className="glass-card p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">Team</h2>
-                {teamMembers.length > 0 && (
-                  <span className="text-sm text-muted-foreground">
-                    {teamMembers.length} {teamMembers.length === 1 ? 'member' : 'members'}
-                  </span>
-                )}
-              </div>
+<div className="space-y-6">
+  <section className="glass-card p-4 sm:p-6 space-y-4 sm:space-y-6">
+    <div className="flex items-center justify-between gap-2">
+      <h2 className="text-base sm:text-lg font-semibold text-foreground truncate">Team</h2>
+      {teamMembers.length > 0 && (
+        <span className="shrink-0 text-xs sm:text-sm text-muted-foreground">
+          {teamMembers.length} {teamMembers.length === 1 ? 'member' : 'members'}
+        </span>
+      )}
+    </div>
 
-              {isLoadingTeam ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-                </div>
-              ) : teamMembers.length > 0 ? (
-                <div className="space-y-1 max-h-80 overflow-y-auto">
-                  {teamMembers.map((member) => (
-                    <TeamMemberCard
-                      key={member.id}
-                      id={member.id}
-                      name={member.name}
-                      role={member.role}
-                      avatar={member.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.name}`}
-                      showActions={true}
-                      onRemove={handleRemoveMember}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 mb-3">
-                    <Users className="h-6 w-6 text-primary" />
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-1">No team members yet</p>
-                  <p className="text-xs text-muted-foreground">
-                    Start building your team by inviting members
-                  </p>
-                </div>
-              )}
+    {isLoadingTeam ? (
+      <div className="flex items-center justify-center py-8">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      </div>
+    ) : teamMembers.length > 0 ? (
+      <div className="space-y-1 max-h-80 overflow-y-auto">
+        {teamMembers.map((member) => (
+          <TeamMemberCard
+            key={member.id}
+            id={member.id}
+            name={member.name}
+            role={member.role}
+            avatar={member.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.name}`}
+            showActions={true}
+            onRemove={handleRemoveMember}
+          />
+        ))}
+      </div>
+    ) : (
+      <div className="flex flex-col items-center justify-center py-8 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 mb-3">
+          <Users className="h-6 w-6 text-primary" />
+        </div>
+        <p className="text-sm text-muted-foreground mb-1">No team members yet</p>
+        <p className="text-xs text-muted-foreground">
+          Start building your team by inviting members
+        </p>
+      </div>
+    )}
 
-              <Button
-                className="mt-4 w-full gap-2"
-                variant="glow"
-                onClick={() => setShowInviteModal(true)}
-              >
-                <Plus className="h-4 w-4" />
-                Invite Member
-              </Button>
-            </section>
-          </div>
+    <Button
+      className="w-full gap-2"
+      variant="glow"
+      onClick={() => setShowInviteModal(true)}
+    >
+      <Plus className="h-4 w-4" />
+      Invite Member
+    </Button>
+  </section>
+</div>
         </div>
 
         {/* Analytics — completion, client acquisition, talent performance */}

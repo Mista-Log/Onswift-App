@@ -350,10 +350,10 @@ export default function Projects() {
                   </div> */}
 
                   <div className="flex items-center justify-end pt-2 mt-1 border-t border-border/40">
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                    <button className="flex items-center gap-1 text-xs text-primary-foreground bg-primary hover:bg-primary/90 rounded-full px-3 py-1.5 transition-colors">
                       Open project
                       <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
-                    </span>
+                    </button>
                   </div>
                 </div>
               );

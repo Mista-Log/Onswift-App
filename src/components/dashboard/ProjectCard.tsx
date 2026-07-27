@@ -69,18 +69,17 @@ export function ProjectCard({
       <div
         onClick={onClick}
         className={cn(
-          "glass-card-hover flex cursor-pointer items-center justify-between p-4 group",
+          "glass-card-hover flex cursor-pointer items-center justify-between gap-3 p-4 group",
           className
         )}
       >
-        <div className="flex flex-col gap-1">
-          <h3 className="font-semibold text-foreground">{name}</h3>
+        <div className="flex min-w-0 flex-col gap-1">
+          <h3 className="font-semibold text-foreground truncate">{name}</h3>
           <p className="text-sm text-muted-foreground">
             {status === "completed" ? "Completed:" : "Due:"} {dueDate}
           </p>
         </div>
-
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-4">
           {/* Team Avatars */}
           <div className="flex -space-x-2">
             {teamMembers.slice(0, 4).map((member) => (

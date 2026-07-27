@@ -21,6 +21,7 @@ import { useTheme } from "next-themes";
 const creatorNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
+  { label: "My Team", icon: Users, route: "/team" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Client Portal", icon: ClipboardList, route: "/onboarding" },
   { label: "My Files", icon: FileArchive, route: "/library" },
