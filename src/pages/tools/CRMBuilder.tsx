@@ -1012,12 +1012,12 @@ export default function CRMBuilder() {
 
               <Button variant="outline" size="sm" className="gap-1.5" onClick={exportCsv}>
                 <Download className="h-3.5 w-3.5" />
-                CSV
+                Download as Excel File
               </Button>
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={exportJson}>
+              {/* <Button variant="outline" size="sm" className="gap-1.5" onClick={exportJson}>
                 <Download className="h-3.5 w-3.5" />
                 JSON
-              </Button>
+              </Button> */}
             </div>
           </div>
 
