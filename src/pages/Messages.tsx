@@ -479,7 +479,7 @@ export default function Messages() {
         `/api/v2/groups/${selectedGroup.id}/messages/send/`,
         {
           method: "POST",
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             content: message,
             mention_ids: mentionIds
           }),
@@ -497,13 +497,13 @@ export default function Messages() {
           prev.map(g =>
             g.id === selectedGroup.id
               ? {
-                  ...g,
-                  last_message: {
-                    content: message,
-                    sender_name: "You",
-                    timestamp: new Date().toISOString(),
-                  },
-                }
+                ...g,
+                last_message: {
+                  content: message,
+                  sender_name: "You",
+                  timestamp: new Date().toISOString(),
+                },
+              }
               : g
           )
         );
@@ -574,8 +574,8 @@ export default function Messages() {
   // Creators can message their team members, talents can message their creators
   const availableContacts: Contact[] = isCreator
     ? teamMembers
-        .filter(m => !conversations.some(c => c.other_user?.id === m.user_id))
-        .map(m => ({ id: m.id, user_id: m.user_id, name: m.name, avatar: m.avatar }))
+      .filter(m => !conversations.some(c => c.other_user?.id === m.user_id))
+      .map(m => ({ id: m.id, user_id: m.user_id, name: m.name, avatar: m.avatar }))
     : myCreators.filter(c => !conversations.some(conv => conv.other_user?.id === c.user_id));
 
   // Convert group members to mention members format (exclude current user)
@@ -648,18 +648,18 @@ export default function Messages() {
   // Handle keyboard navigation in mention dropdown
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (showMentionDropdown && mentionMembers.length > 0) {
-      const filteredMembers = mentionMembers.filter(m => 
+      const filteredMembers = mentionMembers.filter(m =>
         m.name.toLowerCase().includes(mentionQuery.toLowerCase())
       );
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedMemberIndex(prev => 
+        setSelectedMemberIndex(prev =>
           prev < filteredMembers.length - 1 ? prev + 1 : 0
         );
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedMemberIndex(prev => 
+        setSelectedMemberIndex(prev =>
           prev > 0 ? prev - 1 : filteredMembers.length - 1
         );
       } else if (e.key === 'Enter' && filteredMembers.length > 0) {
@@ -679,20 +679,25 @@ export default function Messages() {
       <div className="animate-fade-in h-[calc(100vh-8rem)]">
         <div className="glass-card h-full overflow-hidden">
           <div className="h-full md:grid md:grid-cols-[320px_1fr]">
-          {/* Contact List */}
-          <div
-            className={cn(
-              "border-r border-border/50 flex flex-col min-h-0",
-              (selectedConversation || selectedGroup) ? "hidden md:flex" : "flex"
-            )}
-          >
+            {/* Contact List */}
+            <div
+              className={cn(
+                "border-r border-border/50 flex flex-col min-h-0",
+                (selectedConversation || selectedGroup) ? "hidden md:flex" : "flex"
+              )}
+            >
               <div className="border-b border-border/50 p-4 sm:p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-base font-semibold text-foreground sm:text-lg">Messages</h2>
                   {isCreator && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button size="icon" variant="ghost" title="New">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="New"
+                          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg"
+                        >
                           <Plus className="h-5 w-5" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -737,94 +742,94 @@ export default function Messages() {
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     </div>
                   ) : (
-                  <>
-                  {/* Client-only: per-project creator threads (portal chat) */}
-                  {user?.role === "client" && projectThreads.length > 0 && (
                     <>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Project chats
-                      </p>
-                      {projectThreads
-                        .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                        .map((p) => (
+                      {/* Client-only: per-project creator threads (portal chat) */}
+                      {user?.role === "client" && projectThreads.length > 0 && (
+                        <>
+                          <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Project chats
+                          </p>
+                          {projectThreads
+                            .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                            .map((p) => (
+                              <button
+                                key={p.id}
+                                onClick={() => navigate(`/projects/${p.id}/messages`)}
+                                className="w-full border-b border-border/30 p-4 text-left transition-colors hover:bg-secondary/50"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Avatar className="h-11 w-11 sm:h-12 sm:w-12">
+                                    <AvatarFallback className="bg-primary/10 text-primary">
+                                      <FolderKanban className="h-5 w-5" />
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-foreground truncate sm:text-base">
+                                      {p.name}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground truncate sm:text-sm">
+                                      Project thread with {p.creator_name || "your creator"}
+                                    </p>
+                                  </div>
+                                  {p.unread > 0 && (
+                                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                                      {p.unread}
+                                    </div>
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                        </>
+                      )}
+                      {filteredConversations.length > 0 ? (
+                        filteredConversations.map((conv) => (
                           <button
-                            key={p.id}
-                            onClick={() => navigate(`/projects/${p.id}/messages`)}
-                            className="w-full border-b border-border/30 p-4 text-left transition-colors hover:bg-secondary/50"
+                            key={conv.id}
+                            onClick={() => setSelectedConversation(conv)}
+                            className={cn(
+                              "w-full border-b border-border/30 p-4 text-left transition-colors hover:bg-secondary/50",
+                              selectedConversation?.id === conv.id && "bg-secondary/50"
+                            )}
                           >
                             <div className="flex items-center gap-3">
                               <Avatar className="h-11 w-11 sm:h-12 sm:w-12">
-                                <AvatarFallback className="bg-primary/10 text-primary">
-                                  <FolderKanban className="h-5 w-5" />
+                                <AvatarImage
+                                  src={isAssistantConv(conv) ? assistantLogo : conv.other_user?.avatar || undefined}
+                                  alt={conv.other_user?.name || "User"}
+                                  className={isAssistantConv(conv) ? "object-contain p-1.5" : undefined}
+                                />
+                                <AvatarFallback className="bg-primary/20 text-primary">
+                                  {conv.other_user?.name?.charAt(0) || "?"}
                                 </AvatarFallback>
                               </Avatar>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-foreground truncate sm:text-base">
-                                  {p.name}
-                                </p>
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-sm font-medium text-foreground truncate sm:text-base">
+                                    {conv.other_user?.name || "Unknown"}
+                                  </p>
+                                  <span className="hidden text-[10px] text-muted-foreground sm:inline sm:text-xs">
+                                    {formatDate(conv.last_message_time)}
+                                  </span>
+                                </div>
                                 <p className="text-xs text-muted-foreground truncate sm:text-sm">
-                                  Project thread with {p.creator_name || "your creator"}
+                                  {conv.last_message_content || "No messages yet"}
                                 </p>
                               </div>
-                              {p.unread > 0 && (
+                              {conv.unread_count > 0 && (
                                 <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-                                  {p.unread}
+                                  {conv.unread_count}
                                 </div>
                               )}
                             </div>
                           </button>
-                        ))}
-                    </>
-                  )}
-                  {filteredConversations.length > 0 ? (
-                  filteredConversations.map((conv) => (
-                    <button
-                      key={conv.id}
-                      onClick={() => setSelectedConversation(conv)}
-                      className={cn(
-                        "w-full border-b border-border/30 p-4 text-left transition-colors hover:bg-secondary/50",
-                        selectedConversation?.id === conv.id && "bg-secondary/50"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-11 w-11 sm:h-12 sm:w-12">
-                          <AvatarImage
-                            src={isAssistantConv(conv) ? assistantLogo : conv.other_user?.avatar || undefined}
-                            alt={conv.other_user?.name || "User"}
-                            className={isAssistantConv(conv) ? "object-contain p-1.5" : undefined}
-                          />
-                          <AvatarFallback className="bg-primary/20 text-primary">
-                            {conv.other_user?.name?.charAt(0) || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium text-foreground truncate sm:text-base">
-                              {conv.other_user?.name || "Unknown"}
-                            </p>
-                            <span className="hidden text-[10px] text-muted-foreground sm:inline sm:text-xs">
-                              {formatDate(conv.last_message_time)}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground truncate sm:text-sm">
-                            {conv.last_message_content || "No messages yet"}
-                          </p>
+                        ))
+                      ) : !(user?.role === "client" && projectThreads.length > 0) ? (
+                        <div className="p-4 text-center text-muted-foreground">
+                          <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No conversations yet</p>
                         </div>
-                        {conv.unread_count > 0 && (
-                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-                            {conv.unread_count}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  ))
-                  ) : !(user?.role === "client" && projectThreads.length > 0) ? (
-                  <div className="p-4 text-center text-muted-foreground">
-                    <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No conversations yet</p>
-                  </div>
-                  ) : null}
-                  </>
+                      ) : null}
+                    </>
                   )
                 ) : (
                   /* Groups List */
