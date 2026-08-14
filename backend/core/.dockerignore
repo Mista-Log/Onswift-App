@@ -1,0 +1,21 @@
+.git
+.gitignore
+.pytest_cache
+__pycache__/
+*.pyc
+*.log
+*.pot
+
+# Local dev artifacts we don't want baked into the image
+media/
+staticfiles/
+db.sqlite3
+*.sqlite3
+venv/
+.env
+.env.*
+
+# Not needed inside the container
+Dockerfile
+.dockerignore
+Procfile

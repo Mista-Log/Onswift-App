@@ -30,13 +30,31 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-%9lx*ese!+r-up+^uzb%tiz2(vsmbl-37op7_rt2g*%47%+7^b'
+# Reads from env in prod (set on the host); the literal below is a dev-only fallback,
+# never used once SECRET_KEY is set in the deployment environment.
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY",
+    "django-insecure-%9lx*ese!+r-up+^uzb%tiz2(vsmbl-37op7_rt2g*%47%+7^b",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-# ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
-ALLOWED_HOSTS = ['*']
+# Comma-separated list of allowed hosts, e.g. "onswift.org,www.onswift.org,onswift-backend-xyz.run.app"
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.environ.get(
+        "ALLOWED_HOSTS", "onswift.org,www.onswift.org,localhost,127.0.0.1"
+    ).split(",")
+    if h.strip()
+]
+
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 7  # 1 week; raise once confirmed stable
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 # Application definition
 
@@ -232,8 +250,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "https://onswift-app.vercel.app",
-    "https://onswift.org/",
-    "https://onswift-app-7zrf.onrender.com",
+    "https://onswift.org",
     "https://www.onswift.org",
 ]
 
