@@ -69,17 +69,17 @@ export function ProjectCard({
       <div
         onClick={onClick}
         className={cn(
-          "glass-card-hover flex cursor-pointer items-center justify-between gap-3 p-4 group",
+          "glass-card-hover flex flex-wrap cursor-pointer items-center justify-between gap-3 p-4 group sm:flex-nowrap",
           className
         )}
       >
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h3 className="font-semibold text-foreground truncate">{name}</h3>
           <p className="text-sm text-muted-foreground">
             {status === "completed" ? "Completed:" : "Due:"} {dueDate}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+        <div className="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-4">
           {/* Team Avatars */}
           <div className="flex -space-x-2">
             {teamMembers.slice(0, 4).map((member) => (
@@ -108,7 +108,7 @@ export function ProjectCard({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 opacity-0 :opacity-100 transition-opacity"
+                  className="h-8 w-8 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
                 >
                   <MoreVertical className="h-4 w-4" />
                 </Button>

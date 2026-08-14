@@ -1,11 +1,17 @@
-import { useState, useEffect, useRef } from "react";
+import { Fragment, useState, useEffect, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageCircle, Send, Search, Loader2, ChevronLeft, Plus, Users, Info, UserPlus, FolderKanban } from "lucide-react";
+import { MessageCircle, Send, Search, Loader2, ChevronLeft, Plus, Users, Info, UserPlus, FolderKanban, ArrowDown, X, GripVertical, Menu } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { CreateGroupModal } from "@/components/messaging/CreateGroupModal";
+import { MessageBubble } from "@/components/messaging/MessageBubble";
+import { MessageActionBar } from "@/components/messaging/MessageActionBar";
+import { SelectionToolbar } from "@/components/messaging/SelectionToolbar";
+import { ForwardMessageModal } from "@/components/messaging/ForwardMessageModal";
+import { DateDivider } from "@/components/messaging/DateDivider";
 import { InviteMemberModal } from "@/components/dashboard/InviteMemberModal";
 import { ConversationInfoPanel } from "@/components/messaging/ConversationInfoPanel";
 import { MentionDropdown, MentionMember } from "@/components/messaging/MentionDropdown";
@@ -15,6 +21,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +42,7 @@ import { useTheme } from "next-themes";
 import { secureFetch } from "@/api/apiClient";
 import { toast } from "sonner";
 
-interface Conversation {
+export interface Conversation {
   id: string;
   other_user: {
     id: string;
@@ -40,7 +56,13 @@ interface Conversation {
   unread_count: number;
 }
 
-interface Message {
+export interface ReplyPreview {
+  id: string;
+  content: string;
+  sender_name: string;
+}
+
+export interface Message {
   id: string;
   sender: string;
   sender_name: string;
@@ -48,10 +70,14 @@ interface Message {
   recipient: string;
   content: string;
   is_read: boolean;
+  reply_to: ReplyPreview | null;
+  is_edited: boolean;
+  edited_at: string | null;
+  is_deleted: boolean;
   created_at: string;
 }
 
-interface GroupMessage {
+export interface GroupMessage {
   id: string;
   group: string;
   sender_id: string;
@@ -59,6 +85,10 @@ interface GroupMessage {
   sender_avatar: string | null;
   content: string;
   is_mine: boolean;
+  reply_to: ReplyPreview | null;
+  is_edited: boolean;
+  edited_at: string | null;
+  is_deleted: boolean;
   created_at: string;
 }
 
@@ -77,7 +107,7 @@ interface Group {
   is_admin: boolean;
 }
 
-interface Contact {
+export interface Contact {
   id: string;
   user_id: string;
   name: string;
@@ -125,6 +155,82 @@ export default function Messages() {
   const [showContactInfo, setShowContactInfo] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Whether the user is currently scrolled near the bottom of the chat pane —
+  // used to decide if a new message should auto-scroll the view, or if we'd
+  // just be yanking them away from history they're reading.
+  const isNearBottomRef = useRef(true);
+  const [showScrollToBottomBtn, setShowScrollToBottomBtn] = useState(false);
+
+  const handleChatScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    isNearBottomRef.current = nearBottom;
+    setShowScrollToBottomBtn(!nearBottom);
+    setActiveMessageForActions(null);
+  };
+
+  const scrollToBottom = () => {
+    isNearBottomRef.current = true;
+    setShowScrollToBottomBtn(false);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Draggable width for the contact list column (desktop only — mobile stays
+  // single-pane). Persisted so it doesn't reset every visit.
+  const CONTACT_LIST_WIDTH_KEY = "onswift:messages:contactListWidth";
+  const CONTACT_LIST_MIN_WIDTH = 260;
+  const CONTACT_LIST_MAX_WIDTH = 480;
+  const [contactListWidth, setContactListWidth] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem(CONTACT_LIST_WIDTH_KEY));
+      if (saved && saved >= CONTACT_LIST_MIN_WIDTH && saved <= CONTACT_LIST_MAX_WIDTH) {
+        return saved;
+      }
+    } catch {
+      // Ignore — fall back to the default width.
+    }
+    return 320;
+  });
+
+  const handleContactListResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = contactListWidth;
+    let latestWidth = startWidth;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const delta = moveEvent.clientX - startX;
+      latestWidth = Math.min(
+        CONTACT_LIST_MAX_WIDTH,
+        Math.max(CONTACT_LIST_MIN_WIDTH, startWidth + delta)
+      );
+      setContactListWidth(latestWidth);
+    };
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      try {
+        localStorage.setItem(CONTACT_LIST_WIDTH_KEY, String(latestWidth));
+      } catch {
+        // Ignore — persistence is a nice-to-have, not required for resizing to work.
+      }
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  };
+
+  // Reply / edit / delete state (shared between direct and group chat)
+  const [replyingTo, setReplyingTo] = useState<ReplyPreview | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [messageToDelete, setMessageToDelete] = useState<{ id: string; isGroup: boolean } | null>(null);
+
+  // Mobile long-press action bar + select-to-forward (desktop keeps the
+  // hover dropdown instead — see MessageBubble's isMobile gate).
+  const [activeMessageForActions, setActiveMessageForActions] = useState<Message | GroupMessage | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [isForwarding, setIsForwarding] = useState(false);
 
   // Mention state
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
@@ -136,6 +242,7 @@ export default function Messages() {
   const directInputRef = useRef<HTMLTextAreaElement>(null);
 
   const isCreator = user?.role === "creator";
+  const isMobile = useIsMobile();
 
   // Auto-grow the chat textareas (up to ~5 lines) so long messages wrap
   // visibly instead of scrolling off to the left.
@@ -228,27 +335,50 @@ export default function Messages() {
   // Fetch messages when conversation changes
   useEffect(() => {
     if (selectedConversation) {
+      // Opening a thread should always land at the newest message.
+      isNearBottomRef.current = true;
+      setShowScrollToBottomBtn(false);
       fetchMessages(selectedConversation.id);
       markMessagesAsRead(selectedConversation.id);
+      // Reset compose state — a reply/edit in flight belongs to the old thread
+      setReplyingTo(null);
+      setEditingMessageId(null);
+      // Selection/action-bar state is scoped to one thread — don't leak across
+      setActiveMessageForActions(null);
+      setIsSelecting(false);
+      setSelectedMessageIds(new Set());
     }
   }, [selectedConversation]);
 
   // Fetch group messages when group changes
   useEffect(() => {
     if (selectedGroup) {
+      // Opening a thread should always land at the newest message.
+      isNearBottomRef.current = true;
+      setShowScrollToBottomBtn(false);
       fetchGroupMessages(selectedGroup.id);
       fetchGroupMembers(selectedGroup.id);
       markGroupMessagesAsRead(selectedGroup.id);
       // Reset mentions when group changes
       setMentions([]);
       setShowMentionDropdown(false);
+      // Reset compose state — a reply/edit in flight belongs to the old thread
+      setReplyingTo(null);
+      setEditingMessageId(null);
+      // Selection/action-bar state is scoped to one thread — don't leak across
+      setActiveMessageForActions(null);
+      setIsSelecting(false);
+      setSelectedMessageIds(new Set());
     }
   }, [selectedGroup]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change — but only if the user is already
+  // near the bottom. Otherwise a background poll tick (every 5s) would keep
+  // yanking them back down while they're reading older messages.
   useEffect(() => {
+    if (!isNearBottomRef.current) return;
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, groupMessages]);
 
   // Poll for new messages
   useEffect(() => {
@@ -441,7 +571,7 @@ export default function Messages() {
         `/api/v2/conversations/${selectedConversation.id}/messages/send/`,
         {
           method: "POST",
-          body: JSON.stringify({ content: message }),
+          body: JSON.stringify({ content: message, reply_to_id: replyingTo?.id }),
         }
       );
 
@@ -449,6 +579,10 @@ export default function Messages() {
         const newMessage = await response.json();
         setMessages(prev => [...prev, newMessage]);
         setMessage("");
+        setReplyingTo(null);
+        // Sending always jumps to the bottom, even if scrolled up.
+        isNearBottomRef.current = true;
+        setShowScrollToBottomBtn(false);
 
         // Update conversation list
         setConversations(prev =>
@@ -481,7 +615,8 @@ export default function Messages() {
           method: "POST",
           body: JSON.stringify({
             content: message,
-            mention_ids: mentionIds
+            mention_ids: mentionIds,
+            reply_to_id: replyingTo?.id
           }),
         }
       );
@@ -491,6 +626,10 @@ export default function Messages() {
         setGroupMessages(prev => [...prev, newMessage]);
         setMessage("");
         setMentions([]); // Clear mentions after sending
+        setReplyingTo(null);
+        // Sending always jumps to the bottom, even if scrolled up.
+        isNearBottomRef.current = true;
+        setShowScrollToBottomBtn(false);
 
         // Update group list
         setGroups(prev =>
@@ -518,11 +657,213 @@ export default function Messages() {
     }
   };
 
+  // Message and GroupMessage flag "is this mine" differently (sender vs
+  // is_mine) — this normalizes it for code that handles either type.
+  const isMessageOwn = (msg: Message | GroupMessage) =>
+    "is_mine" in msg ? msg.is_mine : msg.sender === user?.id;
+
   const handleSend = () => {
+    if (editingMessageId) {
+      handleSaveEdit();
+      return;
+    }
     if (activeTab === "direct" && selectedConversation) {
       handleSendMessage();
     } else if (activeTab === "groups" && selectedGroup) {
       handleSendGroupMessage();
+    }
+  };
+
+  const activeInputRef = activeTab === "direct" ? directInputRef : inputRef;
+
+  const handleReplyToMessage = (msg: Message | GroupMessage) => {
+    setEditingMessageId(null);
+    setReplyingTo({ id: msg.id, content: msg.content, sender_name: msg.sender_name });
+    activeInputRef.current?.focus();
+  };
+
+  // Messages older than this can no longer be edited (enforced server-side
+  // too — see MessageEditView/GroupMessageEditView in the backend).
+  const EDIT_WINDOW_MS = 5 * 60 * 1000;
+  const isEditable = (msg: Message | GroupMessage) =>
+    Date.now() - new Date(msg.created_at).getTime() < EDIT_WINDOW_MS;
+
+  const handleStartEdit = (msg: Message | GroupMessage) => {
+    if (!isEditable(msg)) {
+      toast.error("This message can no longer be edited");
+      return;
+    }
+    setReplyingTo(null);
+    setEditingMessageId(msg.id);
+    setMessage(msg.content);
+    activeInputRef.current?.focus();
+  };
+
+  const handleCancelReply = () => setReplyingTo(null);
+
+  const handleCopyMessage = async (msg: Message | GroupMessage) => {
+    try {
+      await navigator.clipboard.writeText(msg.content);
+      toast.success("Message copied");
+    } catch (error) {
+      console.error("Error copying message:", error);
+      toast.error("Failed to copy message");
+    }
+  };
+
+  const openActionBarFor = (msg: Message | GroupMessage) => setActiveMessageForActions(msg);
+  const closeActionBar = () => setActiveMessageForActions(null);
+
+  const handleEnterSelectMode = (msg: Message | GroupMessage) => {
+    setIsSelecting(true);
+    setSelectedMessageIds(new Set([msg.id]));
+    setActiveMessageForActions(null);
+  };
+
+  const handleCancelSelectMode = () => {
+    setIsSelecting(false);
+    setSelectedMessageIds(new Set());
+  };
+
+  const toggleMessageSelected = (id: string) => {
+    setSelectedMessageIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleOpenForwardModal = () => setShowForwardModal(true);
+
+  const handleConfirmForward = async (recipientUserIds: string[]) => {
+    const activeMessages = activeTab === "direct" ? messages : groupMessages;
+    const messagesToForward = activeMessages
+      .filter(m => selectedMessageIds.has(m.id))
+      .map(m => ({ content: m.content }));
+    if (messagesToForward.length === 0) return;
+
+    setIsForwarding(true);
+    const results = await Promise.allSettled(
+      recipientUserIds.map(async (userId) => {
+        const convRes = await secureFetch('/api/v2/conversations/start/', {
+          method: 'POST',
+          body: JSON.stringify({ user_id: userId }),
+        });
+        if (!convRes.ok) throw new Error('Failed to start conversation');
+        const conversation = await convRes.json();
+
+        for (const msg of messagesToForward) {
+          const sendRes = await secureFetch(`/api/v2/conversations/${conversation.id}/messages/send/`, {
+            method: 'POST',
+            body: JSON.stringify({ content: msg.content }),
+          });
+          if (!sendRes.ok) throw new Error('Failed to send message');
+        }
+      })
+    );
+    setIsForwarding(false);
+
+    const succeeded = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.length - succeeded;
+    if (succeeded > 0) {
+      toast.success(
+        `Forwarded ${messagesToForward.length} message${messagesToForward.length !== 1 ? 's' : ''} to ${succeeded} recipient${succeeded !== 1 ? 's' : ''}`
+      );
+    }
+    if (failed > 0) {
+      toast.error(`Failed to forward to ${failed} recipient${failed !== 1 ? 's' : ''}`);
+    }
+    if (succeeded > 0) {
+      setShowForwardModal(false);
+      handleCancelSelectMode();
+      fetchConversations();
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setMessage("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMessageId || !message.trim() || isSending) return;
+
+    try {
+      setIsSending(true);
+      if (activeTab === "direct" && selectedConversation) {
+        const response = await secureFetch(
+          `/api/v2/conversations/${selectedConversation.id}/messages/${editingMessageId}/edit/`,
+          { method: "PATCH", body: JSON.stringify({ content: message }) }
+        );
+        if (response.ok) {
+          const updated = await response.json();
+          setMessages(prev => prev.map(m => (m.id === updated.id ? updated : m)));
+        } else if (response.status === 403) {
+          toast.error("Your 5-minute edit window has expired");
+        } else {
+          toast.error("Failed to edit message");
+        }
+      } else if (activeTab === "groups" && selectedGroup) {
+        const response = await secureFetch(
+          `/api/v2/groups/${selectedGroup.id}/messages/${editingMessageId}/edit/`,
+          { method: "PATCH", body: JSON.stringify({ content: message }) }
+        );
+        if (response.ok) {
+          const updated = await response.json();
+          setGroupMessages(prev => prev.map(m => (m.id === updated.id ? updated : m)));
+        } else if (response.status === 403) {
+          toast.error("Your 5-minute edit window has expired");
+        } else {
+          toast.error("Failed to edit message");
+        }
+      }
+    } catch (error) {
+      console.error("Error editing message:", error);
+      toast.error("Failed to edit message");
+    } finally {
+      setIsSending(false);
+      setEditingMessageId(null);
+      setMessage("");
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!messageToDelete) return;
+    const { id, isGroup } = messageToDelete;
+
+    try {
+      if (isGroup && selectedGroup) {
+        const response = await secureFetch(
+          `/api/v2/groups/${selectedGroup.id}/messages/${id}/delete/`,
+          { method: "DELETE" }
+        );
+        if (response.ok) {
+          const updated = await response.json();
+          setGroupMessages(prev => prev.map(m => (m.id === updated.id ? updated : m)));
+        } else {
+          toast.error("Failed to delete message");
+        }
+      } else if (!isGroup && selectedConversation) {
+        const response = await secureFetch(
+          `/api/v2/conversations/${selectedConversation.id}/messages/${id}/delete/`,
+          { method: "DELETE" }
+        );
+        if (response.ok) {
+          const updated = await response.json();
+          setMessages(prev => prev.map(m => (m.id === updated.id ? updated : m)));
+        } else {
+          toast.error("Failed to delete message");
+        }
+      }
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      toast.error("Failed to delete message");
+    } finally {
+      setMessageToDelete(null);
     }
   };
 
@@ -541,6 +882,29 @@ export default function Messages() {
     if (diffDays === 1) return "Yesterday";
     if (diffDays < 7) return date.toLocaleDateString([], { weekday: 'short' });
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  // WhatsApp-style day dividers between messages — compares local calendar
+  // days (midnight-to-midnight), not raw 24h diffs, so it's correct right
+  // across a midnight boundary.
+  const isSameLocalDay = (a: string, b: string) => {
+    const da = new Date(a);
+    const db = new Date(b);
+    return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+  };
+
+  const getDateDividerLabel = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diffDays = Math.round((startOfDay(now).getTime() - startOfDay(date).getTime()) / 86400000);
+
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (date.getFullYear() === now.getFullYear()) {
+      return date.toLocaleDateString([], { month: "long", day: "numeric" });
+    }
+    return date.toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" });
   };
 
   // Filter conversations based on search
@@ -675,10 +1039,16 @@ export default function Messages() {
   };
 
   return (
-    <MainLayout>
-      <div className="animate-fade-in h-[calc(100vh-8rem)]">
+    <MainLayout hideTopBarOnMobile>
+      {({ toggleMobileSidebar }) => (
+      <>
+      {/* <div className="animate-fade-in h-[100dvh] md:h-[calc(100vh-8rem)]"> */}
+      <div className="animate-fade-in h-[100dvh] md:h-[calc(100vh-8rem)]">
         <div className="glass-card h-full overflow-hidden">
-          <div className="h-full md:grid md:grid-cols-[320px_1fr]">
+          <div
+            className="h-full md:grid md:grid-cols-[var(--contact-list-width)_4px_1fr]"
+            style={{ "--contact-list-width": `${contactListWidth}px` } as React.CSSProperties}
+          >
             {/* Contact List */}
             <div
               className={cn(
@@ -688,7 +1058,16 @@ export default function Messages() {
             >
               <div className="border-b border-border/50 p-4 sm:p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-base font-semibold text-foreground sm:text-lg">Messages</h2>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={toggleMobileSidebar}
+                      className="md:hidden -ml-1 p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label="Open menu"
+                    >
+                      <Menu className="h-5 w-5" />
+                    </button>
+                    <h2 className="text-base font-semibold text-foreground sm:text-lg">Messages</h2>
+                  </div>
                   {isCreator && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -932,6 +1311,19 @@ export default function Messages() {
               </div>
             </div>
 
+            {/* Contact list resize handle — desktop only */}
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize contact list"
+              onPointerDown={handleContactListResizeStart}
+              className="hidden md:flex cursor-col-resize items-center justify-center transition-colors hover:bg-primary/10 active:bg-primary/20"
+            >
+              <div className="z-10 flex h-8 w-3 items-center justify-center rounded-sm border border-border bg-background">
+                <GripVertical className="h-3 w-3 text-muted-foreground" />
+              </div>
+            </div>
+
             {/* Chat Area */}
             <div
               className={cn(
@@ -942,8 +1334,33 @@ export default function Messages() {
               {selectedConversation ? (
                 <>
                   {/* Chat Header - Direct Message */}
+                  {isSelecting ? (
+                    <SelectionToolbar
+                      count={selectedMessageIds.size}
+                      onCancel={handleCancelSelectMode}
+                      onForward={handleOpenForwardModal}
+                    />
+                  ) : activeMessageForActions ? (
+                    <MessageActionBar
+                      isOwn={isMessageOwn(activeMessageForActions)}
+                      isEditable={isEditable(activeMessageForActions)}
+                      onReply={() => { handleReplyToMessage(activeMessageForActions); closeActionBar(); }}
+                      onCopy={() => { handleCopyMessage(activeMessageForActions); closeActionBar(); }}
+                      onSelect={() => handleEnterSelectMode(activeMessageForActions)}
+                      onEdit={() => { handleStartEdit(activeMessageForActions); closeActionBar(); }}
+                      onDelete={() => { setMessageToDelete({ id: activeMessageForActions.id, isGroup: false }); closeActionBar(); }}
+                      onClose={closeActionBar}
+                    />
+                  ) : (
                   <div className="flex items-center justify-between gap-2 border-b border-border/50 p-4 sm:p-5">
                     <div className="flex min-w-0 items-center gap-2">
+                      <button
+                        onClick={toggleMobileSidebar}
+                        className="md:hidden p-1 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
+                        aria-label="Open menu"
+                      >
+                        <Menu className="h-5 w-5" />
+                      </button>
                       <button
                         onClick={() => setSelectedConversation(null)}
                         className="md:hidden p-1 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
@@ -986,45 +1403,45 @@ export default function Messages() {
                       <Info className="h-5 w-5" />
                     </Button>
                   </div>
+                  )}
 
                   {/* Messages */}
-                  <div className="flex-1 space-y-4 overflow-y-auto p-3 sm:p-5 md:p-6">
+                  <div className="relative flex-1 min-h-0">
+                  <div
+                    className="absolute inset-0 space-y-4 overflow-y-auto p-3 sm:p-5 md:p-6 scrollbar-hide"
+                    onScroll={handleChatScroll}
+                  >
                     {isLoadingMessages && messages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
                         <Loader2 className="h-6 w-6 animate-spin text-primary" />
                       </div>
                     ) : messages.length > 0 ? (
                       <>
-                        {messages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={cn(
-                              "flex",
-                              msg.sender === user?.id ? "justify-end" : "justify-start"
-                            )}
-                          >
-                            <div
-                              className={cn(
-                                "min-w-0 max-w-[85%] sm:max-w-[75%] md:max-w-[70%] rounded-2xl px-3 py-2 sm:px-4",
-                                msg.sender === user?.id
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-secondary text-foreground"
-                              )}
-                            >
-                              <p className="text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.content}</p>
-                              <p
-                                className={cn(
-                                  "mt-1 text-xs",
-                                  msg.sender === user?.id
-                                    ? "text-primary-foreground/70"
-                                    : "text-muted-foreground"
-                                )}
-                              >
-                                {formatTime(msg.created_at)}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
+                        {messages.map((msg, index) => {
+                          const isOwn = msg.sender === user?.id;
+                          const prevMsg = index > 0 ? messages[index - 1] : null;
+                          const showDivider = !prevMsg || !isSameLocalDay(prevMsg.created_at, msg.created_at);
+                          return (
+                            <Fragment key={msg.id}>
+                              {showDivider && <DateDivider label={getDateDividerLabel(msg.created_at)} />}
+                              <MessageBubble
+                                message={msg}
+                                isOwn={isOwn}
+                                showSenderHeader={false}
+                                isMobile={isMobile}
+                                isSelecting={isSelecting}
+                                isSelected={selectedMessageIds.has(msg.id)}
+                                isEditable={isEditable(msg)}
+                                formatTime={formatTime}
+                                onReply={handleReplyToMessage}
+                                onEdit={handleStartEdit}
+                                onDelete={(m) => setMessageToDelete({ id: m.id, isGroup: false })}
+                                onLongPress={openActionBarFor}
+                                onToggleSelected={toggleMessageSelected}
+                              />
+                            </Fragment>
+                          );
+                        })}
                         <div ref={messagesEndRef} />
                       </>
                     ) : (
@@ -1035,14 +1452,47 @@ export default function Messages() {
                       </div>
                     )}
                   </div>
+                  {showScrollToBottomBtn && (
+                    <button
+                      type="button"
+                      onClick={scrollToBottom}
+                      aria-label="Scroll to latest messages"
+                      title="Scroll to latest messages"
+                      className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/40 transition-transform hover:scale-105 hover:shadow-xl hover:shadow-primary/50 active:scale-95"
+                    >
+                      <ArrowDown className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </button>
+                  )}
+                  </div>
 
                   {/* Message Input - Direct Message */}
                   <div className="border-t border-border/50 p-3 sm:p-4 md:p-5">
+                    {editingMessageId && (
+                      <div className="mb-2 flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-primary">Editing message</p>
+                        </div>
+                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCancelEdit}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                    {!editingMessageId && replyingTo && (
+                      <div className="mb-2 flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-primary">Replying to {replyingTo.sender_name}</p>
+                          <p className="truncate text-xs text-muted-foreground">{replyingTo.content}</p>
+                        </div>
+                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCancelReply}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                     <div className="flex items-end gap-2 sm:gap-3">
                       <Textarea
                         ref={directInputRef}
                         rows={1}
-                        placeholder="Type a message..."
+                        placeholder={editingMessageId ? "Edit message..." : "Type a message..."}
                         value={message}
                         onChange={(e) => {
                           setMessage(e.target.value);
@@ -1063,7 +1513,7 @@ export default function Messages() {
                         ) : (
                           <>
                             <Send className="h-4 w-4" />
-                            <span className="hidden sm:inline sm:ml-2">Send</span>
+                            <span className="hidden sm:inline sm:ml-2">{editingMessageId ? "Save" : "Send"}</span>
                           </>
                         )}
                       </Button>
@@ -1073,8 +1523,33 @@ export default function Messages() {
               ) : selectedGroup ? (
                 <>
                   {/* Chat Header - Group */}
+                  {isSelecting ? (
+                    <SelectionToolbar
+                      count={selectedMessageIds.size}
+                      onCancel={handleCancelSelectMode}
+                      onForward={handleOpenForwardModal}
+                    />
+                  ) : activeMessageForActions ? (
+                    <MessageActionBar
+                      isOwn={isMessageOwn(activeMessageForActions)}
+                      isEditable={isEditable(activeMessageForActions)}
+                      onReply={() => { handleReplyToMessage(activeMessageForActions); closeActionBar(); }}
+                      onCopy={() => { handleCopyMessage(activeMessageForActions); closeActionBar(); }}
+                      onSelect={() => handleEnterSelectMode(activeMessageForActions)}
+                      onEdit={() => { handleStartEdit(activeMessageForActions); closeActionBar(); }}
+                      onDelete={() => { setMessageToDelete({ id: activeMessageForActions.id, isGroup: true }); closeActionBar(); }}
+                      onClose={closeActionBar}
+                    />
+                  ) : (
                   <div className="flex items-center justify-between gap-2 border-b border-border/50 p-4 sm:p-5">
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={toggleMobileSidebar}
+                        className="md:hidden p-1 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
+                        aria-label="Open menu"
+                      >
+                        <Menu className="h-5 w-5" />
+                      </button>
                       <button
                         onClick={() => {
                           setSelectedGroup(null);
@@ -1109,58 +1584,44 @@ export default function Messages() {
                       <Info className="h-5 w-5" />
                     </Button>
                   </div>
+                  )}
 
                   {/* Group Messages */}
-                  <div className="flex-1 space-y-4 overflow-y-auto p-3 sm:p-5 md:p-6">
+                  <div className="relative flex-1 min-h-0">
+                  <div
+                    className="absolute inset-0 space-y-4 overflow-y-auto p-3 sm:p-5 md:p-6 scrollbar-hide"
+                    onScroll={handleChatScroll}
+                  >
                     {isLoadingMessages && groupMessages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
                         <Loader2 className="h-6 w-6 animate-spin text-primary" />
                       </div>
                     ) : groupMessages.length > 0 ? (
                       <>
-                        {groupMessages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={cn(
-                              "flex",
-                              msg.is_mine ? "justify-end" : "justify-start"
-                            )}
-                          >
-                            {!msg.is_mine && (
-                              <Avatar className="h-8 w-8 mr-2 shrink-0">
-                                <AvatarImage src={msg.sender_avatar || undefined} alt={msg.sender_name} />
-                                <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                                  {msg.sender_name.charAt(0)}
-                                </AvatarFallback>
-                              </Avatar>
-                            )}
-                            <div className="min-w-0 max-w-[85%] sm:max-w-[75%] md:max-w-[70%]">
-                              {!msg.is_mine && (
-                                <p className="text-xs text-muted-foreground mb-1">{msg.sender_name}</p>
-                              )}
-                              <div
-                                className={cn(
-                                  "rounded-2xl px-3 py-2 sm:px-4",
-                                  msg.is_mine
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-secondary text-foreground"
-                                )}
-                              >
-                                <p className="text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.content}</p>
-                                <p
-                                  className={cn(
-                                    "mt-1 text-xs",
-                                    msg.is_mine
-                                      ? "text-primary-foreground/70"
-                                      : "text-muted-foreground"
-                                  )}
-                                >
-                                  {formatTime(msg.created_at)}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                        {groupMessages.map((msg, index) => {
+                          const prevMsg = index > 0 ? groupMessages[index - 1] : null;
+                          const showDivider = !prevMsg || !isSameLocalDay(prevMsg.created_at, msg.created_at);
+                          return (
+                            <Fragment key={msg.id}>
+                              {showDivider && <DateDivider label={getDateDividerLabel(msg.created_at)} />}
+                              <MessageBubble
+                                message={msg}
+                                isOwn={msg.is_mine}
+                                showSenderHeader={true}
+                                isMobile={isMobile}
+                                isSelecting={isSelecting}
+                                isSelected={selectedMessageIds.has(msg.id)}
+                                isEditable={isEditable(msg)}
+                                formatTime={formatTime}
+                                onReply={handleReplyToMessage}
+                                onEdit={handleStartEdit}
+                                onDelete={(m) => setMessageToDelete({ id: m.id, isGroup: true })}
+                                onLongPress={openActionBarFor}
+                                onToggleSelected={toggleMessageSelected}
+                              />
+                            </Fragment>
+                          );
+                        })}
                         <div ref={messagesEndRef} />
                       </>
                     ) : (
@@ -1171,15 +1632,48 @@ export default function Messages() {
                       </div>
                     )}
                   </div>
+                  {showScrollToBottomBtn && (
+                    <button
+                      type="button"
+                      onClick={scrollToBottom}
+                      aria-label="Scroll to latest messages"
+                      title="Scroll to latest messages"
+                      className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/40 transition-transform hover:scale-105 hover:shadow-xl hover:shadow-primary/50 active:scale-95"
+                    >
+                      <ArrowDown className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </button>
+                  )}
+                  </div>
 
                   {/* Message Input - Group */}
                   <div className="border-t border-border/50 p-3 sm:p-4 md:p-5">
+                    {editingMessageId && (
+                      <div className="mb-2 flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-primary">Editing message</p>
+                        </div>
+                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCancelEdit}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                    {!editingMessageId && replyingTo && (
+                      <div className="mb-2 flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-primary">Replying to {replyingTo.sender_name}</p>
+                          <p className="truncate text-xs text-muted-foreground">{replyingTo.content}</p>
+                        </div>
+                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCancelReply}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                     <div className="flex items-end gap-2 sm:gap-3 relative">
                       <div className="flex-1 relative">
                         <Textarea
                           ref={inputRef}
                           rows={1}
-                          placeholder="Type a message... (use @ to mention)"
+                          placeholder={editingMessageId ? "Edit message..." : "Type a message... (use @ to mention)"}
                           value={message}
                           onChange={handleMessageChange}
                           onKeyDown={handleKeyDown}
@@ -1200,7 +1694,7 @@ export default function Messages() {
                         ) : (
                           <>
                             <Send className="h-4 w-4" />
-                            <span className="hidden sm:inline sm:ml-2">Send</span>
+                            <span className="hidden sm:inline sm:ml-2">{editingMessageId ? "Save" : "Send"}</span>
                           </>
                         )}
                       </Button>
@@ -1240,6 +1734,18 @@ export default function Messages() {
         open={showInviteModal}
         onOpenChange={setShowInviteModal}
         onNavigateToTalent={() => navigate('/talent')}
+      />
+
+      <ForwardMessageModal
+        open={showForwardModal}
+        onClose={() => setShowForwardModal(false)}
+        messageCount={selectedMessageIds.size}
+        isCreator={isCreator}
+        teamMembers={teamMembers}
+        myCreators={myCreators}
+        conversations={conversations}
+        isSending={isForwarding}
+        onConfirm={handleConfirmForward}
       />
 
       <ConversationInfoPanel
@@ -1286,6 +1792,29 @@ export default function Messages() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Message Confirmation */}
+      <AlertDialog open={!!messageToDelete} onOpenChange={(open) => !open && setMessageToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete message?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This can't be undone. The message will be removed for everyone in this conversation.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      </>
+      )}
     </MainLayout>
   );
 }

@@ -474,11 +474,15 @@ class DeliverableReviewSerializer(serializers.ModelSerializer):
 class MessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source="sender.full_name", read_only=True)
     sender_avatar = serializers.SerializerMethodField()
+    reply_to = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
-        fields = ["id", "sender", "sender_name", "sender_avatar", "recipient", "content", "is_read", "created_at"]
-        read_only_fields = ["sender", "is_read", "created_at"]
+        fields = [
+            "id", "sender", "sender_name", "sender_avatar", "recipient", "content",
+            "is_read", "reply_to", "is_edited", "edited_at", "is_deleted", "created_at"
+        ]
+        read_only_fields = ["sender", "is_read", "is_edited", "edited_at", "is_deleted", "created_at"]
 
     def get_sender_avatar(self, obj):
         request = self.context.get("request")
@@ -490,6 +494,15 @@ class MessageSerializer(serializers.ModelSerializer):
         except AttributeError:
             pass
         return None
+
+    def get_reply_to(self, obj):
+        if not obj.reply_to:
+            return None
+        return {
+            "id": str(obj.reply_to.id),
+            "content": obj.reply_to.content,
+            "sender_name": obj.reply_to.sender.full_name,
+        }
 
 
 class ConversationSerializer(serializers.ModelSerializer):
@@ -588,14 +601,16 @@ class GroupMessageSerializer(serializers.ModelSerializer):
     is_mine = serializers.SerializerMethodField()
     read_by = serializers.SerializerMethodField()
     mentioned_users = serializers.SerializerMethodField()
+    reply_to = serializers.SerializerMethodField()
 
     class Meta:
         model = GroupMessage
         fields = [
             'id', 'group', 'sender_id', 'sender_name', 'sender_avatar',
-            'content', 'is_mine', 'read_by', 'mentioned_users', 'created_at'
+            'content', 'is_mine', 'read_by', 'mentioned_users', 'reply_to',
+            'is_edited', 'edited_at', 'is_deleted', 'created_at'
         ]
-        read_only_fields = ['sender', 'created_at']
+        read_only_fields = ['sender', 'is_edited', 'edited_at', 'is_deleted', 'created_at']
 
     def get_sender_avatar(self, obj):
         request = self.context.get('request')
@@ -621,6 +636,15 @@ class GroupMessageSerializer(serializers.ModelSerializer):
     def get_mentioned_users(self, obj):
         """Get list of mentioned user IDs"""
         return [str(user.id) for user in obj.mentions.all()]
+
+    def get_reply_to(self, obj):
+        if not obj.reply_to:
+            return None
+        return {
+            "id": str(obj.reply_to.id),
+            "content": obj.reply_to.content,
+            "sender_name": obj.reply_to.sender.full_name,
+        }
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -765,19 +789,26 @@ class GroupMessageCreateSerializer(serializers.ModelSerializer):
         required=False,
         default=[]
     )
+    reply_to_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = GroupMessage
-        fields = ['content', 'mention_ids']
+        fields = ['content', 'mention_ids', 'reply_to_id']
 
     def create(self, validated_data):
         mention_ids = validated_data.pop('mention_ids', [])
+        reply_to_id = validated_data.pop('reply_to_id', None)
         sender = self.context['request'].user
         group = self.context['group']
+
+        reply_to = None
+        if reply_to_id:
+            reply_to = GroupMessage.objects.filter(id=reply_to_id, group=group).first()
 
         message = GroupMessage.objects.create(
             group=group,
             sender=sender,
+            reply_to=reply_to,
             **validated_data
         )
 

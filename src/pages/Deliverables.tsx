@@ -3,7 +3,6 @@ import { useLocation } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { DeliverablesPanel } from "@/components/team/DeliverablesPanel";
 import { useAuth } from "@/contexts/AuthContext";
-import { MessagingProvider } from "@/contexts/MessagingContext";
 
 function Deliverables() {
   const { user } = useAuth();
@@ -23,26 +22,24 @@ function Deliverables() {
   }, []);
 
   return (
-    <MessagingProvider>
-      <MainLayout>
-        <div className="animate-fade-in space-y-6">
-          {/* Header */}
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">
-              {isCreator ? "Team Deliverables" : "My Deliverables"}
-            </h1>
-            <p className="mt-1 text-muted-foreground">
-              {isCreator ? "Review and manage work submissions from your team" : "Upload and track your work submissions"}
-            </p>
-          </div>
-
-          <DeliverablesPanel
-            openUploadForTask={openUploadForTask}
-            onUploadOpened={() => setOpenUploadForTask(undefined)}
-          />
+    <MainLayout>
+      <div className="animate-fade-in space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">
+            {isCreator ? "Team Deliverables" : "My Deliverables"}
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            {isCreator ? "Review and manage work submissions from your team" : "Upload and track your work submissions"}
+          </p>
         </div>
-      </MainLayout>
-    </MessagingProvider>
+
+        <DeliverablesPanel
+          openUploadForTask={openUploadForTask}
+          onUploadOpened={() => setOpenUploadForTask(undefined)}
+        />
+      </div>
+    </MainLayout>
   );
 }
 

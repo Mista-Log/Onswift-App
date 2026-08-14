@@ -3,11 +3,24 @@ import { AppSidebar, TopBar } from "./AppSidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { QuickStartLauncher } from "@/components/quickstart/QuickStartLauncher";
 
-interface MainLayoutProps {
-  children: ReactNode;
+export interface MainLayoutRenderProps {
+  toggleMobileSidebar: () => void;
 }
 
-export function MainLayout({ children }: MainLayoutProps) {
+interface MainLayoutProps {
+  // Plain JSX for most pages. A page that opts into hideTopBarOnMobile and
+  // needs to reopen the mobile sidebar drawer itself (since that button
+  // normally lives in the now-hidden TopBar) can instead pass a render
+  // function to get toggleMobileSidebar — a page can never consume this via
+  // context, since it's the one instantiating <MainLayout>, not a descendant
+  // of it.
+  children: ReactNode | ((props: MainLayoutRenderProps) => ReactNode);
+  // Hides the app TopBar on mobile only (desktop keeps it), letting a page's
+  // own content occupy that real estate.
+  hideTopBarOnMobile?: boolean;
+}
+
+export function MainLayout({ children, hideTopBarOnMobile = false }: MainLayoutProps) {
   const { user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const stored = localStorage.getItem('sidebar-collapsed');
@@ -57,14 +70,17 @@ export function MainLayout({ children }: MainLayoutProps) {
           isCollapsed ? 'md:ml-20' : 'md:ml-64'
         }`}
       >
-        <TopBar
-          onToggleSidebar={toggleSidebar}
-          onToggleMobileSidebar={toggleMobileSidebar}
-          isCollapsed={isCollapsed}
-        />
+        <div className={hideTopBarOnMobile ? "hidden md:block" : undefined}>
+          <TopBar
+            onToggleSidebar={toggleSidebar}
+            onToggleMobileSidebar={toggleMobileSidebar}
+            isCollapsed={isCollapsed}
+          />
+        </div>
 
-        <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6">
-          {children}
+        <main className="flex-1 min-w-0 overflow-x-hidden p-4">
+        
+          {typeof children === "function" ? children({ toggleMobileSidebar }) : children}
         </main>
       </div>
 

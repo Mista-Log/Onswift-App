@@ -73,7 +73,7 @@ export function TaskCard({
   return (
     <div
       className={cn(
-        "flex items-center gap-4 p-4 rounded-lg border border-border/50 transition-all duration-200",
+        "flex items-center gap-3 p-4 rounded-lg border border-border/50 transition-all duration-200 sm:gap-4",
         "hover:border-primary/40 hover:shadow-[0_0_20px_hsl(250_76%_63%/0.15)]",
         isCompleted && "opacity-60"
       )}
@@ -110,7 +110,7 @@ export function TaskCard({
         {description && (
           <p className="text-xs text-muted-foreground truncate mt-0.5">{description}</p>
         )}
-        <div className="flex items-center gap-3 mt-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
           {deadline && (
             <div className="flex items-center gap-1">
               <Clock className="h-3 w-3 text-muted-foreground" />
@@ -138,7 +138,7 @@ export function TaskCard({
         </div>
       </div>
 
-      <Badge variant="secondary" className="flex-shrink-0 text-xs">
+      <Badge variant="secondary" className="flex-shrink-0 max-w-[110px] truncate text-xs sm:max-w-none">
         {projectName}
       </Badge>
     </div>
