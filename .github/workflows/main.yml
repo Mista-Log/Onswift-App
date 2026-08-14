@@ -32,6 +32,33 @@ jobs:
           SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
           DEBUG: "False"
 
+  # --- Backend Deploy Job (Cloud Run) ---
+  # Requires GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT, GCP_REGION repo secrets,
+  # set up once the GCP project exists (see migration plan step 4/6).
+  backend-deploy:
+    needs: backend-tests
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # required for Workload Identity Federation
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: onswift-backend
+          region: ${{ secrets.GCP_REGION }}
+          source: backend/core
+
   # --- Frontend Job ---
   frontend-build-and-deploy:
     needs: backend-tests

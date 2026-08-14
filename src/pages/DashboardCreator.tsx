@@ -68,9 +68,9 @@ export default function DashboardCreator() {
           {/* Left Column - Projects & Stats */}
           <div className="space-y-6 lg:col-span-2">
             {/* Active Projects */}
-            <section className="glass-card p-4 sm:p-6 space-y-4 sm:space-y-6">
+            <section className="glass-card p-5 sm:p-6 md:p-7 space-y-6">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-base sm:text-lg font-semibold text-foreground truncate">
+                <h2 className="text-lg font-semibold text-foreground truncate">
                   Active Projects
                 </h2>
                 <Button
@@ -128,11 +128,11 @@ export default function DashboardCreator() {
 
           {/* Right Column - Team */}
 <div className="space-y-6">
-  <section className="glass-card p-4 sm:p-6 space-y-4 sm:space-y-6">
+  <section className="glass-card p-5 sm:p-6 md:p-7 space-y-6">
     <div className="flex items-center justify-between gap-2">
-      <h2 className="text-base sm:text-lg font-semibold text-foreground truncate">Team</h2>
+      <h2 className="text-lg font-semibold text-foreground truncate">Team</h2>
       {teamMembers.length > 0 && (
-        <span className="shrink-0 text-xs sm:text-sm text-muted-foreground">
+        <span className="shrink-0 text-sm text-muted-foreground">
           {teamMembers.length} {teamMembers.length === 1 ? 'member' : 'members'}
         </span>
       )}

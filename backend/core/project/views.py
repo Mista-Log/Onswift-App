@@ -1,3 +1,4 @@
+from datetime import timedelta
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -112,13 +113,13 @@ class ProjectCompleteView(APIView):
             for talent in talents:
                 create_notification(
                     user=talent,
-                    title="Project Completed 🎉",
+                    title="Project Completed",
                     message=f"\"{project.name}\" has been marked complete. Great work — that's a wrap!",
                     notification_type="system",
                 )
             create_notification(
                 user=project.creator,
-                title="Project Completed 🎉",
+                title="Project Completed",
                 message=f"You wrapped up \"{project.name}\". Congratulations on seeing it through!",
                 notification_type="system",
             )
@@ -825,6 +826,7 @@ class MessageCreateView(APIView):
     def post(self, request, conversation_id):
         user = request.user
         content = request.data.get("content")
+        reply_to_id = request.data.get("reply_to_id")
 
         if not content:
             return Response({"error": "content is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -839,11 +841,20 @@ class MessageCreateView(APIView):
         if not other_user:
             return Response({"error": "Invalid conversation"}, status=status.HTTP_400_BAD_REQUEST)
 
+        reply_to = None
+        if reply_to_id:
+            reply_to = Message.objects.filter(
+                id=reply_to_id
+            ).filter(
+                Q(sender=user, recipient=other_user) | Q(sender=other_user, recipient=user)
+            ).first()
+
         # Create message
         message = Message.objects.create(
             sender=user,
             recipient=other_user,
-            content=content
+            content=content,
+            reply_to=reply_to
         )
 
         # Update conversation
@@ -893,6 +904,52 @@ class MessageMarkReadView(APIView):
         ).update(is_read=True)
 
         return Response({"status": "ok"})
+
+
+class MessageEditView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, conversation_id, message_id):
+        user = request.user
+        content = request.data.get("content")
+
+        if not content:
+            return Response({"error": "content is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            message = Message.objects.get(id=message_id, sender=user, is_deleted=False)
+        except Message.DoesNotExist:
+            return Response({"error": "Message not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if timezone.now() - message.created_at > timedelta(minutes=5):
+            return Response({"error": "Edit window has expired"}, status=status.HTTP_403_FORBIDDEN)
+
+        message.content = content
+        message.is_edited = True
+        message.edited_at = timezone.now()
+        message.save()
+
+        serializer = MessageSerializer(message, context={"request": request})
+        return Response(serializer.data)
+
+
+class MessageDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, conversation_id, message_id):
+        user = request.user
+
+        try:
+            message = Message.objects.get(id=message_id, sender=user)
+        except Message.DoesNotExist:
+            return Response({"error": "Message not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        message.content = ""
+        message.is_deleted = True
+        message.save()
+
+        serializer = MessageSerializer(message, context={"request": request})
+        return Response(serializer.data)
 
 
 # ============================================
@@ -1082,6 +1139,7 @@ class GroupMessageCreateView(APIView):
         user = request.user
         content = request.data.get('content')
         mention_ids = request.data.get('mention_ids', [])
+        reply_to_id = request.data.get('reply_to_id')
 
         if not content:
             return Response({"error": "content is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1093,7 +1151,7 @@ class GroupMessageCreateView(APIView):
             return Response({"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = GroupMessageCreateSerializer(
-            data={'content': content, 'mention_ids': mention_ids},
+            data={'content': content, 'mention_ids': mention_ids, 'reply_to_id': reply_to_id},
             context={'request': request, 'group': group}
         )
 
@@ -1131,6 +1189,54 @@ class GroupMessagesMarkReadView(APIView):
             )
 
         return Response({"status": "ok"})
+
+
+class GroupMessageEditView(APIView):
+    """Edit a group message (sender only)"""
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, group_id, message_id):
+        user = request.user
+        content = request.data.get('content')
+
+        if not content:
+            return Response({"error": "content is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            message = GroupMessage.objects.get(id=message_id, group_id=group_id, sender=user, is_deleted=False)
+        except GroupMessage.DoesNotExist:
+            return Response({"error": "Message not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if timezone.now() - message.created_at > timedelta(minutes=5):
+            return Response({"error": "Edit window has expired"}, status=status.HTTP_403_FORBIDDEN)
+
+        message.content = content
+        message.is_edited = True
+        message.edited_at = timezone.now()
+        message.save()
+
+        serializer = GroupMessageSerializer(message, context={'request': request})
+        return Response(serializer.data)
+
+
+class GroupMessageDeleteView(APIView):
+    """Delete a group message (sender only)"""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, group_id, message_id):
+        user = request.user
+
+        try:
+            message = GroupMessage.objects.get(id=message_id, group_id=group_id, sender=user)
+        except GroupMessage.DoesNotExist:
+            return Response({"error": "Message not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        message.content = ""
+        message.is_deleted = True
+        message.save()
+
+        serializer = GroupMessageSerializer(message, context={'request': request})
+        return Response(serializer.data)
 
 
 class AvailableMembersView(APIView):

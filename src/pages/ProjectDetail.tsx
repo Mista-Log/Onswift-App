@@ -5,6 +5,7 @@ import { CelebrationModal } from "@/components/CelebrationModal";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
+import { Pencil} from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ArrowLeft,
@@ -857,7 +858,7 @@ export default function ProjectDetail() {
               {/* Planning Column */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 pb-2 border-b">
-                  <Circle className="h-4 w-4 text-muted-foreground" />
+                  <Pencil className="h-4 w-4 text-yellow-500" />
                   <h3 className="font-semibold">Planning</h3>
                   <span className="text-xs text-muted-foreground">({planningTasks.length})</span>
                 </div>

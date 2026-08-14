@@ -131,17 +131,18 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
         <h2 className="text-lg font-semibold text-foreground">My Tasks</h2>
       </div>
 
+      {/* To Do/ Completed tabs */} 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
-          <TabsTrigger value="todo">
-            To Do <span className="ml-1 text-xs">({pendingCount})</span>
+          <TabsTrigger value="todo" className="text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">
+            To Do <span className="ml-1 text-xs ">({pendingCount})</span>
           </TabsTrigger>
-          <TabsTrigger value="completed">
+          <TabsTrigger value="completed" className="text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">
             Completed <span className="ml-1 text-xs">({completedCount})</span>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value={activeTab} className="space-y-2">
+        <TabsContent value={activeTab} className="space-y-2 ">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -181,7 +182,7 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Do you have a deliverable for this task?</AlertDialogTitle>
             <AlertDialogDescription>
-              Onswift is deliverable-based. If you have work to submit, add it now.
+              Onswift is deliverable-based. If you have work to submit along with this task, add it now.
               {isCreator
                 ? " Otherwise you can mark the task complete directly."
                 : " Otherwise we'll let your creator know it's ready for their approval."}

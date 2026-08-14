@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { useTeam } from "@/contexts/TeamContext";
-// import { useMessaging } from "@/contexts/MessagingContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
@@ -104,7 +103,6 @@ export function DeliverableDetailModal({
   onDelete,
 }: DeliverableDetailModalProps) {
   const { teamMembers } = useTeam();
-  // const { fetchComments, sendComment } = useMessaging();
   const [comments, setComments] = useState<Comment[]>([]);
   // Local-only comments for now
   useEffect(() => {

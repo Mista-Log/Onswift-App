@@ -28,6 +28,8 @@ from .views import (
     MessageListView,
     MessageCreateView,
     MessageMarkReadView,
+    MessageEditView,
+    MessageDeleteView,
     # Group Chat Views
     GroupListCreateView,
     GroupDetailView,
@@ -37,6 +39,8 @@ from .views import (
     GroupMessagesView,
     GroupMessageCreateView,
     GroupMessagesMarkReadView,
+    GroupMessageEditView,
+    GroupMessageDeleteView,
     AvailableMembersView,
     # Google Calendar Views
     GoogleCalendarStatusView,
@@ -90,6 +94,8 @@ urlpatterns = [
     path("conversations/<uuid:conversation_id>/messages/", MessageListView.as_view(), name="message-list"),
     path("conversations/<uuid:conversation_id>/messages/send/", MessageCreateView.as_view(), name="message-create"),
     path("conversations/<uuid:conversation_id>/messages/read/", MessageMarkReadView.as_view(), name="message-mark-read"),
+    path("conversations/<uuid:conversation_id>/messages/<uuid:message_id>/edit/", MessageEditView.as_view(), name="message-edit"),
+    path("conversations/<uuid:conversation_id>/messages/<uuid:message_id>/delete/", MessageDeleteView.as_view(), name="message-delete"),
 
     # Group Chat
     path("groups/", GroupListCreateView.as_view(), name="group-list-create"),
@@ -101,6 +107,8 @@ urlpatterns = [
     path("groups/<uuid:group_id>/messages/", GroupMessagesView.as_view(), name="group-messages"),
     path("groups/<uuid:group_id>/messages/send/", GroupMessageCreateView.as_view(), name="group-message-create"),
     path("groups/<uuid:group_id>/messages/read/", GroupMessagesMarkReadView.as_view(), name="group-messages-read"),
+    path("groups/<uuid:group_id>/messages/<uuid:message_id>/edit/", GroupMessageEditView.as_view(), name="group-message-edit"),
+    path("groups/<uuid:group_id>/messages/<uuid:message_id>/delete/", GroupMessageDeleteView.as_view(), name="group-message-delete"),
 
     # Google Calendar Integration
     path("calendar/status/", GoogleCalendarStatusView.as_view(), name="calendar-status"),
