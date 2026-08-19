@@ -209,7 +209,7 @@ export function UploadDeliverableModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Upload Deliverable</DialogTitle>
+          <DialogTitle>Add Attachment</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -248,7 +248,7 @@ export function UploadDeliverableModal({
 
           {/* Title */}
           <div className="space-y-2">
-            <Label>Deliverable Title *</Label>
+            <Label>Attachment Title *</Label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -263,7 +263,7 @@ export function UploadDeliverableModal({
               ref={textareaRef}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add notes about this deliverable..."
+              placeholder="Add notes about this attachment..."
               rows={3}
             />
           </div>
@@ -308,7 +308,7 @@ export function UploadDeliverableModal({
               Cancel
             </Button>
             <Button onClick={handleSubmit} disabled={!taskId || !title}>
-              Submit Deliverable
+              Submit Attachment
             </Button>
           </div>
         </div>

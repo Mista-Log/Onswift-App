@@ -31,7 +31,7 @@ const creatorNavItems = [
 
 const clientNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
-  //{ label: "Projects", icon: FolderKanban, route: "/projects" },
+  // { label: "Projects", icon: FolderKanban, route: "/projects" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Client Portal", icon: ClipboardList, route: "/onboarding" },
   { label: "Docs", icon: FileArchive, route: "/library" },

@@ -23,6 +23,10 @@ from .views import (
     DeliverableListCreateView,
     DeliverableDetailView,
     DeliverableReviewView,
+    DeliverableLinkListCreateView,
+    DeliverableLinkDetailView,
+    DeliverableFileListCreateView,
+    DeliverableFileDetailView,
     ConversationListView,
     ConversationCreateView,
     MessageListView,
@@ -87,6 +91,10 @@ urlpatterns = [
     path("deliverables/", DeliverableListCreateView.as_view(), name="deliverable-list-create"),
     path("deliverables/<uuid:pk>/", DeliverableDetailView.as_view(), name="deliverable-detail"),
     path("deliverables/<uuid:pk>/review/", DeliverableReviewView.as_view(), name="deliverable-review"),
+    path("deliverables/<uuid:deliverable_id>/links/", DeliverableLinkListCreateView.as_view(), name="deliverable-link-list-create"),
+    path("deliverables/<uuid:deliverable_id>/links/<uuid:link_id>/", DeliverableLinkDetailView.as_view(), name="deliverable-link-detail"),
+    path("deliverables/<uuid:deliverable_id>/files/", DeliverableFileListCreateView.as_view(), name="deliverable-file-list-create"),
+    path("deliverables/<uuid:deliverable_id>/files/<uuid:file_id>/", DeliverableFileDetailView.as_view(), name="deliverable-file-detail"),
 
     # Conversations & Messages (1-on-1)
     path("conversations/", ConversationListView.as_view(), name="conversation-list"),

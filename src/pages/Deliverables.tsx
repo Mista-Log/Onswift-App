@@ -27,7 +27,7 @@ function Deliverables() {
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-foreground">
-            {isCreator ? "Team Deliverables" : "My Deliverables"}
+            {isCreator ? "Team Attachments" : "My Attachments"}
           </h1>
           <p className="mt-1 text-muted-foreground">
             {isCreator ? "Review and manage work submissions from your team" : "Upload and track your work submissions"}

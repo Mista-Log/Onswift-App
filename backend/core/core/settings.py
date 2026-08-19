@@ -139,8 +139,11 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # }
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+# Personal opt-out for offline dev: set USE_SQLITE=true in your own .env.local
+# (gitignored) to skip Neon entirely and work against a local sqlite db.
+USE_SQLITE = os.getenv("USE_SQLITE", "").lower() == "true"
 
-if DATABASE_URL:
+if DATABASE_URL and not USE_SQLITE:
     DATABASES = {
         "default": dj_database_url.parse(
             DATABASE_URL,
@@ -149,13 +152,15 @@ if DATABASE_URL:
         )
     }
 else:
-    # ✅ Fallback for CI + local development
+    # ✅ Fallback for CI, local development, and offline mode (USE_SQLITE=true)
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
+
+print(f"[settings] DB backend: {'SQLITE (offline)' if DATABASES['default']['ENGINE'].endswith('sqlite3') else 'NEON'}")
 
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")

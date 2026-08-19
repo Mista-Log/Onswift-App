@@ -5,12 +5,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from .models import Project, Task, ProjectSample, Deliverable, Message, Conversation, Group, GroupMembership, GroupMessage, GroupMessageReadStatus
+from .models import Project, Task, ProjectSample, Deliverable, DeliverableLink, DeliverableFile, Message, Conversation, Group, GroupMembership, GroupMessage, GroupMessageReadStatus
 from .models import GoogleCalendarToken, CalendarSyncedTask, ProjectClientMembership
 from .models import TaskComment, TaskAttachment, TaskChecklist, TaskChecklistItem
 from .serializers import (
     ProjectSerializer, TaskSerializer, TaskDetailSerializer, ProjectSampleSerializer,
-    DeliverableSerializer, DeliverableCreateSerializer, DeliverableReviewSerializer,
+    DeliverableSerializer, DeliverableCreateSerializer, DeliverableReviewSerializer, DeliverableLinkSerializer, DeliverableEditSerializer,
+    DeliverableFileSerializer,
     MessageSerializer, ConversationSerializer,
     GroupSerializer, GroupCreateSerializer, GroupUpdateSerializer,
     GroupMemberSerializer, GroupMessageSerializer, GroupMessageCreateSerializer,
@@ -368,7 +369,12 @@ class TaskCommentListCreateView(generics.ListCreateAPIView):
         return self._task().comments.select_related("author")
 
     def perform_create(self, serializer):
-        serializer.save(task=self._task(), author=self.request.user)
+        task = self._task()
+        parent = serializer.validated_data.get("parent")
+        if parent is not None and parent.task_id != task.id:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"parent": "Comment does not belong to this task."})
+        serializer.save(task=task, author=self.request.user)
 
 
 class TaskCommentDeleteView(generics.DestroyAPIView):
@@ -727,9 +733,15 @@ class DeliverableListCreateView(generics.ListCreateAPIView):
         )
 
 
-class DeliverableDetailView(generics.RetrieveDestroyAPIView):
-    serializer_class = DeliverableSerializer
+class DeliverableDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """GET/DELETE use the full read serializer; PATCH/PUT are scoped to title+description only
+    (status/feedback go through DeliverableReviewView, which has its own task-completion side effects)."""
     permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method in ("PATCH", "PUT"):
+            return DeliverableEditSerializer
+        return DeliverableSerializer
 
     def get_queryset(self):
         user = self.request.user
@@ -753,6 +765,79 @@ class DeliverableReviewView(generics.UpdateAPIView):
         if user.role != "creator":
             return Deliverable.objects.none()
         return Deliverable.objects.filter(task__project__creator=user)
+
+
+def _get_deliverable_for_user(user, deliverable_id):
+    """Shared submitter-or-creator lookup used by every deliverable-attachment view below."""
+    from django.http import Http404
+    try:
+        return Deliverable.objects.get(
+            Q(submitted_by=user) | Q(task__project__creator=user),
+            id=deliverable_id,
+        )
+    except Deliverable.DoesNotExist:
+        raise Http404
+
+
+class DeliverableLinkListCreateView(generics.ListCreateAPIView):
+    """Submitter or creator can add a new link to an existing deliverable."""
+    serializer_class = DeliverableLinkSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return _get_deliverable_for_user(self.request.user, self.kwargs["deliverable_id"]).links.all()
+
+    def perform_create(self, serializer):
+        deliverable = _get_deliverable_for_user(self.request.user, self.kwargs["deliverable_id"])
+        serializer.save(deliverable=deliverable)
+
+
+class DeliverableLinkDetailView(generics.UpdateAPIView, generics.DestroyAPIView):
+    """Submitter or creator can fix a typo in — or remove — a deliverable's link."""
+    serializer_class = DeliverableLinkSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        from django.http import Http404
+        deliverable = _get_deliverable_for_user(self.request.user, self.kwargs["deliverable_id"])
+        try:
+            return DeliverableLink.objects.get(id=self.kwargs["link_id"], deliverable=deliverable)
+        except DeliverableLink.DoesNotExist:
+            raise Http404
+
+
+class DeliverableFileListCreateView(generics.ListCreateAPIView):
+    """Submitter or creator can add a new file to an existing deliverable."""
+    serializer_class = DeliverableFileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return _get_deliverable_for_user(self.request.user, self.kwargs["deliverable_id"]).files.all()
+
+    def create(self, request, *args, **kwargs):
+        from rest_framework.exceptions import ValidationError
+        f = request.FILES.get("file")
+        if not f:
+            raise ValidationError({"file": "This field is required."})
+        deliverable = _get_deliverable_for_user(request.user, self.kwargs["deliverable_id"])
+        obj = DeliverableFile.objects.create(
+            deliverable=deliverable, file=f, name=f.name, size=f.size, file_type=f.content_type,
+        )
+        serializer = self.get_serializer(obj)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class DeliverableFileDetailView(generics.DestroyAPIView):
+    """Submitter or creator can remove a file from a deliverable."""
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        from django.http import Http404
+        deliverable = _get_deliverable_for_user(self.request.user, self.kwargs["deliverable_id"])
+        try:
+            return DeliverableFile.objects.get(id=self.kwargs["file_id"], deliverable=deliverable)
+        except DeliverableFile.DoesNotExist:
+            raise Http404
 
 
 # Conversation Views

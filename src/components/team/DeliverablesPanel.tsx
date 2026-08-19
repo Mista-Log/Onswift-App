@@ -8,7 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, Search, Filter, Loader2 } from "lucide-react";
+import { Upload, Search, Filter, Loader2, Paperclip } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { DeliverableCard, Deliverable } from "@/components/team/DeliverableCard";
 import { UploadDeliverableModal, DeliverableFormData } from "@/components/team/UploadDeliverableModal";
 import { DeliverableDetailModal } from "@/components/team/DeliverableDetailModal";
@@ -24,6 +25,10 @@ interface DeliverablesPanelProps {
   openUploadForTask?: string;
   /** Called once the panel has consumed `openUploadForTask` (so the parent can clear it). */
   onUploadOpened?: () => void;
+  /** Bump this (e.g. Date.now()) to open the upload modal from outside, without a task prefill. */
+  openUploadSignal?: number;
+  /** Hide this panel's own upload button on mobile — used when the parent provides its own trigger elsewhere (e.g. the Board/Attachments tab row). */
+  hideMobileUploadButton?: boolean;
   /** Hide the four summary stat cards (used inside the compact project tab). */
   hideStats?: boolean;
 }
@@ -37,6 +42,8 @@ export function DeliverablesPanel({
   projectId,
   openUploadForTask,
   onUploadOpened,
+  openUploadSignal,
+  hideMobileUploadButton,
   hideStats,
 }: DeliverablesPanelProps) {
   const { user } = useAuth();
@@ -64,6 +71,11 @@ export function DeliverablesPanel({
     }
   }, [openUploadForTask]);
 
+  // External trigger with no task prefill — e.g. the mobile icon button on the Board/Attachments tab row.
+  useEffect(() => {
+    if (openUploadSignal) setUploadModalOpen(true);
+  }, [openUploadSignal]);
+
   useEffect(() => {
     fetchDeliverables();
   }, []);
@@ -79,7 +91,7 @@ export function DeliverablesPanel({
         emoji: "🏆",
         title: "Your work got approved!",
         description:
-          "Your creator approved your deliverable and the task is done. That's a real win, keep it going!",
+          "Your creator approved your attachment and the task is done. That's a real win, keep it going!",
       });
     }
     
@@ -121,7 +133,7 @@ export function DeliverablesPanel({
       }
     } catch (error) {
       console.error("Error fetching deliverables:", error);
-      toast.error("Unable to fetch deliverables now. Please try again.");
+      toast.error("Unable to fetch attachments now. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -159,7 +171,7 @@ export function DeliverablesPanel({
       });
 
       if (response.ok) {
-        toast.success("Deliverable uploaded successfully!");
+        toast.success("Attachment uploaded successfully!");
         setUploadModalOpen(false);
         fetchDeliverables();
         if (
@@ -170,14 +182,14 @@ export function DeliverablesPanel({
           localStorage.setItem("onswift_talent_first_deliverable", "1");
           setCelebration({
             emoji: "🎉",
-            title: "First deliverable sent!",
+            title: "First attachment sent!",
             description:
               "You just shipped your first piece of work on Onswift. Your creator will review it shortly nice momentum!",
           });
         }
       } else {
         const error = await response.json();
-        toast.error(error.detail || "Hmm, I'm having trouble uploading your deliverable. Please try again.");
+        toast.error(error.detail || "Hmm, I'm having trouble uploading your attachment. Please try again.");
       }
     } catch (error) {
       console.error("Error uploading deliverable:", error);
@@ -185,7 +197,7 @@ export function DeliverablesPanel({
         toast.warning("Slow connection, your upload may have gone through. Refreshing...");
         setTimeout(fetchDeliverables, 2000);
       } else {
-        toast.error("Hmm, I'm having trouble uploading your deliverable. Please try again.");
+        toast.error("Hmm, I'm having trouble uploading your attachment. Please try again.");
       }
     }
   };
@@ -198,12 +210,12 @@ export function DeliverablesPanel({
       });
 
       if (response.ok) {
-        const msg = status === "approved" ? "Deliverable approved!" : status === "pending" ? "Approval reversed." : "Revision requested";
+        const msg = status === "approved" ? "Attachment approved!" : status === "pending" ? "Approval reversed." : "Revision requested";
         toast.success(msg);
         setSelectedDeliverable(null);
         fetchDeliverables();
       } else {
-        toast.error("Having trouble reviewing your deliverable. Please try again.");
+        toast.error("Having trouble reviewing your attachment. Please try again.");
       }
     } catch (error) {
       console.error("Error reviewing deliverable:", error);
@@ -211,7 +223,7 @@ export function DeliverablesPanel({
         toast.warning("Slow connection your review may have been saved. Refreshing...");
         setTimeout(fetchDeliverables, 2000);
       } else {
-        toast.error("We're having trouble reviewing your deliverable. Please try again.");
+        toast.error("We're having trouble reviewing your attachment. Please try again.");
       }
     }
   };
@@ -223,11 +235,11 @@ export function DeliverablesPanel({
       });
 
       if (response.ok || response.status === 204) {
-        toast.success("Deliverable deleted");
+        toast.success("Attachment deleted");
         setSelectedDeliverable(null);
         fetchDeliverables();
       } else {
-        toast.error("Unable to delete deliverable. Please try again.");
+        toast.error("Unable to delete attachment. Please try again.");
       }
     } catch (error) {
       console.error("Error deleting deliverable:", error);
@@ -235,7 +247,7 @@ export function DeliverablesPanel({
         toast.warning("Slow connection, your delete may have gone through. Refreshing...");
         setTimeout(fetchDeliverables, 2000);
       } else {
-        toast.error("Unable to delete deliverable. Please try again.");
+        toast.error("Unable to delete attachment. Please try again.");
       }
     }
   };
@@ -264,10 +276,13 @@ export function DeliverablesPanel({
   return (
     <div className="space-y-6">
       {/* Upload action */}
-      <div className="flex justify-end">
-        <Button onClick={() => setUploadModalOpen(true)} className="gap-2">
-          <Upload className="h-4 w-4" />
-          Upload Deliverable
+      <div className={cn("flex justify-end", hideMobileUploadButton && "hidden md:flex")}>
+        <Button onClick={() => setUploadModalOpen(true)} size="icon" variant="outline" className="md:hidden" aria-label="Add attachment">
+          <Paperclip className="h-4 w-4" />
+        </Button>
+        <Button onClick={() => setUploadModalOpen(true)} className="hidden md:flex gap-2">
+          <Paperclip className="h-4 w-4" />
+          Add Attachment
         </Button>
       </div>
 
@@ -330,7 +345,7 @@ export function DeliverablesPanel({
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 autoFocus
-                placeholder="Search deliverables..."
+                placeholder="Search attachments..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -344,7 +359,7 @@ export function DeliverablesPanel({
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search deliverables by title, project, or description..."
+              placeholder="Search attachments by title, project, or description..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -384,19 +399,19 @@ export function DeliverablesPanel({
         <div className="glass-card py-16 text-center">
           <Upload className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
           <h3 className="text-lg font-semibold text-foreground mb-2">
-            {searchQuery || statusFilter !== "all" ? "No deliverables found" : "No deliverables yet"}
+            {searchQuery || statusFilter !== "all" ? "No attachments found" : "No attachments yet"}
           </h3>
           <p className="text-muted-foreground mb-6">
             {searchQuery || statusFilter !== "all"
               ? "Try adjusting your search or filters"
               : isCreator
-                ? "Your team hasn't submitted any deliverables yet"
-                : "Upload your first deliverable to get started"}
+                ? "Your team hasn't submitted any attachments yet"
+                : "Upload your first attachment to get started"}
           </p>
           {!searchQuery && statusFilter === "all" && (
             <Button onClick={() => setUploadModalOpen(true)} className="gap-2">
-              <Upload className="h-4 w-4" />
-              Upload Deliverable
+              <Paperclip className="h-4 w-4" />
+              Add Attachment
             </Button>
           )}
         </div>

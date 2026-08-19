@@ -115,6 +115,32 @@ export function DeliverableCard({ deliverable, onClick }: DeliverableCardProps) 
         </div>
       )}
 
+      {/* Links Preview */}
+      {deliverable.urls.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {deliverable.urls.slice(0, 3).map((url, index) => (
+            <a
+              key={index}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-2 rounded-lg bg-secondary/50 px-2 py-1 hover:bg-secondary transition-colors"
+            >
+              <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="max-w-[100px] truncate text-xs text-primary">
+                {url}
+              </span>
+            </a>
+          ))}
+          {deliverable.urls.length > 3 && (
+            <div className="flex items-center rounded-lg bg-secondary/50 px-2 py-1 text-xs text-muted-foreground">
+              +{deliverable.urls.length - 3} more
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Footer */}
       <div className="mt-4 flex items-center justify-between">
         <div className="flex items-center gap-2">

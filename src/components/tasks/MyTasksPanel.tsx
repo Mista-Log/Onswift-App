@@ -180,9 +180,9 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
       <AlertDialog open={!!gateTaskId} onOpenChange={(o) => { if (!o) setGateTaskId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Do you have a deliverable for this task?</AlertDialogTitle>
+            <AlertDialogTitle>Do you have an attachment for this task?</AlertDialogTitle>
             <AlertDialogDescription>
-              Onswift is deliverable-based. If you have work to submit along with this task, add it now.
+              Onswift is attachment-based. If you have work to submit along with this task, add it now.
               {isCreator
                 ? " Otherwise you can mark the task complete directly."
                 : " Otherwise we'll let your creator know it's ready for their approval."}
@@ -192,7 +192,7 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
             <AlertDialogCancel onClick={handleNoDeliverable}>
               {isCreator ? "No, complete it" : "No, request approval"}
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleHasDeliverable}>Yes, add deliverable</AlertDialogAction>
+            <AlertDialogAction onClick={handleHasDeliverable}>Yes, add attachment</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

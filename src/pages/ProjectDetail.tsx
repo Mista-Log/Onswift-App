@@ -115,6 +115,7 @@ export default function ProjectDetail() {
   const [dragOverCol, setDragOverCol] = useState<"planning" | "in-progress" | "completed" | null>(null);
   const [activeTab, setActiveTab] = useState<"board" | "deliverables">("board");
   const [deliverablePrefill, setDeliverablePrefill] = useState<string | undefined>(undefined);
+  const [uploadAttachmentSignal, setUploadAttachmentSignal] = useState(0);
 
   // Client chat now lives in a modal (ClientChatModal) instead of an inline card.
   const [isClientChatOpen, setIsClientChatOpen] = useState(false);
@@ -648,12 +649,25 @@ export default function ProjectDetail() {
           </div>
         </div>
 
-        {/* Board / Deliverables tabs */}
+        {/* Board / Attachments tabs */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "board" | "deliverables")}>
-          <TabsList>
-            <TabsTrigger value="board" className="text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Board</TabsTrigger>
-            <TabsTrigger value="deliverables" className="text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Deliverables</TabsTrigger>
-          </TabsList>
+          <div className="flex items-center gap-2">
+            <TabsList>
+              <TabsTrigger value="board" className="text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Board</TabsTrigger>
+              <TabsTrigger value="deliverables" className="text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Attachments</TabsTrigger>
+            </TabsList>
+            {activeTab === "deliverables" && (
+              <Button
+                size="icon"
+                variant="outline"
+                className="md:hidden h-8 w-8 shrink-0"
+                onClick={() => setUploadAttachmentSignal(Date.now())}
+                aria-label="Upload attachment"
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
 
           <TabsContent value="board" className="mt-6 space-y-6">
 
@@ -687,7 +701,7 @@ export default function ProjectDetail() {
               <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
                 <DialogTrigger asChild>
                   <Button className="gap-2 px-2 sm:px-4">
-                    <ListPlus className="h-4 w-4 shrink-0" />
+                    <Plus className="h-4 w-4 shrink-0" />
                     <span className="hidden sm:inline">New Task</span>
                   </Button>
                 </DialogTrigger>
@@ -970,6 +984,8 @@ export default function ProjectDetail() {
               projectId={id}
               openUploadForTask={deliverablePrefill}
               onUploadOpened={() => setDeliverablePrefill(undefined)}
+              openUploadSignal={uploadAttachmentSignal}
+              hideMobileUploadButton
               hideStats
             />
           </TabsContent>

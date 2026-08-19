@@ -409,6 +409,26 @@
   display: none;
 }
 
+/* Utility: minimal light-purple scrollbar (theme-token based, correct in both light/dark) */
+.scrollbar-thin-purple {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary) / 0.35) transparent;
+}
+.scrollbar-thin-purple::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin-purple::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin-purple::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.35);
+  border-radius: 9999px;
+}
+.scrollbar-thin-purple::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.55);
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
