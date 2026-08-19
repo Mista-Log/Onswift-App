@@ -171,7 +171,7 @@ class TaskCommentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TaskComment
-        fields = ["id", "author", "author_name", "author_role", "author_avatar", "content", "created_at"]
+        fields = ["id", "author", "author_name", "author_role", "author_avatar", "content", "parent", "created_at"]
         read_only_fields = ["id", "author", "author_name", "author_role", "author_avatar", "created_at"]
 
     def get_author_avatar(self, obj):
@@ -365,7 +365,14 @@ class TaskDeliverableSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Deliverable
-        fields = ["id", "title", "description", "submitted_by_name", "status", "feedback", "links", "files", "created_at"]
+        fields = ["id", "title", "description", "submitted_by", "submitted_by_name", "status", "feedback", "links", "files", "created_at"]
+
+
+class DeliverableEditSerializer(serializers.ModelSerializer):
+    """Submitter or creator can edit a deliverable's title/description (not status/feedback/task — those go through DeliverableReviewView)."""
+    class Meta:
+        model = Deliverable
+        fields = ["title", "description"]
 
 
 class DeliverableSerializer(serializers.ModelSerializer):

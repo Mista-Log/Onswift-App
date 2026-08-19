@@ -10,6 +10,7 @@ export interface TaskComment {
   author_role: string;
   author_avatar: string | null;
   content: string;
+  parent: string | null;
   created_at: string;
 }
 
@@ -59,6 +60,7 @@ export interface TaskDeliverable {
   id: string;
   title: string;
   description: string | null;
+  submitted_by: string;
   submitted_by_name: string;
   status: "pending" | "approved" | "revision";
   feedback: string | null;
@@ -130,10 +132,10 @@ export function useTaskDetail() {
 
   // ── Comments ──────────────────────────────────────────────────────────────
 
-  const addComment = useCallback(async (taskId: string, content: string) => {
+  const addComment = useCallback(async (taskId: string, content: string, parentId?: string | null) => {
     const res = await secureFetch(`/api/v2/tasks/${taskId}/comments/`, {
       method: "POST",
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, parent: parentId ?? null }),
     });
     if (!res.ok) throw new Error("Failed to add comment");
     const comment: TaskComment = await res.json();
@@ -144,7 +146,14 @@ export function useTaskDetail() {
   const deleteComment = useCallback(async (taskId: string, commentId: string) => {
     const res = await secureFetch(`/api/v2/tasks/${taskId}/comments/${commentId}/`, { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete comment");
-    setTask((prev) => prev ? { ...prev, comments: prev.comments.filter((c) => c.id !== commentId) } : prev);
+    // Backend FK is on_delete=SET_NULL — mirror that locally so replies to a deleted
+    // comment become top-level instead of silently disappearing from the thread.
+    setTask((prev) => prev ? {
+      ...prev,
+      comments: prev.comments
+        .filter((c) => c.id !== commentId)
+        .map((c) => c.parent === commentId ? { ...c, parent: null } : c),
+    } : prev);
   }, []);
 
   // ── Attachments ───────────────────────────────────────────────────────────
@@ -259,6 +268,68 @@ export function useTaskDetail() {
     setTask(null);
   }, []);
 
+  // ── Deliverables (local-only patches — review/delete requests are made by the caller) ──
+
+  const patchDeliverableLocal = useCallback((deliverableId: string, updates: Partial<TaskDeliverable>) => {
+    setTask((prev) => prev ? {
+      ...prev,
+      deliverables: prev.deliverables.map((d) => d.id === deliverableId ? { ...d, ...updates } : d),
+    } : prev);
+  }, []);
+
+  const removeDeliverableLocal = useCallback((deliverableId: string) => {
+    setTask((prev) => prev ? {
+      ...prev,
+      deliverables: prev.deliverables.filter((d) => d.id !== deliverableId),
+    } : prev);
+  }, []);
+
+  const patchDeliverableLinkLocal = useCallback((deliverableId: string, linkId: string, url: string) => {
+    setTask((prev) => prev ? {
+      ...prev,
+      deliverables: prev.deliverables.map((d) => d.id === deliverableId
+        ? { ...d, links: d.links.map((l) => l.id === linkId ? { ...l, url } : l) }
+        : d),
+    } : prev);
+  }, []);
+
+  const addDeliverableLinkLocal = useCallback((deliverableId: string, link: TaskDeliverableLink) => {
+    setTask((prev) => prev ? {
+      ...prev,
+      deliverables: prev.deliverables.map((d) => d.id === deliverableId ? { ...d, links: [...d.links, link] } : d),
+    } : prev);
+  }, []);
+
+  const removeDeliverableLinkLocal = useCallback((deliverableId: string, linkId: string) => {
+    setTask((prev) => prev ? {
+      ...prev,
+      deliverables: prev.deliverables.map((d) => d.id === deliverableId
+        ? { ...d, links: d.links.filter((l) => l.id !== linkId) }
+        : d),
+    } : prev);
+  }, []);
+
+  const addDeliverableFileLocal = useCallback((deliverableId: string, file: TaskDeliverableFile) => {
+    setTask((prev) => prev ? {
+      ...prev,
+      deliverables: prev.deliverables.map((d) => d.id === deliverableId ? { ...d, files: [...d.files, file] } : d),
+    } : prev);
+  }, []);
+
+  const removeDeliverableFileLocal = useCallback((deliverableId: string, fileId: string) => {
+    setTask((prev) => prev ? {
+      ...prev,
+      deliverables: prev.deliverables.map((d) => d.id === deliverableId
+        ? { ...d, files: d.files.filter((f) => f.id !== fileId) }
+        : d),
+    } : prev);
+  }, []);
+
+  // Approving a deliverable completes its parent task server-side — mirror that locally.
+  const markTaskCompletedLocal = useCallback(() => {
+    setTask((prev) => prev ? { ...prev, status: "completed", awaiting_approval: false } : prev);
+  }, []);
+
   const clearTask = useCallback(() => setTask(null), []);
 
   return {
@@ -277,6 +348,14 @@ export function useTaskDetail() {
     addChecklistItem,
     toggleChecklistItem,
     deleteChecklistItem,
+    patchDeliverableLocal,
+    removeDeliverableLocal,
+    patchDeliverableLinkLocal,
+    addDeliverableLinkLocal,
+    removeDeliverableLinkLocal,
+    addDeliverableFileLocal,
+    removeDeliverableFileLocal,
+    markTaskCompletedLocal,
     clearTask,
   };
 }

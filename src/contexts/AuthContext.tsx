@@ -148,7 +148,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data?.detail || "Unable to connect your account. Please try again.");
+      if (!response.ok) {
+        const message =
+          data?.detail ||
+          (Array.isArray(data?.non_field_errors) && data.non_field_errors[0]) ||
+          "Unable to connect your account. Please try again.";
+        throw new Error(message);
+      }
 
       localStorage.setItem("onswift_access", data.access);
       localStorage.setItem("onswift_refresh", data.refresh);

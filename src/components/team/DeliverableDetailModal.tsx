@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect } from "react";
-import { useTeam } from "@/contexts/TeamContext";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,19 +20,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Download, FileText, Image, Video, File, Send, Check, RotateCcw, Upload, X, Link, Trash2 } from "lucide-react";
+import { Download, FileText, Image, Video, File, Check, RotateCcw, Upload, X, Link, Trash2 } from "lucide-react";
 import { Deliverable, DeliverableFile } from "./DeliverableCard";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-interface Comment {
-  id: string;
-  userId: string;
-  userName: string;
-  userAvatar: string;
-  content: string;
-  timestamp: string;
-}
 
 interface DeliverableDetailModalProps {
   deliverable: Deliverable | null;
@@ -46,9 +36,6 @@ interface DeliverableDetailModalProps {
   onResubmit?: (taskId: string, title: string, description: string, urls: string[]) => void;
   onDelete?: (deliverableId: string) => void;
 }
-
-// Mock comments
-// Use real team members from TeamContext
 
 function getFileIcon(type: string) {
   if (type.startsWith("image/")) return Image;
@@ -102,81 +89,30 @@ export function DeliverableDetailModal({
   onResubmit,
   onDelete,
 }: DeliverableDetailModalProps) {
-  const { teamMembers } = useTeam();
-  const [comments, setComments] = useState<Comment[]>([]);
-  // Local-only comments for now
   useEffect(() => {
     if (deliverable && open) {
-      setComments([]);
       setResubmitUrls([]);
       setResubmitNewUrl("");
       setResubmitTitle(deliverable.title);
       setResubmitDescription("");
     }
   }, [deliverable, open]);
-  const [newComment, setNewComment] = useState("");
-  const [showMentions, setShowMentions] = useState(false);
-  const [mentionFilter, setMentionFilter] = useState("");
   const [revisionFeedback, setRevisionFeedback] = useState("");
   const [showRevisionInput, setShowRevisionInput] = useState(false);
   const [resubmitUrls, setResubmitUrls] = useState<string[]>([]);
   const [resubmitNewUrl, setResubmitNewUrl] = useState("");
   const [resubmitTitle, setResubmitTitle] = useState("");
   const [resubmitDescription, setResubmitDescription] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   if (!deliverable) return null;
 
   const canRequestRevision = deliverable.status !== "approved";
 
-  const handleCommentChange = (value: string) => {
-    setNewComment(value);
-    const lastAtIndex = value.lastIndexOf("@");
-    if (lastAtIndex !== -1) {
-      const textAfterAt = value.slice(lastAtIndex + 1);
-      if (!textAfterAt.includes(" ")) {
-        setShowMentions(true);
-        setMentionFilter(textAfterAt.toLowerCase());
-      } else {
-        setShowMentions(false);
-      }
-    } else {
-      setShowMentions(false);
-    }
-  };
-
-  const insertMention = (name: string) => {
-    const lastAtIndex = newComment.lastIndexOf("@");
-    const updated = newComment.slice(0, lastAtIndex) + `@${name} `;
-    setNewComment(updated);
-    setShowMentions(false);
-    textareaRef.current?.focus();
-  };
-
-  const filteredMembers = teamMembers.filter((m) =>
-    m.name.toLowerCase().includes(mentionFilter)
-  );
-
-  const handleSendComment = () => {
-    if (!newComment.trim() || !deliverable) return;
-    const comment: Comment = {
-      id: crypto.randomUUID(),
-      userId: "current-user",
-      userName: "You",
-      userAvatar: "",
-      content: newComment,
-      timestamp: new Date().toLocaleTimeString(),
-    };
-    setComments((prev) => [...prev, comment]);
-    setNewComment("");
-    toast.success("Comment added");
-  };
-
   const handleApprove = () => {
     if (onApprove && deliverable) {
       onApprove(deliverable.id);
     } else {
-      toast.success("Deliverable approved!");
+      toast.success("Attachment approved!");
       onOpenChange(false);
     }
   };
@@ -344,79 +280,6 @@ export function DeliverableDetailModal({
             )}
           </div>
 
-          {/* Comments */}
-          <div>
-            <h4 className="text-sm font-medium text-foreground mb-3">Discussion</h4>
-            <div className="space-y-4 max-h-60 overflow-y-auto">
-              {comments.map((comment) => (
-                <div key={comment.id} className="flex gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={comment.userAvatar} />
-                    <AvatarFallback className="text-xs">
-                      {comment.userName.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-foreground">
-                        {comment.userName}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {comment.timestamp}
-                      </span>
-                    </div>
-                    <p className="text-sm text-foreground mt-1">
-                      {comment.content.split(/(@\w+)/g).map((part, i) =>
-                        part.startsWith("@") ? (
-                          <span key={i} className="text-primary font-medium">
-                            {part}
-                          </span>
-                        ) : (
-                          part
-                        )
-                      )}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* New Comment */}
-            <div className="relative mt-4">
-              <Textarea
-                ref={textareaRef}
-                value={newComment}
-                onChange={(e) => handleCommentChange(e.target.value)}
-                placeholder="Add a comment... Use @ to mention"
-                rows={2}
-              />
-              {showMentions && filteredMembers.length > 0 && (
-                <div className="absolute bottom-full left-0 mb-1 w-full rounded-lg border border-border bg-popover p-1 shadow-lg z-50">
-                  {filteredMembers.map((member) => (
-                    <button
-                      key={member.id}
-                      onClick={() => insertMention(member.name)}
-                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-primary/20"
-                    >
-                      <div className="h-6 w-6 rounded-full bg-primary/30 flex items-center justify-center text-xs">
-                        {member.name.charAt(0)}
-                      </div>
-                      {member.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <Button
-                size="sm"
-                className="absolute right-2 bottom-2"
-                onClick={handleSendComment}
-                disabled={!newComment.trim()}
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
           {/* Revision Counter */}
           {deliverable.revisionCount > 0 && (
             <div className="rounded-lg bg-secondary/50 p-3 text-sm">
@@ -578,7 +441,7 @@ export function DeliverableDetailModal({
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Unapprove this deliverable?</AlertDialogTitle>
+                  <AlertDialogTitle>Unapprove this attachment?</AlertDialogTitle>
                   <AlertDialogDescription>
                     "{deliverable.title}" will be set back to pending review and the associated task will reopen. The talent will be notified.
                   </AlertDialogDescription>
@@ -601,12 +464,12 @@ export function DeliverableDetailModal({
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2">
                   <Trash2 className="h-4 w-4" />
-                  Delete Deliverable
+                  Delete Attachment
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this deliverable?</AlertDialogTitle>
+                  <AlertDialogTitle>Delete this attachment?</AlertDialogTitle>
                   <AlertDialogDescription>
                     This will permanently remove "{deliverable.title}" and all its attachments. This action cannot be undone.
                   </AlertDialogDescription>
