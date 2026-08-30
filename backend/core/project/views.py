@@ -198,29 +198,41 @@ class TaskListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user
-        if user.role != "creator":
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("Only creators can create tasks.")
 
+        if user.role == "creator":
+            try:
+                project = Project.objects.get(
+                    id=self.kwargs["project_id"],
+                    creator=user
+                )
+            except Project.DoesNotExist:
+                from rest_framework.exceptions import NotFound
+                raise NotFound("Project not found.")
+            serializer.save(project=project)
+            return
+
+        # Talent: only when the creator has opted in for this project, and only
+        # in a project the talent is already legitimately working in.
+        from rest_framework.exceptions import PermissionDenied, NotFound
         try:
-            project = Project.objects.get(
-                id=self.kwargs["project_id"],
-                creator=user
-            )
-            task = serializer.save(project=project)
+            project = Project.objects.get(id=self.kwargs["project_id"])
         except Project.DoesNotExist:
-            from rest_framework.exceptions import NotFound
             raise NotFound("Project not found.")
 
-        # from notification.services import create_notification
-        # for assignee in task.assignees.all():
-        #     create_notification(
-        #         user=assignee,
-        #         title="New Task Assigned",
-        #         message=f"{user.full_name} assigned you \"{task.name}\" in {project.name}.",
-        #         notification_type="system",
-        #         priority=1,
-        #     )
+        already_assigned = Task.objects.filter(project=project, assignees=user).exists()
+        if not (project.allow_talent_task_creation and already_assigned):
+            raise PermissionDenied("Only creators can create tasks in this project.")
+
+        # Force self-assignment server-side, regardless of what the client sent.
+        task = serializer.save(project=project, assignees=[user])
+
+        from notification.services import create_notification
+        create_notification(
+            user=project.creator,
+            title="Task added by team member",
+            message=f"{user.full_name} added \"{task.name}\" to \"{project.name}\".",
+            notification_type="system",
+        )
 
 
 

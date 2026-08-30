@@ -21,6 +21,9 @@ class Project(models.Model):
     due_date = models.DateField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     created_at = models.DateTimeField(auto_now_add=True)
+    # Opt-in: lets talent assigned to this project create and self-assign their
+    # own tasks. Creator-only approval of deliverables/attachments is unaffected.
+    allow_talent_task_creation = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
