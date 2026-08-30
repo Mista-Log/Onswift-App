@@ -40,6 +40,7 @@ export interface Project {
   completed_tasks: number;
   progress?: number;
   has_clients?: boolean;
+  allow_talent_task_creation?: boolean;
 }
 
 interface ProjectContextType {
@@ -133,6 +134,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           description: updates.description,
           due_date: updates.due_date,
           status: updates.status,
+          allow_talent_task_creation: updates.allow_talent_task_creation,
         }),
       });
 

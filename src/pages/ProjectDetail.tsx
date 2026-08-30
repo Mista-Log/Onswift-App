@@ -138,6 +138,7 @@ export default function ProjectDetail() {
 
   const project = projects.find((p) => p.id === id);
   const isCreator = user?.role === "creator";
+  const canTalentCreateTasks = !isCreator && !!project?.allow_talent_task_creation;
 
   useEffect(() => {
     loadTasks();
@@ -326,6 +327,20 @@ export default function ProjectDetail() {
     }
   };
 
+  const handleToggleTalentTaskCreation = async (checked: boolean) => {
+    if (!id) return;
+    try {
+      await updateProject(id, { allow_talent_task_creation: checked });
+      toast.success(
+        checked
+          ? "Team members can now add their own tasks."
+          : "Task creation is creator-only again."
+      );
+    } catch (error) {
+      toast.error("Failed to update setting");
+    }
+  };
+
   const handleDeleteProject = async () => {
     if (!id) return;
     if (!confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
@@ -449,6 +464,20 @@ export default function ProjectDetail() {
                 >
                   <Edit className="mr-2 h-4 w-4" />
                   Rename Project
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={(e) => e.preventDefault()}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <span className="flex items-center">
+                    <ListPlus className="mr-2 h-4 w-4" />
+                    Team can add tasks
+                  </span>
+                  <Switch
+                    checked={!!project.allow_talent_task_creation}
+                    onCheckedChange={handleToggleTalentTaskCreation}
+                  />
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -688,16 +717,18 @@ export default function ProjectDetail() {
               </SelectContent>
             </Select>
           </div>
-          {isCreator && (
+          {(isCreator || canTalentCreateTasks) && (
             <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className="gap-2 px-2 sm:px-4"
-                onClick={() => setIsInviteModalOpen(true)}
-              >
-                <UserPlus className="h-4 w-4 shrink-0" />
-                <span className="hidden sm:inline">New Client</span>
-              </Button>
+              {isCreator && (
+                <Button
+                  variant="outline"
+                  className="gap-2 px-2 sm:px-4"
+                  onClick={() => setIsInviteModalOpen(true)}
+                >
+                  <UserPlus className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">New Client</span>
+                </Button>
+              )}
               <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
                 <DialogTrigger asChild>
                   <Button className="gap-2 px-2 sm:px-4">
@@ -735,6 +766,7 @@ export default function ProjectDetail() {
                   </div>
 
                   {/* Assignees */}
+                  {isCreator ? (
                   <div className="space-y-2">
                     <Label>Assign To</Label>
                     <Popover>
@@ -773,6 +805,9 @@ export default function ProjectDetail() {
                       </PopoverContent>
                     </Popover>
                   </div>
+                  ) : (
+                  <p className="text-xs text-muted-foreground">This task will be assigned to you.</p>
+                  )}
 
                   {/* Deadline + Time */}
                   <div className="space-y-2">

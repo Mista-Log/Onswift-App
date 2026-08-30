@@ -124,8 +124,12 @@ class TaskSerializer(serializers.ModelSerializer):
         assignees = validated_data.pop("assignees", [])
         task = super().create(validated_data)
         task.assignees.set(assignees)
-        if assignees:
-            self._notify_assignees(task, assignees, is_new=True)
+        # Don't notify someone that they assigned a task to themselves
+        # (e.g. talent self-creating a task under the per-project toggle).
+        request = self.context.get("request")
+        notify_targets = [u for u in assignees if not request or u != request.user]
+        if notify_targets:
+            self._notify_assignees(task, notify_targets, is_new=True)
         return task
 
     def update(self, instance, validated_data):
@@ -288,6 +292,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "completed_tasks",
             "progress",
             "has_clients",
+            "allow_talent_task_creation",
             "created_at",
         )
 
