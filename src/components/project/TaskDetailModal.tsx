@@ -33,6 +33,7 @@ import {
   useTaskDetail,
   type TaskDetail, type TaskChecklist, type TaskPriority, type RecurrenceType, type TaskDeliverable, type TaskComment,
 } from "@/hooks/useTaskDetail";
+import { MentionDropdown, type MentionMember } from "@/components/messaging/MentionDropdown";
 
 interface Assignee { id: string; name: string }
 
@@ -291,6 +292,11 @@ export function TaskDetailModal({
   const [commentDraft, setCommentDraft]     = useState("");
   const [isSendingComment, setIsSendingComment] = useState(false);
   const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
+  const [commentMentions, setCommentMentions] = useState<MentionMember[]>([]);
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+  const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [recurringDaysDraft, setRecurringDaysDraft] = useState<number>(2);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -345,6 +351,8 @@ export function TaskDetailModal({
       clearTask();
       setEditingTitle(false);
       setCommentDraft("");
+      setCommentMentions([]);
+      setShowMentionDropdown(false);
       setShowChecklistInput(false);
       setShowDeleteConfirm(false);
       setSelectedDeliverableId(null);
@@ -405,6 +413,22 @@ export function TaskDetailModal({
     if (c.parent) repliesByParent.set(c.parent, [...(repliesByParent.get(c.parent) ?? []), c]);
   });
 
+  // Who can be @mentioned in this task's comments: the project creator + this
+  // task's current assignees — exactly who already has access to this thread.
+  const mentionMembers: MentionMember[] = task ? (() => {
+    const candidates: MentionMember[] = [
+      { id: task.project_creator_id, name: task.project_creator_name, avatar: task.project_creator_avatar, role: "creator" },
+      ...task.assignees.map((id, i) => ({
+        id,
+        name: task.assignee_names[i],
+        avatar: task.assignee_avatars[i] ?? null,
+        role: "assignee",
+      })),
+    ];
+    const seen = new Set<string>();
+    return candidates.filter((m) => m.id !== currentUserId && !seen.has(m.id) && seen.add(m.id));
+  })() : [];
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const saveTitle = async () => {
@@ -458,12 +482,61 @@ export function TaskDetailModal({
     try {
       const raw = commentDraft.trim();
       const content = selectedDeliverable ? `Re: ${selectedDeliverable.title} : ${raw}` : raw;
-      await addComment(task.id, content, replyingToCommentId);
+      await addComment(task.id, content, replyingToCommentId, commentMentions.map((m) => m.id));
       setCommentDraft("");
       setReplyingToCommentId(null);
+      setCommentMentions([]);
     }
     catch { toast.error("Failed to post comment"); }
     finally { setIsSendingComment(false); }
+  };
+
+  const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setCommentDraft(value);
+    const cursorPos = e.target.selectionStart || 0;
+    const textBeforeCursor = value.slice(0, cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf("@");
+    if (lastAtIndex !== -1) {
+      const charBeforeAt = textBeforeCursor[lastAtIndex - 1];
+      if (lastAtIndex === 0 || charBeforeAt === " ") {
+        const query = textBeforeCursor.slice(lastAtIndex + 1);
+        if (!query.includes(" ")) {
+          setMentionQuery(query);
+          setShowMentionDropdown(true);
+          setSelectedMentionIndex(0);
+          return;
+        }
+      }
+    }
+    setShowMentionDropdown(false);
+  };
+
+  const handleMentionSelect = (member: MentionMember) => {
+    const cursorPos = commentTextareaRef.current?.selectionStart || 0;
+    const textBeforeCursor = commentDraft.slice(0, cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf("@");
+    if (lastAtIndex !== -1) {
+      const beforeMention = commentDraft.slice(0, lastAtIndex);
+      const afterMention = commentDraft.slice(cursorPos);
+      setCommentDraft(`${beforeMention}@${member.name} ${afterMention}`);
+      if (!commentMentions.some((m) => m.id === member.id)) setCommentMentions((prev) => [...prev, member]);
+    }
+    setShowMentionDropdown(false);
+    commentTextareaRef.current?.focus();
+  };
+
+  const handleCommentKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showMentionDropdown && mentionMembers.length > 0) {
+      const filtered = mentionMembers.filter((m) => m.name.toLowerCase().includes(mentionQuery.toLowerCase()));
+      if (e.key === "ArrowDown") { e.preventDefault(); setSelectedMentionIndex((p) => (p < filtered.length - 1 ? p + 1 : 0)); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setSelectedMentionIndex((p) => (p > 0 ? p - 1 : filtered.length - 1)); }
+      else if (e.key === "Enter" && filtered.length > 0) { e.preventDefault(); handleMentionSelect(filtered[selectedMentionIndex]); }
+      else if (e.key === "Escape") setShowMentionDropdown(false);
+    } else if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendComment();
+    }
   };
 
   const handleAddMenuSelect = (id: string) => {
@@ -1688,17 +1761,36 @@ export function TaskDetailModal({
                     </button>
                   </div>
                 )}
-                <Textarea
-                  placeholder={
-                    replyingToComment
-                      ? `Reply to ${replyingToComment.author === currentUserId ? "yourself" : replyingToComment.author_name}…`
-                      : selectedDeliverable ? `Reply about "${selectedDeliverable.title}"…` : "Write a comment... (Enter to send)"
-                  }
-                  value={commentDraft}
-                  onChange={(e) => setCommentDraft(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendComment(); } }}
-                  className="min-h-[64px] resize-none text-sm"
-                />
+                {commentMentions.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="text-[11px] text-muted-foreground">Mentioning:</span>
+                    {commentMentions.map((m) => (
+                      <span key={m.id} className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">@{m.name}</span>
+                    ))}
+                  </div>
+                )}
+                <div className="relative">
+                  <Textarea
+                    ref={commentTextareaRef}
+                    placeholder={
+                      replyingToComment
+                        ? `Reply to ${replyingToComment.author === currentUserId ? "yourself" : replyingToComment.author_name}…`
+                        : selectedDeliverable ? `Reply about "${selectedDeliverable.title}"…` : "Write a comment... (Enter to send)"
+                    }
+                    value={commentDraft}
+                    onChange={handleCommentChange}
+                    onKeyDown={handleCommentKeyDown}
+                    className="min-h-[64px] resize-none text-sm"
+                  />
+                  <MentionDropdown
+                    members={mentionMembers}
+                    searchQuery={mentionQuery}
+                    selectedIndex={selectedMentionIndex}
+                    onSelect={handleMentionSelect}
+                    onClose={() => setShowMentionDropdown(false)}
+                    visible={showMentionDropdown}
+                  />
+                </div>
                 <div className="flex justify-end">
                   <Button size="sm" className="gap-1.5" disabled={!commentDraft.trim() || isSendingComment} onClick={handleSendComment}>
                     {isSendingComment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}

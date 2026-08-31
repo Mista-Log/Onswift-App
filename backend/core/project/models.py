@@ -399,6 +399,11 @@ class TaskComment(models.Model):
         blank=True,
         related_name="replies",
     )
+    mentions = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name="mentioned_in_task_comments",
+        blank=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

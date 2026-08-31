@@ -248,13 +248,13 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         user = self.request.user
         deliverable_prefetch = ['deliverables__links', 'deliverables__files', 'deliverables__submitted_by']
         if user.role == "creator":
-            return Task.objects.filter(project__creator=user).prefetch_related(*deliverable_prefetch)
+            return Task.objects.filter(project__creator=user).select_related("project__creator").prefetch_related(*deliverable_prefetch)
         elif user.role == "client":
             return Task.objects.filter(
                 project__client_memberships__client=user
-            ).prefetch_related(*deliverable_prefetch)
+            ).select_related("project__creator").prefetch_related(*deliverable_prefetch)
         else:
-            return Task.objects.filter(assignees=user).prefetch_related(*deliverable_prefetch)
+            return Task.objects.filter(assignees=user).select_related("project__creator").prefetch_related(*deliverable_prefetch)
 
     def perform_update(self, serializer):
         serializer.save()
@@ -378,7 +378,7 @@ class TaskCommentListCreateView(generics.ListCreateAPIView):
         return _get_task_for_user(self.request.user, self.kwargs["task_id"])
 
     def get_queryset(self):
-        return self._task().comments.select_related("author")
+        return self._task().comments.select_related("author").prefetch_related("mentions")
 
     def perform_create(self, serializer):
         task = self._task()

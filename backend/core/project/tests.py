@@ -483,3 +483,88 @@ class TaskAPIRecurrenceTest(TestCase):
         }, format="json")
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(Task.objects.get(name="Biweekly").recurrence_days, 14)
+
+
+# ── 7. @mention support in task comments ──────────────────────────────────────
+
+class TaskCommentMentionTests(TestCase):
+    def setUp(self):
+        self.creator = make_creator()
+        self.project = make_project(self.creator)
+        self.assignee = make_talent("assignee@test.com", "Alice Assignee")
+        self.outsider = make_talent("outsider@test.com", "Bob Outsider")
+        self.task = make_task(self.project, assignees=[self.assignee])
+
+    def _comments_url(self):
+        return f"/api/v2/tasks/{self.task.id}/comments/"
+
+    def test_assignee_mentions_creator_and_creator_is_notified(self):
+        from notification.models import Notification
+
+        c = APIClient()
+        c.force_authenticate(user=self.assignee)
+        resp = c.post(self._comments_url(), {
+            "content": "Hey @Test Creator, take a look",
+            "mention_ids": [str(self.creator.id)],
+        }, format="json")
+
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(resp.data["mentioned_users"], [str(self.creator.id)])
+        self.assertTrue(
+            Notification.objects.filter(user=self.creator, title="You were mentioned").exists()
+        )
+
+    def test_creator_mentions_assignee_and_assignee_is_notified(self):
+        from notification.models import Notification
+
+        c = APIClient()
+        c.force_authenticate(user=self.creator)
+        resp = c.post(self._comments_url(), {
+            "content": "Hey @Alice Assignee, take a look",
+            "mention_ids": [str(self.assignee.id)],
+        }, format="json")
+
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(resp.data["mentioned_users"], [str(self.assignee.id)])
+        self.assertTrue(
+            Notification.objects.filter(user=self.assignee, title="You were mentioned").exists()
+        )
+
+    def test_mentioning_non_candidate_user_is_silently_skipped(self):
+        from notification.models import Notification
+
+        c = APIClient()
+        c.force_authenticate(user=self.creator)
+        resp = c.post(self._comments_url(), {
+            "content": "Hey @Bob Outsider",
+            "mention_ids": [str(self.outsider.id)],
+        }, format="json")
+
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(resp.data["mentioned_users"], [])
+        self.assertFalse(Notification.objects.filter(user=self.outsider).exists())
+
+    def test_self_mention_is_recorded_but_not_notified(self):
+        from notification.models import Notification
+
+        c = APIClient()
+        c.force_authenticate(user=self.creator)
+        resp = c.post(self._comments_url(), {
+            "content": "Note to self",
+            "mention_ids": [str(self.creator.id)],
+        }, format="json")
+
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(resp.data["mentioned_users"], [str(self.creator.id)])
+        self.assertFalse(
+            Notification.objects.filter(user=self.creator, title="You were mentioned").exists()
+        )
+
+    def test_task_detail_exposes_project_creator_to_assignee(self):
+        c = APIClient()
+        c.force_authenticate(user=self.assignee)
+        resp = c.get(f"/api/v2/tasks/{self.task.id}/")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["project_creator_id"], str(self.creator.id))
+        self.assertEqual(resp.data["project_creator_name"], self.creator.full_name)
