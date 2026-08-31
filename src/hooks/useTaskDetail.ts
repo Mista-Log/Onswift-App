@@ -11,6 +11,7 @@ export interface TaskComment {
   author_avatar: string | null;
   content: string;
   parent: string | null;
+  mentioned_users: string[];
   created_at: string;
 }
 
@@ -85,6 +86,9 @@ export interface TaskDetail {
   recurrence_type: RecurrenceType | null;
   recurrence_days: number | null;
   created_at: string;
+  project_creator_id: string;
+  project_creator_name: string;
+  project_creator_avatar: string | null;
   comments: TaskComment[];
   attachments: TaskAttachment[];
   checklists: TaskChecklist[];
@@ -132,10 +136,10 @@ export function useTaskDetail() {
 
   // ── Comments ──────────────────────────────────────────────────────────────
 
-  const addComment = useCallback(async (taskId: string, content: string, parentId?: string | null) => {
+  const addComment = useCallback(async (taskId: string, content: string, parentId?: string | null, mentionIds?: string[]) => {
     const res = await secureFetch(`/api/v2/tasks/${taskId}/comments/`, {
       method: "POST",
-      body: JSON.stringify({ content, parent: parentId ?? null }),
+      body: JSON.stringify({ content, parent: parentId ?? null, mention_ids: mentionIds ?? [] }),
     });
     if (!res.ok) throw new Error("Failed to add comment");
     const comment: TaskComment = await res.json();

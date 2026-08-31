@@ -172,11 +172,17 @@ class TaskCommentSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source="author.full_name", read_only=True)
     author_role = serializers.CharField(source="author.role", read_only=True)
     author_avatar = serializers.SerializerMethodField()
+    mentioned_users = serializers.SerializerMethodField()
+    mention_ids = serializers.ListField(
+        child=serializers.UUIDField(), write_only=True, required=False, default=list
+    )
 
     class Meta:
         model = TaskComment
-        fields = ["id", "author", "author_name", "author_role", "author_avatar", "content", "parent", "created_at"]
-        read_only_fields = ["id", "author", "author_name", "author_role", "author_avatar", "created_at"]
+        fields = ["id", "author", "author_name", "author_role", "author_avatar",
+                  "content", "parent", "mentioned_users", "mention_ids", "created_at"]
+        read_only_fields = ["id", "author", "author_name", "author_role", "author_avatar",
+                             "mentioned_users", "created_at"]
 
     def get_author_avatar(self, obj):
         if obj.author.profile_picture:
@@ -185,6 +191,40 @@ class TaskCommentSerializer(serializers.ModelSerializer):
             except Exception:
                 return None
         return None
+
+    def get_mentioned_users(self, obj):
+        return [str(user.id) for user in obj.mentions.all()]
+
+    def create(self, validated_data):
+        mention_ids = validated_data.pop("mention_ids", [])
+        comment = super().create(validated_data)
+
+        if mention_ids:
+            from account.models import User
+            from notification.services import create_notification
+            task = comment.task
+            author = comment.author
+            # Only creator + this task's assignees are eligible mention targets —
+            # derived from the server-resolved task, never trusted from the client.
+            eligible_ids = {str(task.project.creator_id)} | {
+                str(uid) for uid in task.assignees.values_list("id", flat=True)
+            }
+            for mention_id in mention_ids:
+                if str(mention_id) not in eligible_ids:
+                    continue
+                try:
+                    mentioned_user = User.objects.get(id=mention_id)
+                except User.DoesNotExist:
+                    continue
+                comment.mentions.add(mentioned_user)
+                if str(mentioned_user.id) != str(author.id):
+                    create_notification(
+                        user=mentioned_user,
+                        title="You were mentioned",
+                        message=f"{author.full_name} mentioned you in a comment on '{task.name}': \"{comment.content[:50]}\"",
+                        notification_type="system",
+                    )
+        return comment
 
 
 class TaskAttachmentSerializer(serializers.ModelSerializer):
@@ -238,9 +278,15 @@ class TaskDetailSerializer(TaskSerializer):
     checklists = TaskChecklistSerializer(many=True, read_only=True)
     assignee_avatars = serializers.SerializerMethodField()
     deliverables = serializers.SerializerMethodField()
+    project_creator_id = serializers.CharField(source="project.creator_id", read_only=True)
+    project_creator_name = serializers.CharField(source="project.creator.full_name", read_only=True)
+    project_creator_avatar = serializers.SerializerMethodField()
 
     class Meta(TaskSerializer.Meta):
-        fields = list(TaskSerializer.Meta.fields) + ["comments", "attachments", "checklists", "assignee_avatars", "deliverables"]
+        fields = list(TaskSerializer.Meta.fields) + [
+            "comments", "attachments", "checklists", "assignee_avatars", "deliverables",
+            "project_creator_id", "project_creator_name", "project_creator_avatar",
+        ]
 
     def get_assignee_avatars(self, obj):
         avatars = []
@@ -251,6 +297,13 @@ class TaskDetailSerializer(TaskSerializer):
                 url = None
             avatars.append(url)
         return avatars
+
+    def get_project_creator_avatar(self, obj):
+        try:
+            creator = obj.project.creator
+            return creator.profile_picture.url if creator.profile_picture else None
+        except Exception:
+            return None
 
     def get_deliverables(self, obj):
         request = self.context.get('request')
