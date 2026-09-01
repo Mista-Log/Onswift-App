@@ -34,8 +34,9 @@ jobs:
           DEBUG: "False"
 
   # --- Backend Deploy Job (Cloud Run) ---
-  # Requires GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT, GCP_REGION repo secrets,
-  # set up once the GCP project exists (see migration plan step 4/6).
+  # Needs repo secrets: GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT, GCP_REGION
+  # (WIF trust + IAM roles on github-deployer@... are set up in GCP) and DATABASE_URL
+  # (for the migrate step below, run directly against Neon).
   backend-deploy:
     needs: backend-tests
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -46,6 +47,29 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Backend Dependencies
+        run: |
+          cd backend/core
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Runs before the deploy so the schema is ready before the new code that
+      # depends on it goes live. Migrations must stay additive/backward-compatible
+      # (no drops/renames in the same PR as a dependent code change) for this
+      # ordering to be safe against the still-running previous revision.
+      - name: Run Database Migrations
+        run: |
+          cd backend/core
+          python manage.py migrate --noinput
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
