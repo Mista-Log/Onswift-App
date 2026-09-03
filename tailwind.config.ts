@@ -14,6 +14,7 @@ export default {
     },
     extend: {
       fontFamily: {
+        "instrument-serif": ['"Instrument Serif"', "serif"], // landing page hero headline only
         sans: [
           "Poppins",
           "ui-sans-serif",
