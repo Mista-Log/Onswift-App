@@ -4,6 +4,9 @@
 
 @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk&display=swap");
 
+/* Landing page hero headline only — see tailwind.config.ts `instrument-serif` font family */
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -209,18 +212,17 @@
   }
 
   .glass-card-feature {
-    background-color: hsl(var(--background) / 0.4);
-    border: 1px solid rgb(255 255 255 / 0.1);
-    backdrop-filter: blur(4px);
+    background-color: #fafafa;
+    border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 1rem;
     transition: transform 300ms ease, box-shadow 300ms ease, border-color 300ms ease;
-    box-shadow: 0 0 40px hsl(250 76% 63% / 0.15);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   }
 
   .glass-card-feature:hover {
-    border-color: hsl(var(--primary) / 0.5);
+    border-color: rgba(124, 92, 232, 0.4);
     transform: translateY(-0.5rem);
-    box-shadow: 0 0 60px hsl(250 76% 63% / 0.3);
+    box-shadow: 0 16px 32px rgba(124, 92, 232, 0.16);
   }
 
   .glass-card-usecase {
@@ -256,7 +258,7 @@
 
   .reveal.is-visible {
     opacity: 1;
-    animation: revealRise 1.2s cubic-bezier(0.22, 1, 0.36, 1) both, revealDrift 10s ease-in-out 1.2s infinite;
+    animation: revealRise 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .page-shell {
@@ -275,7 +277,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, hsl(270 50% 5%) 0%, hsl(260 45% 10%) 50%, hsl(270 50% 5%) 100%);
+    background: linear-gradient(135deg, #ffffff 0%, #f5f3fb 50%, #ffffff 100%);
     opacity: 1;
     transition: opacity 300ms ease;
     pointer-events: auto;
@@ -350,15 +352,6 @@
   100% {
     opacity: 1;
     transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes revealDrift {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
   }
 }
 
