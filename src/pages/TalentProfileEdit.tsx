@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Camera, X, Plus, Link as LinkIcon, Linkedin, Twitter, Github } from "lucide-react";
+import { uploadErrorMessage } from "@/lib/uploadError";
 
 const SKILL_OPTIONS = [
   "UI/UX Design", "Web Development", "Mobile Development",
@@ -112,7 +113,11 @@ const handleSubmit = async (e: React.FormEvent) => {
     }
 
     // Call your existing AuthContext function
-    await updateTalentProfile(formPayload);
+    const result = await updateTalentProfile(formPayload);
+    if (!result.success) {
+      toast.error(uploadErrorMessage(undefined, undefined, result.error || "Failed to update profile."));
+      return;
+    }
 
     toast.success("Profile updated successfully!");
     navigate("/dashboard");

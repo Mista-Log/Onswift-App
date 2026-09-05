@@ -28,6 +28,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/componen
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { uploadErrorMessage } from "@/lib/uploadError";
 import { secureFetch } from "@/api/apiClient";
 import {
   useTaskDetail,
@@ -595,11 +596,11 @@ export function TaskDetailModal({
         body: formData,
         headers: {}, // Let browser set multipart content-type/boundary
       });
-      if (!res.ok) { toast.error("Failed to add attachment"); return; }
+      if (!res.ok) { toast.error(uploadErrorMessage(res.status, undefined, "Failed to add attachment")); return; }
       await fetchTask(task.id);
       resetDeliverableForm();
       toast.success("Attachment added");
-    } catch { toast.error("Failed to add attachment"); }
+    } catch (err) { toast.error(uploadErrorMessage(undefined, err, "Failed to add attachment")); }
     finally { setIsCreatingDeliverable(false); }
   };
 
@@ -781,7 +782,7 @@ export function TaskDetailModal({
           body: formData,
           headers: {}, // Let browser set multipart content-type/boundary
         });
-        if (!res.ok) { toast.error(`Failed to add ${file.name}`); continue; }
+        if (!res.ok) { toast.error(uploadErrorMessage(res.status, undefined, `Failed to add ${file.name}`)); continue; }
         const uploaded = await res.json();
         addDeliverableFileLocal(deliverableId, uploaded);
         setAttachmentsModalDeliverable((prev) => prev && prev.id === deliverableId
@@ -789,7 +790,7 @@ export function TaskDetailModal({
           : prev);
       }
       toast.success(fileArray.length > 1 ? "Files added" : "File added");
-    } catch { toast.error("Failed to add file"); }
+    } catch (err) { toast.error(uploadErrorMessage(undefined, err, "Failed to add file")); }
     finally {
       setIsAddingAttachmentFile(false);
       if (attachmentModalFileInputRef.current) attachmentModalFileInputRef.current.value = "";

@@ -25,6 +25,7 @@ from .permissions import IsCreator
 from rest_framework import permissions
 from django.db.models import Q
 from . import google_calendar
+from core.exceptions import storage_error_guard
 
 # Project Views
 class ProjectListCreateView(generics.ListCreateAPIView):
@@ -427,8 +428,9 @@ class TaskAttachmentListCreateView(generics.ListCreateAPIView):
             url = "https://" + url
         if not name:
             name = uploaded_file.name if uploaded_file else url
-        serializer.save(task=task, uploaded_by=self.request.user, name=name,
-                        file=uploaded_file or None, url=url or None)
+        with storage_error_guard():
+            serializer.save(task=task, uploaded_by=self.request.user, name=name,
+                            file=uploaded_file or None, url=url or None)
 
 
 class TaskAttachmentDeleteView(generics.DestroyAPIView):
@@ -832,9 +834,10 @@ class DeliverableFileListCreateView(generics.ListCreateAPIView):
         if not f:
             raise ValidationError({"file": "This field is required."})
         deliverable = _get_deliverable_for_user(request.user, self.kwargs["deliverable_id"])
-        obj = DeliverableFile.objects.create(
-            deliverable=deliverable, file=f, name=f.name, size=f.size, file_type=f.content_type,
-        )
+        with storage_error_guard():
+            obj = DeliverableFile.objects.create(
+                deliverable=deliverable, file=f, name=f.name, size=f.size, file_type=f.content_type,
+            )
         serializer = self.get_serializer(obj)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 

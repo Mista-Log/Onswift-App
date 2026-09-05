@@ -13,6 +13,7 @@ import { publicFetch } from "@/api/apiClient";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { FIXED_PROCESSING_MESSAGE, runWithFixedProcessingDelay } from "@/lib/loadingGate";
+import { uploadErrorMessage } from "@/lib/uploadError";
 import { sanitize } from "isomorphic-dompurify";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -653,12 +654,12 @@ function FileUploadInput({
         onChange(data.url);
       } else {
         const data = await response.json().catch(() => ({}));
-        setError(data?.error || "Upload failed. Please try again.");
+        setError(uploadErrorMessage(response.status, undefined, data?.error || "Upload failed. Please try again."));
         setFileName(null);
         onChange(null);
       }
-    } catch {
-      setError("Upload failed. Please try again.");
+    } catch (err) {
+      setError(uploadErrorMessage(undefined, err, "Upload failed. Please try again."));
       setFileName(null);
       onChange(null);
     } finally {

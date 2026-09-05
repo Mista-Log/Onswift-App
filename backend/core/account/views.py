@@ -22,6 +22,7 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 from .serializers import GoogleAuthSerializer
 from .models import TalentProfile, CreatorProfile
+from core.exceptions import storage_error_guard
 
 
 class SignupView(APIView):
@@ -90,7 +91,8 @@ class UpdateProfileView(APIView):
 
         serializer = ProfileUpdateSerializer(instance=user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        with storage_error_guard():
+            serializer.save()
 
         response_data = {
             "message": "Profile updated successfully",

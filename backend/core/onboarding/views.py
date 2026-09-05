@@ -10,6 +10,8 @@ from django.db import transaction
 
 from rest_framework.parsers import MultiPartParser, FormParser
 
+from core.exceptions import storage_error_guard
+
 from .models import OnboardingTemplate, OnboardingInstance, OnboardingUpload
 from .serializers import (
     OnboardingTemplateSerializer,
@@ -483,12 +485,13 @@ class OnboardingFileUploadView(APIView):
                 status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             )
 
-        upload = OnboardingUpload.objects.create(
-            instance=instance,
-            block_index=block_index,
-            file=uploaded_file,
-            original_name=uploaded_file.name[:255],
-        )
+        with storage_error_guard():
+            upload = OnboardingUpload.objects.create(
+                instance=instance,
+                block_index=block_index,
+                file=uploaded_file,
+                original_name=uploaded_file.name[:255],
+            )
 
         return Response(
             OnboardingUploadSerializer(upload, context={"request": request}).data,
