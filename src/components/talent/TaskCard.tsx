@@ -59,9 +59,15 @@ export function TaskCard({
 
   const formatDeadline = (date: string | null | undefined) => {
     if (!date) return null;
-    const d = new Date(date);
-    const now = new Date();
-    const diffDays = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    // `date` is a bare "YYYY-MM-DD" string. new Date(date) parses that as UTC
+    // midnight, which shifts a day earlier once rendered in a timezone behind
+    // UTC — build it as local midnight instead, and compare local calendar
+    // days so a task stays "Due Today" until its actual day is over.
+    const [year, month, day] = date.split("-").map(Number);
+    const d = new Date(year, month - 1, day);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) return "Overdue";
     if (diffDays === 0) return "Due Today";

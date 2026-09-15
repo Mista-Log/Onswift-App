@@ -1,4 +1,4 @@
-import { LayoutGrid, Users, FolderKanban, Clock, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, ClipboardList, FileArchive, Wrench, Loader2 } from "lucide-react";
+import { LayoutGrid, Users, FolderKanban, Clock, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, ClipboardList, FileArchive, Wrench, Loader2, FileText } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { useDeadlineCount } from "@/hooks/useDeadlineCount";
@@ -24,6 +24,7 @@ const creatorNavItems = [
   { label: "My Team", icon: Users, route: "/team" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Client Portal", icon: ClipboardList, route: "/onboarding" },
+  { label: "Forms", icon: FileText, route: "/forms" },
   { label: "My Files", icon: FileArchive, route: "/library" },
   { label: "Deadlines", icon: Clock, route: "/calendar" },
   // { label: "Marketplace", icon: Users, route: "/talent" },

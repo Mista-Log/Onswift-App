@@ -249,6 +249,13 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    # Scoped, not global — only applied where a view explicitly sets
+    # throttle_classes/throttle_scope (currently just the public standalone
+    # form submit/upload endpoints). No other endpoint's behavior changes.
+    "DEFAULT_THROTTLE_RATES": {
+        "standalone_form_submit": "10/hour",
+        "standalone_form_upload": "20/hour",
+    },
 }
 
 AUTH_USER_MODEL = "account.User"

@@ -20,6 +20,7 @@ from .serializers import (
     TaskSyncSerializer, CalendarSyncedTaskSerializer,
     TaskCommentSerializer, TaskAttachmentSerializer,
     TaskChecklistSerializer, TaskChecklistItemSerializer,
+    duplicate_project,
 )
 from .permissions import IsCreator
 from rest_framework import permissions
@@ -172,6 +173,36 @@ class ProjectArchiveView(APIView):
             "project_id": str(project.id),
             "status": project.status,
         }, status=status.HTTP_200_OK)
+
+
+class ProjectDuplicateView(APIView):
+    """
+    POST /api/v2/projects/<project_id>/duplicate/
+    Creates a copy of a project's tasks and checklists as a new project —
+    a reusable starting structure for a new project with similar work.
+    Assignees, deadlines, client links, attachments, comments, and
+    deliverables are intentionally left out of the copy.
+    Only the project creator can duplicate a project.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, project_id):
+        try:
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Project not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if project.creator != request.user:
+            return Response(
+                {"error": "Only the project creator can duplicate a project"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        new_project = duplicate_project(project, request.user)
+        return Response(ProjectSerializer(new_project).data, status=status.HTTP_201_CREATED)
 
 
 # Task Views

@@ -4,6 +4,7 @@ Onboarding views — Creator form builder, link management, and client-facing on
 from rest_framework.views import APIView
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
 from django.db import transaction
@@ -12,7 +13,10 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 from core.exceptions import storage_error_guard
 
-from .models import OnboardingTemplate, OnboardingInstance, OnboardingUpload
+from .models import (
+    OnboardingTemplate, OnboardingInstance, OnboardingUpload,
+    StandaloneForm, StandaloneFormResponse, StandaloneFormUpload,
+)
 from .serializers import (
     OnboardingTemplateSerializer,
     OnboardingTemplateListSerializer,
@@ -23,6 +27,13 @@ from .serializers import (
     ClientSubmissionSerializer,
     CreatorClientSubmissionSerializer,
     OnboardingUploadSerializer,
+    StandaloneFormSerializer,
+    StandaloneFormListSerializer,
+    StandaloneFormPublicSerializer,
+    StandaloneFormSubmitSerializer,
+    StandaloneFormResponseSerializer,
+    StandaloneFormResponseListSerializer,
+    StandaloneFormUploadSerializer,
 )
 
 
@@ -496,4 +507,222 @@ class OnboardingFileUploadView(APIView):
         return Response(
             OnboardingUploadSerializer(upload, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
+        )
+
+
+# ── Standalone forms — plain, project/client-independent forms ─────────
+
+class StandaloneFormListCreateView(generics.ListCreateAPIView):
+    """
+    GET  — List all standalone forms owned by the creator.
+    POST — Create a new standalone form.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCreatorRole]
+
+    def get_serializer_class(self):
+        if self.request.method == "GET":
+            return StandaloneFormListSerializer
+        return StandaloneFormSerializer
+
+    def get_queryset(self):
+        return StandaloneForm.objects.filter(creator=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(creator=self.request.user)
+
+
+class StandaloneFormDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    — Retrieve full form detail (includes blocks).
+    PATCH  — Update title/blocks/is_open.
+    DELETE — Delete the form and all its responses.
+    """
+    serializer_class = StandaloneFormSerializer
+    permission_classes = [permissions.IsAuthenticated, IsCreatorRole]
+
+    def get_queryset(self):
+        return StandaloneForm.objects.filter(creator=self.request.user)
+
+
+class StandaloneFormPublicView(APIView):
+    """
+    GET /api/v4/f/<slug>/
+    Public endpoint — returns the form for the given slug. Still returns the
+    form when closed (is_open=False) so the frontend can show a "no longer
+    accepting responses" message instead of a 404/410.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, slug):
+        try:
+            form = StandaloneForm.objects.select_related("creator").get(slug=slug)
+        except StandaloneForm.DoesNotExist:
+            return Response(
+                {"error": "Form not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        data = StandaloneFormPublicSerializer({
+            "slug": form.slug,
+            "title": form.title,
+            "blocks": form.blocks,
+            "creator_name": form.creator.full_name or form.creator.email,
+            "is_open": form.is_open,
+        }).data
+
+        return Response(data)
+
+
+class StandaloneFormSubmitView(APIView):
+    """
+    POST /api/v4/f/<slug>/submit/
+    Anonymous response submission — no account is created. Any number of
+    responses can be submitted to the same form, unlike the one-shot
+    client-onboarding instance flow.
+    """
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "standalone_form_submit"
+
+    def post(self, request, slug):
+        try:
+            form = StandaloneForm.objects.get(slug=slug)
+        except StandaloneForm.DoesNotExist:
+            return Response(
+                {"error": "Form not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not form.is_open:
+            return Response(
+                {"error": "This form is no longer accepting responses."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = StandaloneFormSubmitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        response = StandaloneFormResponse.objects.create(
+            form=form,
+            responses=serializer.validated_data["responses"],
+        )
+
+        from notification.services import create_notification
+        create_notification(
+            user=form.creator,
+            title="New Form Response",
+            message=f"Someone submitted a response to \"{form.title}\".",
+            notification_type="system",
+            priority=1,
+        )
+
+        return Response(
+            {"message": "Response submitted successfully"},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class StandaloneFormUploadView(APIView):
+    """
+    POST /api/v4/f/<slug>/upload/
+    Public endpoint — stores a file attached while filling a standalone form
+    (before submission) and returns its URL, mirroring OnboardingFileUploadView.
+    """
+    permission_classes = [permissions.AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "standalone_form_upload"
+
+    def post(self, request, slug):
+        try:
+            form = StandaloneForm.objects.get(slug=slug)
+        except StandaloneForm.DoesNotExist:
+            return Response(
+                {"error": "Form not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not form.is_open:
+            return Response(
+                {"error": "This form is no longer accepting responses."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        uploaded_file = request.FILES.get("file")
+        if not uploaded_file:
+            return Response(
+                {"error": "No file provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        block_index_raw = request.data.get("block_index")
+        try:
+            block_index = int(block_index_raw)
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "Invalid block_index."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        blocks = form.blocks
+        if not isinstance(blocks, list) or not (0 <= block_index < len(blocks)):
+            return Response(
+                {"error": "Invalid block_index."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if (blocks[block_index] or {}).get("type") != "file_upload":
+            return Response(
+                {"error": "This block does not accept file uploads."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        max_bytes = 10 * 1024 * 1024  # 10MB
+        if uploaded_file.size and uploaded_file.size > max_bytes:
+            return Response(
+                {"error": "File too large."},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
+        with storage_error_guard():
+            upload = StandaloneFormUpload.objects.create(
+                form=form,
+                block_index=block_index,
+                file=uploaded_file,
+                original_name=uploaded_file.name[:255],
+            )
+
+        return Response(
+            StandaloneFormUploadSerializer(upload, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class StandaloneFormResponseListView(generics.ListAPIView):
+    """
+    GET /api/v4/forms/<form_id>/responses/
+    Creator-only — list all responses to one of their standalone forms.
+    """
+    serializer_class = StandaloneFormResponseListSerializer
+    permission_classes = [permissions.IsAuthenticated, IsCreatorRole]
+
+    def get_queryset(self):
+        return StandaloneFormResponse.objects.filter(
+            form_id=self.kwargs["form_id"],
+            form__creator=self.request.user,
+        )
+
+
+class StandaloneFormResponseDetailView(generics.RetrieveAPIView):
+    """
+    GET /api/v4/forms/<form_id>/responses/<pk>/
+    Creator-only — full detail of one response, for the response detail page.
+    """
+    serializer_class = StandaloneFormResponseSerializer
+    permission_classes = [permissions.IsAuthenticated, IsCreatorRole]
+
+    def get_queryset(self):
+        return StandaloneFormResponse.objects.filter(
+            form_id=self.kwargs["form_id"],
+            form__creator=self.request.user,
         )

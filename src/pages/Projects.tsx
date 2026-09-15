@@ -4,7 +4,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Calendar as CalendarIcon, Users, FolderKanban, MoreVertical, Trash2, ExternalLink, ArrowRight, Pencil } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Users, FolderKanban, MoreVertical, Trash2, ExternalLink, ArrowRight, Pencil, Copy } from "lucide-react";
 import { CelebrationModal } from "@/components/CelebrationModal";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -45,7 +45,7 @@ import { isNetworkError } from "@/api/apiClient";
 export default function Projects() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { projects, addProject, deleteProject, updateProject } = useProjects();
+  const { projects, addProject, deleteProject, updateProject, duplicateProject } = useProjects();
   const isTalent = user?.role === 'talent';
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -104,6 +104,20 @@ export default function Projects() {
     } finally {
       setRenameDialogOpen(false);
       setProjectToRename(null);
+    }
+  };
+
+  const handleDuplicateProject = async (e: React.MouseEvent, project: { id: string; name: string }) => {
+    e.stopPropagation();
+    try {
+      await duplicateProject(project.id);
+      toast.success(`Duplicated "${project.name}"`);
+    } catch (error) {
+      if (isNetworkError(error)) {
+        toast.warning("Slow connection, your request may have gone through. Refreshing...");
+      } else {
+        toast.error("Failed to duplicate project");
+      }
     }
   };
 
@@ -295,6 +309,10 @@ export default function Projects() {
                             <DropdownMenuItem onClick={(e) => openRenameDialog(e, { id: project.id, name: project.name })}>
                               <Pencil className="h-4 w-4 mr-2" />
                               Rename Project
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => handleDuplicateProject(e, { id: project.id, name: project.name })}>
+                              <Copy className="h-4 w-4 mr-2" />
+                              Duplicate Project
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={(e) => openDeleteDialog(e, { id: project.id, name: project.name })}

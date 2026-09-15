@@ -263,7 +263,7 @@ const HeroSection = () => {
           className="animate-fade-in-up mb-6 font-instrument-serif text-3xl leading-[1.1] text-white opacity-0 sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl"
           style={{ animationDelay: '0.1s' }}
         >
-          Run Your Agency<br /><span className="italic">Without</span> Chaos
+          Run Your Business<br /><span className="italic">Without</span> Chaos
         </h1>
 
         <p
