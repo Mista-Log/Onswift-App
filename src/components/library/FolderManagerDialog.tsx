@@ -133,7 +133,7 @@ export function FolderManagerDialog({ open, onClose, onSelectFolder, onFoldersCh
               </div>
             ) : folders.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                No folders yet — create your first one above.
+                No folders yet. Create your first one above.
               </p>
             ) : (
               folders.map((folder) => (
