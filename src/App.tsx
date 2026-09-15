@@ -61,6 +61,7 @@ import InvitePage from "./pages/InvitePage";
 
 // Library & CRM
 import DocumentLibrary from "./pages/library/DocumentLibrary";
+import NotificationsPage from "./pages/NotificationsPage";
 import CRMBuilder from "./pages/tools/CRMBuilder";
 
 // Docs editor
@@ -224,6 +225,7 @@ const App = () => (
 
                     {/* Library & CRM — all roles */}
                     <Route path="/library" element={<ProtectedRoute><DocumentLibrary /></ProtectedRoute>} />
+                    <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
                     <Route path="/library/crm" element={<ProtectedRoute><CRMBuilder /></ProtectedRoute>} />
                     {/* Legacy CRM path redirect */}
                     <Route path="/tools/crm" element={<Navigate to="/library/crm" replace />} />

@@ -5,6 +5,9 @@ from .views import (
     FolderListView,
     FolderCreateView,
     FolderDetailView,
+    FolderSharableUsersView,
+    FolderAccessListView,
+    FolderAccessDetailView,
     # Documents
     DocumentUploadView,
     DocumentListView,
@@ -33,6 +36,9 @@ urlpatterns = [
     path("folders/", FolderListView.as_view(), name="library-folder-list"),
     path("folders/create/", FolderCreateView.as_view(), name="library-folder-create"),
     path("folders/<uuid:pk>/", FolderDetailView.as_view(), name="library-folder-detail"),
+    path("folders/<uuid:pk>/access/", FolderAccessListView.as_view(), name="library-folder-access-list"),
+    path("folders/<uuid:pk>/access/<uuid:access_id>/", FolderAccessDetailView.as_view(), name="library-folder-access-detail"),
+    path("sharable-users/", FolderSharableUsersView.as_view(), name="library-sharable-users"),
 
     # Documents
     path("documents/", DocumentListView.as_view(), name="library-document-list"),

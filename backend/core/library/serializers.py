@@ -2,7 +2,10 @@
 Library serializers — request/response schemas for Document Library views.
 """
 from rest_framework import serializers
-from .models import Folder, Document, DocumentVersion, DocumentActivity, DocumentShareLink
+from django.contrib.auth import get_user_model
+from .models import Folder, Document, DocumentVersion, DocumentActivity, DocumentShareLink, FolderAccess
+
+User = get_user_model()
 
 
 # ── Folder Serializers ────────────────────────────────────────────────
@@ -41,8 +44,25 @@ class FolderCreateSerializer(serializers.Serializer):
 
 
 class FolderRenameSerializer(serializers.Serializer):
-    """Input schema for renaming a folder."""
+    """Input schema for renaming (and optionally moving) a folder."""
     name = serializers.CharField(max_length=255)
+    parent_folder_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+# ── Folder Access (sharing) Serializers ───────────────────────────────
+
+class FolderAccessUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "email", "full_name"]
+
+
+class FolderAccessSerializer(serializers.ModelSerializer):
+    user = FolderAccessUserSerializer(read_only=True)
+
+    class Meta:
+        model = FolderAccess
+        fields = ["id", "user", "role", "created_at"]
 
 
 # ── Document Serializers ──────────────────────────────────────────────

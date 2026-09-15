@@ -20,6 +20,12 @@ _settings_root = Path(__file__).resolve().parent.parent.parent.parent
 load_dotenv(_settings_root / '.env')
 load_dotenv(_settings_root / '.env.local', override=True)
 import os
+import sys
+
+# `manage.py test` (or pytest via manage.py) — tests must never depend on a
+# live external service being reachable/credentialed. See RUNNING_TESTS use
+# at the STORAGES setting below.
+RUNNING_TESTS = "test" in sys.argv
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -220,7 +226,15 @@ STORAGES = {
     # RawMediaCloudinaryStorage (not the plain Media variant) — most FileFields
     # here hold arbitrary attachments/documents (PDFs, docs, zips), not just
     # images, and MediaCloudinaryStorage's "image" resource type rejects those.
-    "default": {"BACKEND": "cloudinary_storage.storage.RawMediaCloudinaryStorage"},
+    # During tests, fall back to local disk — tests must never depend on a
+    # live external service (and CI has no CLOUDINARY_* credentials at all;
+    # before Cloudinary was actually wired up this was accidentally true,
+    # which is why it was never explicit until it broke CI).
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage"
+        if RUNNING_TESTS
+        else "cloudinary_storage.storage.RawMediaCloudinaryStorage"
+    },
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
 

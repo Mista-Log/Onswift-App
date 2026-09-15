@@ -78,6 +78,32 @@ class Folder(models.Model):
         return root
 
 
+class FolderAccess(models.Model):
+    """Per-user folder sharing — mirrors docs.models.DocAccess."""
+
+    ROLE_CHOICES = [
+        ("viewer", "Viewer"),
+        ("editor", "Editor"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    folder = models.ForeignKey(Folder, on_delete=models.CASCADE, related_name="access_list")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="folder_access",
+    )
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default="viewer")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ["folder", "user"]
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.user} → {self.folder.name} ({self.role})"
+
+
 class Document(models.Model):
     """
     File record in the Document Library.

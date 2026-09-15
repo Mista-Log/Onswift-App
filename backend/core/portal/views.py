@@ -544,6 +544,16 @@ class ClientInviteAcceptView(APIView):
                 membership.status = "active"
                 membership.save()
 
+            # Notify creator that the client accepted
+            from notification.services import create_notification
+            create_notification(
+                user=invite.creator,
+                title="Invite Accepted",
+                message=f"{client.full_name or client.email} accepted your invite to {invite.project.name}.",
+                notification_type="system",
+                link=f"/projects/{invite.project.id}",
+            )
+
             return Response(
                 {
                     "message": "Invite accepted. You can now access the project.",

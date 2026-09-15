@@ -18,6 +18,7 @@ interface NotificationContextType {
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   deleteNotification: (notificationId: string) => Promise<void>;
+  deleteAllNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(
@@ -95,27 +96,33 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Mark all notifications as read
+  // Mark all notifications as read (single bulk call, not one PATCH per item)
   const markAllAsRead = async () => {
     try {
-      const unreadNotifications = notifications.filter((n) => !n.is_read);
-
-      // Mark all unread notifications
-      await Promise.all(
-        unreadNotifications.map((notif) =>
-          secureFetch(`/api/v3/notifications/${notif.id}/read/`, {
-            method: "PATCH",
-            body: JSON.stringify({ is_read: true }),
-          })
-        )
-      );
-
-      // Update local state
-      setNotifications((prev) =>
-        prev.map((notif) => ({ ...notif, is_read: true }))
-      );
+      const response = await secureFetch("/api/v3/notifications/mark-all-read/", {
+        method: "POST",
+      });
+      if (response.ok) {
+        setNotifications((prev) =>
+          prev.map((notif) => ({ ...notif, is_read: true }))
+        );
+      }
     } catch (error) {
       console.error("Error marking all as read:", error);
+    }
+  };
+
+  // Delete every notification for the current user
+  const deleteAllNotifications = async () => {
+    try {
+      const response = await secureFetch("/api/v3/notifications/delete-all/", {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        setNotifications([]);
+      }
+    } catch (error) {
+      console.error("Error deleting all notifications:", error);
     }
   };
 
@@ -142,6 +149,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         markAsRead,
         markAllAsRead,
         deleteNotification,
+        deleteAllNotifications,
       }}
     >
       {children}
