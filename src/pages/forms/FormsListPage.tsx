@@ -81,7 +81,7 @@ export default function FormsListPage() {
               <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="font-semibold mb-1">No forms yet</h3>
               <p className="text-muted-foreground mb-4">
-                Create your first form and share the link — anyone can respond, no account needed.
+                Create your first form and share the link, anyone can respond, no account needed.
               </p>
               <Button onClick={() => navigate("/forms/new")}>
                 <Plus className="h-4 w-4 mr-1" /> Create Form
