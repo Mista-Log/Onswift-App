@@ -29,11 +29,15 @@ class DocumentLibraryTest(TestCase):
             role="talent",
         )
 
-    def test_creator_only_access(self):
-        """Only creators can access the document library."""
+    def test_talent_without_access_sees_no_folders(self):
+        """Talents can hit the endpoint (needed so they can see folders
+        shared with them via FolderAccess), but see nothing until granted
+        access to a specific folder — replaces the old creator-only 403,
+        which the folder-sharing feature intentionally relaxed."""
         self.api.force_authenticate(self.talent)
         response = self.api.get("/api/v6/folders/")
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
 
     def test_folder_scoping(self):
         """Creators only see their own folders."""
