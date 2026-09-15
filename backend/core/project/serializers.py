@@ -98,6 +98,43 @@ def spawn_recurring_task(task):
     return new_task
 
 
+def duplicate_project(project, creator):
+    """
+    Copy a project's tasks and checklists into a brand-new project — a
+    reusable task-structure starting point, not a full clone. Deliberately
+    excludes assignees, deadlines, client links, attachments, comments, and
+    deliverables (mirrors the same scope spawn_recurring_task uses above).
+    Returns the newly created Project.
+    """
+    new_project = Project.objects.create(
+        creator=creator,
+        name=f"{project.name} (Copy)",
+        description=project.description,
+        allow_talent_task_creation=project.allow_talent_task_creation,
+    )
+
+    for task in project.tasks.all():
+        new_task = Task.objects.create(
+            project=new_project,
+            name=task.name,
+            description=task.description,
+            priority=task.priority,
+            recurrence_type=task.recurrence_type,
+            recurrence_days=task.recurrence_days,
+        )
+        for checklist in task.checklists.prefetch_related("items").all():
+            new_checklist = TaskChecklist.objects.create(task=new_task, title=checklist.title)
+            for item in checklist.items.order_by("order"):
+                TaskChecklistItem.objects.create(
+                    checklist=new_checklist,
+                    content=item.content,
+                    is_checked=False,
+                    order=item.order,
+                )
+
+    return new_project
+
+
 class TaskSerializer(serializers.ModelSerializer):
     assignees = serializers.PrimaryKeyRelatedField(
         many=True,

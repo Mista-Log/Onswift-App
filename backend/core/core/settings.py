@@ -212,7 +212,17 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+# Django 4.2 replaced DEFAULT_FILE_STORAGE with STORAGES; the compatibility
+# shim that made the old setting still work was removed in Django 5.1, so on
+# 5.2 DEFAULT_FILE_STORAGE is silently ignored — this is the setting that
+# actually takes effect.
+STORAGES = {
+    # RawMediaCloudinaryStorage (not the plain Media variant) — most FileFields
+    # here hold arbitrary attachments/documents (PDFs, docs, zips), not just
+    # images, and MediaCloudinaryStorage's "image" resource type rejects those.
+    "default": {"BACKEND": "cloudinary_storage.storage.RawMediaCloudinaryStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
 
 # Service-account identity for the scripted OnSwift Assistant (chat facade).
 ASSISTANT_EMAIL = os.environ.get("ASSISTANT_EMAIL", "assistant@onswift.org")
@@ -239,6 +249,13 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    # Scoped, not global — only applied where a view explicitly sets
+    # throttle_classes/throttle_scope (currently just the public standalone
+    # form submit/upload endpoints). No other endpoint's behavior changes.
+    "DEFAULT_THROTTLE_RATES": {
+        "standalone_form_submit": "10/hour",
+        "standalone_form_upload": "20/hour",
+    },
 }
 
 AUTH_USER_MODEL = "account.User"

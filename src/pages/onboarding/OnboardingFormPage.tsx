@@ -9,10 +9,16 @@ import { toast } from "sonner";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Plus, FileText, Link2, Trash2, Users } from "lucide-react";
+import { Plus, FileText, Link2, Trash2, Users, Users2, ClipboardList } from "lucide-react";
 import { format } from "date-fns";
 import { OnboardingLinkTable } from "@/components/onboarding/OnboardingLinkTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { OnboardingTemplate } from "@/types/onboarding";
 
 export default function OnboardingTemplates() {
@@ -77,10 +83,24 @@ export default function OnboardingTemplates() {
               <Users className="h-4 w-4 shrink-0" />
               <span className="hidden sm:inline">Client History</span>
             </Button>
-            <Button onClick={() => navigate("/onboarding/new")} className="gap-1 px-2 sm:px-4">
-              <Plus className="h-4 w-4 shrink-0" />
-              <span className="hidden sm:inline">New Form</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="gap-1 px-2 sm:px-4">
+                  <Plus className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">New Form</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => navigate("/onboarding/new")}>
+                  <Users2 className="h-4 w-4 mr-2" />
+                  Client Survey
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/forms/new")}>
+                  <ClipboardList className="h-4 w-4 mr-2" />
+                  Normal Form
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -103,9 +123,23 @@ export default function OnboardingTemplates() {
                   <p className="text-muted-foreground mb-4">
                     Create your first onboarding form to start generating client onboarding links.
                   </p>
-                  <Button onClick={() => navigate("/onboarding/new")}>
-                    <Plus className="h-4 w-4 mr-1" /> Create Form
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button>
+                        <Plus className="h-4 w-4 mr-1" /> Create Form
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="center">
+                      <DropdownMenuItem onClick={() => navigate("/onboarding/new")}>
+                        <Users2 className="h-4 w-4 mr-2" />
+                        Client Survey
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate("/forms/new")}>
+                        <ClipboardList className="h-4 w-4 mr-2" />
+                        Normal Form
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </CardContent>
               </Card>
             ) : (

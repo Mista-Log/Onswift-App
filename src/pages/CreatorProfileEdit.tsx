@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Camera, Linkedin, Twitter, Instagram, Youtube } from "lucide-react";
+import { uploadErrorMessage } from "@/lib/uploadError";
 
 export default function CreatorProfileEdit() {
   const { user, updateCreatorProfile, getUser } = useAuth();
@@ -107,7 +108,11 @@ export default function CreatorProfileEdit() {
 
       console.log("Submitting payload:", Array.from(payload.entries()));
 
-      const response = await updateCreatorProfile(payload);
+      const result = await updateCreatorProfile(payload);
+      if (!result.success) {
+        toast.error(uploadErrorMessage(undefined, undefined, result.error || "Failed to update profile."));
+        return;
+      }
 
       toast.success("Profile updated successfully!");
       navigate("/dashboard");

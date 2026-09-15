@@ -11,6 +11,13 @@ from .views import (
     ClientMySubmissionsView,
     CreatorClientSubmissionsView,
     OnboardingFileUploadView,
+    StandaloneFormListCreateView,
+    StandaloneFormDetailView,
+    StandaloneFormPublicView,
+    StandaloneFormSubmitView,
+    StandaloneFormUploadView,
+    StandaloneFormResponseListView,
+    StandaloneFormResponseDetailView,
 )
 
 urlpatterns = [
@@ -29,4 +36,15 @@ urlpatterns = [
 
     # Client dashboard
     path("my-submissions/", ClientMySubmissionsView.as_view(), name="my-submissions"),
+
+    # Standalone forms — plain, project/client-independent forms (creator endpoints)
+    path("forms/", StandaloneFormListCreateView.as_view(), name="standalone-form-list-create"),
+    path("forms/<uuid:pk>/", StandaloneFormDetailView.as_view(), name="standalone-form-detail"),
+    path("forms/<uuid:form_id>/responses/", StandaloneFormResponseListView.as_view(), name="standalone-form-response-list"),
+    path("forms/<uuid:form_id>/responses/<uuid:pk>/", StandaloneFormResponseDetailView.as_view(), name="standalone-form-response-detail"),
+
+    # Standalone forms — public endpoints
+    path("f/<str:slug>/", StandaloneFormPublicView.as_view(), name="standalone-form-public"),
+    path("f/<str:slug>/submit/", StandaloneFormSubmitView.as_view(), name="standalone-form-submit"),
+    path("f/<str:slug>/upload/", StandaloneFormUploadView.as_view(), name="standalone-form-upload"),
 ]

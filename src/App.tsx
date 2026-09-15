@@ -40,6 +40,11 @@ import GoogleOAuthCallback from "./pages/auth/GoogleOAuthCallback";
 // Onboarding (creator)
 import OnboardingTemplates from "./pages/onboarding/OnboardingFormPage";
 import OnboardingBuilder from "./pages/onboarding/OnboardingBuilder";
+import FormsListPage from "./pages/forms/FormsListPage";
+import StandaloneFormBuilder from "./pages/forms/StandaloneFormBuilder";
+import StandaloneFormFill from "./pages/forms/StandaloneFormFill";
+import FormResponsesPage from "./pages/forms/FormResponsesPage";
+import FormResponseDetail from "./pages/forms/FormResponseDetail";
 import ClientHistoryPage from "./pages/onboarding/ClientHistoryPage";
 // Onboarding (public client-facing)
 import ClientOnboard from "./pages/onboarding/ClientOnboard";
@@ -198,6 +203,16 @@ const App = () => (
 
                     {/* Onboarding — public client page */}
                     <Route path="/onboard/:slug" element={<ClientOnboard />} />
+
+                    {/* Standalone forms — plain, project/client-independent forms */}
+                    <Route path="/forms" element={<ProtectedRoute><FormsListPage /></ProtectedRoute>} />
+                    <Route path="/forms/new" element={<ProtectedRoute><StandaloneFormBuilder /></ProtectedRoute>} />
+                    <Route path="/forms/:id" element={<ProtectedRoute><StandaloneFormBuilder /></ProtectedRoute>} />
+                    <Route path="/forms/:id/responses" element={<ProtectedRoute><FormResponsesPage /></ProtectedRoute>} />
+                    <Route path="/forms/:id/responses/:responseId" element={<ProtectedRoute><FormResponseDetail /></ProtectedRoute>} />
+
+                    {/* Standalone forms — public fill page */}
+                    <Route path="/f/:slug" element={<StandaloneFormFill />} />
 
                     {/* Invite acceptance — public, token-based */}
                     {/* <Route path="/invite/:token" element={<InviteAccept />} /> */}

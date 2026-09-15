@@ -3,7 +3,10 @@ Onboarding serializers — request/response schemas for DRF views.
 """
 from rest_framework import serializers
 from django.utils import timezone
-from .models import OnboardingTemplate, OnboardingInstance, OnboardingUpload
+from .models import (
+    OnboardingTemplate, OnboardingInstance, OnboardingUpload,
+    StandaloneForm, StandaloneFormResponse, StandaloneFormUpload,
+)
 
 
 # ── Template Serializers ──────────────────────────────────────────────
@@ -182,3 +185,92 @@ class ClientSignupSerializer(serializers.Serializer):
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("An account with this email already exists.")
         return value
+
+
+# ── Standalone form serializers ─────────────────────────────────────────
+
+class StandaloneFormSerializer(serializers.ModelSerializer):
+    """Full standalone-form representation for creator CRUD. No project field."""
+    url = serializers.SerializerMethodField()
+    response_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StandaloneForm
+        fields = [
+            "id", "creator", "title", "blocks", "slug", "url", "is_open",
+            "response_count", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "creator", "slug", "created_at", "updated_at"]
+
+    def get_url(self, obj):
+        from django.conf import settings
+        frontend_url = (getattr(settings, "FRONTEND_URL", None) or "http://localhost:8080").rstrip("/")
+        return f"{frontend_url}/f/{obj.slug}"
+
+    def get_response_count(self, obj):
+        return obj.responses.count()
+
+
+class StandaloneFormListSerializer(serializers.ModelSerializer):
+    """Lightweight list representation (no blocks payload)."""
+    response_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StandaloneForm
+        fields = ["id", "title", "slug", "is_open", "response_count", "created_at", "updated_at"]
+
+    def get_response_count(self, obj):
+        return obj.responses.count()
+
+
+class StandaloneFormPublicSerializer(serializers.Serializer):
+    """Public view of a standalone form (no sensitive data)."""
+    slug = serializers.CharField()
+    title = serializers.CharField()
+    blocks = serializers.JSONField()
+    creator_name = serializers.CharField()
+    is_open = serializers.BooleanField()
+
+
+class StandaloneFormSubmitSerializer(serializers.Serializer):
+    """Input schema for an anonymous response submission — no account created."""
+    responses = serializers.JSONField(help_text="Array of {block_index, value} response objects")
+
+
+class StandaloneFormResponseSerializer(serializers.ModelSerializer):
+    """Full response representation for the creator's response-detail page."""
+    class Meta:
+        model = StandaloneFormResponse
+        fields = ["id", "form", "responses", "submitted_at"]
+        read_only_fields = fields
+
+
+class StandaloneFormResponseListSerializer(serializers.ModelSerializer):
+    """Lightweight list representation for the responses table."""
+    answered_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StandaloneFormResponse
+        fields = ["id", "answered_count", "submitted_at"]
+
+    def get_answered_count(self, obj):
+        return len(obj.responses or [])
+
+
+class StandaloneFormUploadSerializer(serializers.ModelSerializer):
+    """Represents a file uploaded while filling a standalone form."""
+    url = serializers.SerializerMethodField()
+    name = serializers.CharField(source="original_name", read_only=True)
+
+    class Meta:
+        model = StandaloneFormUpload
+        fields = ["id", "url", "name", "block_index", "uploaded_at"]
+
+    def get_url(self, obj):
+        if not obj.file:
+            return None
+        url = obj.file.url
+        request = self.context.get("request")
+        if request is not None and url and url.startswith("/"):
+            return request.build_absolute_uri(url)
+        return url

@@ -51,6 +51,7 @@ interface ProjectContextType {
   ) => Promise<string | undefined>;
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  duplicateProject: (id: string) => Promise<string | undefined>;
 
   // Task management
   fetchProjectTasks: (projectId: string) => Promise<Task[]>;
@@ -148,6 +149,28 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       );
     } catch (error: any) {
       console.error("Update Project failed:", error.message);
+      throw error;
+    }
+  };
+
+  // ---------------- DUPLICATE PROJECT ----------------
+  const duplicateProject = async (id: string): Promise<string | undefined> => {
+    try {
+      const res = await secureFetch(`/api/v2/projects/${id}/duplicate/`, {
+        method: "POST",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("Backend validation error:", data);
+        throw new Error(data?.error || "Failed to duplicate project");
+      }
+
+      await fetchProjects();
+      return data.id as string;
+    } catch (error: any) {
+      console.error("Duplicate Project failed:", error.message);
       throw error;
     }
   };
@@ -263,6 +286,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         addProject,
         updateProject,
         deleteProject,
+        duplicateProject,
         fetchProjectTasks,
         addTask,
         updateTask,
