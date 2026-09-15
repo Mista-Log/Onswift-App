@@ -164,6 +164,26 @@ class NotificationDeleteView(generics.DestroyAPIView):
         return self.request.user.notifications.all()
 
 
+class NotificationMarkAllReadView(APIView):
+    """POST /api/v3/notifications/mark-all-read/ — bulk mark, scoped to the
+    requesting user. Replaces the frontend's previous N-individual-PATCH loop."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        updated = request.user.notifications.filter(is_read=False).update(is_read=True)
+        return Response({"updated": updated})
+
+
+class NotificationDeleteAllView(APIView):
+    """DELETE /api/v3/notifications/delete-all/ — bulk delete, scoped to the
+    requesting user."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request):
+        deleted, _ = request.user.notifications.all().delete()
+        return Response({"deleted": deleted})
+
+
 class InviteTokenCreateView(generics.CreateAPIView):
     """Generate an invite token for onboarding talents"""
     serializer_class = InviteTokenCreateSerializer
@@ -293,6 +313,14 @@ class InviteTokenAcceptView(APIView):
 
         from assistant.services import send_team_join_congrats
         send_team_join_congrats(request.user, invite.creator)
+
+        from .services import create_notification
+        create_notification(
+            user=invite.creator,
+            title="Invite Accepted",
+            message=f"{request.user.full_name or request.user.email} accepted your team invite and joined.",
+            notification_type="hire",
+        )
 
         return Response({
             "success": True,

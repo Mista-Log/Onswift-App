@@ -10,6 +10,8 @@ from .views import (
     NotificationListView,
     NotificationReadView,
     NotificationDeleteView,
+    NotificationMarkAllReadView,
+    NotificationDeleteAllView,
     InviteTokenCreateView,
     InviteTokenValidateView,
     InviteTokenAcceptView,
@@ -24,6 +26,8 @@ urlpatterns = [
     path("team/<uuid:pk>/remove/", RemoveTeamMemberView.as_view()),  # Remove team member
 
     path("notifications/", NotificationListView.as_view()),
+    path("notifications/mark-all-read/", NotificationMarkAllReadView.as_view()),
+    path("notifications/delete-all/", NotificationDeleteAllView.as_view()),
     path("notifications/<uuid:pk>/", NotificationDeleteView.as_view()),
     path("notifications/<uuid:pk>/read/", NotificationReadView.as_view()),
 

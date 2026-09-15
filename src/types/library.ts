@@ -56,6 +56,25 @@ export interface DocumentActivity {
   timestamp: string;
 }
 
+export interface FolderAccessUser {
+  id: string;
+  email: string;
+  full_name: string;
+}
+
+export interface FolderAccess {
+  id: string;
+  user: FolderAccessUser;
+  role: "viewer" | "editor";
+  created_at: string;
+}
+
+export interface FolderSharableUser {
+  user_id: string;
+  name: string;
+  email: string;
+}
+
 export interface DocumentShareLink {
   id: string;
   document: string;

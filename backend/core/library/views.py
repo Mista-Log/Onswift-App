@@ -6,11 +6,13 @@ from rest_framework.views import APIView
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from django.shortcuts import get_object_or_404
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.db.models import Q
 from datetime import timedelta
 
-from .models import Folder, Document, DocumentVersion, DocumentActivity, DocumentShareLink
+from .models import Folder, Document, DocumentVersion, DocumentActivity, DocumentShareLink, FolderAccess
 from .serializers import (
     FolderSerializer,
     FolderCreateSerializer,
@@ -23,13 +25,24 @@ from .serializers import (
     DocumentActivitySerializer,
     DocumentShareLinkSerializer,
     DocumentShareLinkCreateSerializer,
+    FolderAccessSerializer,
 )
+
+User = get_user_model()
 
 
 class IsCreatorRole(permissions.BasePermission):
     """Only allow users with role='creator'."""
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == "creator"
+
+
+class IsCreatorOrTalent(permissions.BasePermission):
+    """Creators own folders; talents may be granted shared access to them
+    via FolderAccess. Mirrors docs.views.IsDocUser. Fine-grained ownership
+    and role checks happen inside each view, not at this permission layer."""
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role in ("creator", "talent")
 
 
 # ── Folder CRUD ───────────────────────────────────────────────────────
@@ -41,10 +54,11 @@ class FolderListView(APIView):
     Query params: ?parent_id=<uuid> (filter by parent, null for root)
                   ?type=<CLIENT|TEMPLATE|INTERNAL>
     """
-    permission_classes = [permissions.IsAuthenticated, IsCreatorRole]
+    permission_classes = [permissions.IsAuthenticated, IsCreatorOrTalent]
 
     def get(self, request):
-        qs = Folder.objects.filter(creator=request.user)
+        shared_ids = FolderAccess.objects.filter(user=request.user).values_list("folder_id", flat=True)
+        qs = Folder.objects.filter(Q(creator=request.user) | Q(id__in=shared_ids))
 
         parent_id = request.query_params.get("parent_id")
         if parent_id == "null" or parent_id == "":
@@ -105,16 +119,26 @@ class FolderDetailView(APIView):
     PATCH  /api/v6/folders/<id>/  — Rename folder
     DELETE /api/v6/folders/<id>/  — Delete folder (and all contents)
     """
-    permission_classes = [permissions.IsAuthenticated, IsCreatorRole]
+    permission_classes = [permissions.IsAuthenticated, IsCreatorOrTalent]
+
+    def _get_accessible_folder(self, request, pk):
+        """Owner or anyone with a FolderAccess grant on this folder."""
+        shared_ids = FolderAccess.objects.filter(user=request.user).values_list("folder_id", flat=True)
+        return Folder.objects.filter(Q(id=pk) & (Q(creator=request.user) | Q(id__in=shared_ids))).first()
+
+    def _can_edit(self, request, folder):
+        if folder.creator_id == request.user.id:
+            return True
+        access = FolderAccess.objects.filter(folder=folder, user=request.user).first()
+        return bool(access and access.role == "editor")
 
     def get(self, request, pk):
-        try:
-            folder = Folder.objects.get(id=pk, creator=request.user)
-        except Folder.DoesNotExist:
+        folder = self._get_accessible_folder(request, pk)
+        if not folder:
             return Response({"error": "Folder not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        subfolders = Folder.objects.filter(parent_folder=folder, creator=request.user)
-        documents = Document.objects.filter(folder=folder, creator=request.user, is_deleted=False)
+        subfolders = Folder.objects.filter(parent_folder=folder, creator=folder.creator)
+        documents = Document.objects.filter(folder=folder, creator=folder.creator, is_deleted=False)
 
         return Response({
             "folder": FolderSerializer(folder).data,
@@ -123,16 +147,32 @@ class FolderDetailView(APIView):
         })
 
     def patch(self, request, pk):
-        try:
-            folder = Folder.objects.get(id=pk, creator=request.user)
-        except Folder.DoesNotExist:
+        folder = self._get_accessible_folder(request, pk)
+        if not folder:
             return Response({"error": "Folder not found"}, status=status.HTTP_404_NOT_FOUND)
+        if not self._can_edit(request, folder):
+            return Response(
+                {"error": "You do not have permission to edit this folder."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         serializer = FolderRenameSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
 
-        folder.name = serializer.validated_data["name"]
-        folder.save(update_fields=["name"])
+        folder.name = data["name"]
+        update_fields = ["name"]
+
+        if "parent_folder_id" in data:
+            parent = None
+            if data["parent_folder_id"]:
+                parent = Folder.objects.filter(id=data["parent_folder_id"], creator=folder.creator).first()
+                if not parent:
+                    return Response({"error": "Parent folder not found"}, status=status.HTTP_404_NOT_FOUND)
+            folder.parent_folder = parent
+            update_fields.append("parent_folder")
+
+        folder.save(update_fields=update_fields)
 
         return Response(FolderSerializer(folder).data)
 
@@ -144,6 +184,96 @@ class FolderDetailView(APIView):
 
         folder.delete()
         return Response({"message": "Folder deleted"}, status=status.HTTP_200_OK)
+
+
+# ── Folder Sharing ────────────────────────────────────────────────────
+
+class FolderSharableUsersView(APIView):
+    """GET /api/v6/sharable-users/ — talents the creator has on their team.
+    Mirrors docs.views.DocSharableUsersView."""
+    permission_classes = [permissions.IsAuthenticated, IsCreatorOrTalent]
+
+    def get(self, request):
+        if request.user.role != "creator":
+            return Response([])
+
+        from notification.models import HireRequest
+
+        users = []
+        seen_ids = set()
+
+        for hr in HireRequest.objects.filter(
+            creator=request.user, status="accepted"
+        ).select_related("talent"):
+            t = hr.talent
+            if t.id not in seen_ids:
+                seen_ids.add(t.id)
+                users.append({
+                    "user_id": str(t.id),
+                    "name": t.full_name or t.email,
+                    "email": t.email,
+                })
+
+        return Response(users)
+
+
+class FolderAccessListView(APIView):
+    """GET list of shared users; POST to share with a user by email.
+    Mirrors docs.views.DocAccessListView."""
+    permission_classes = [permissions.IsAuthenticated, IsCreatorOrTalent]
+
+    def get(self, request, pk):
+        folder = get_object_or_404(Folder, id=pk)
+        if folder.creator_id != request.user.id:
+            if not FolderAccess.objects.filter(folder=folder, user=request.user).exists():
+                return Response(status=status.HTTP_403_FORBIDDEN)
+        access_list = folder.access_list.select_related("user").all()
+        return Response(FolderAccessSerializer(access_list, many=True).data)
+
+    def post(self, request, pk):
+        folder = get_object_or_404(Folder, id=pk, creator=request.user)
+        email = request.data.get("email", "").strip().lower()
+        role = request.data.get("role", "viewer")
+        if not email:
+            return Response({"error": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if role not in ("viewer", "editor"):
+            return Response({"error": "Role must be 'viewer' or 'editor'."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            target = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response({"error": "No user found with that email."}, status=status.HTTP_404_NOT_FOUND)
+        if target == request.user:
+            return Response({"error": "Cannot share a folder with yourself."}, status=status.HTTP_400_BAD_REQUEST)
+        access, created = FolderAccess.objects.get_or_create(folder=folder, user=target, defaults={"role": role})
+        if not created:
+            access.role = role
+            access.save(update_fields=["role"])
+        return Response(
+            FolderAccessSerializer(access).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+class FolderAccessDetailView(APIView):
+    """PATCH to change role; DELETE to revoke access.
+    Mirrors docs.views.DocAccessDetailView."""
+    permission_classes = [permissions.IsAuthenticated, IsCreatorOrTalent]
+
+    def patch(self, request, pk, access_id):
+        folder = get_object_or_404(Folder, id=pk, creator=request.user)
+        access = get_object_or_404(FolderAccess, id=access_id, folder=folder)
+        role = request.data.get("role")
+        if role not in ("viewer", "editor"):
+            return Response({"error": "Role must be 'viewer' or 'editor'."}, status=status.HTTP_400_BAD_REQUEST)
+        access.role = role
+        access.save(update_fields=["role"])
+        return Response(FolderAccessSerializer(access).data)
+
+    def delete(self, request, pk, access_id):
+        folder = get_object_or_404(Folder, id=pk, creator=request.user)
+        access = get_object_or_404(FolderAccess, id=access_id, folder=folder)
+        access.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ── Document CRUD ─────────────────────────────────────────────────────

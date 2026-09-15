@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Bell, Check, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
@@ -20,6 +21,7 @@ export function NotificationDropdown() {
     markAllAsRead,
     deleteNotification,
   } = useNotifications();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
 
@@ -111,6 +113,13 @@ export function NotificationDropdown() {
             ))}
           </ScrollArea>
         )}
+
+        <button
+          onClick={() => { setOpen(false); navigate("/notifications"); }}
+          className="block w-full border-t border-border/50 p-3 text-center text-sm font-medium text-primary hover:bg-secondary/30 transition-colors"
+        >
+          View all
+        </button>
       </DropdownMenuContent>
     </DropdownMenu>
   );

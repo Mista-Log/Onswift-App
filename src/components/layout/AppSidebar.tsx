@@ -27,6 +27,7 @@ const creatorNavItems = [
   { label: "Forms", icon: FileText, route: "/forms" },
   { label: "My Files", icon: FileArchive, route: "/library" },
   { label: "Deadlines", icon: Clock, route: "/calendar" },
+  // { label: "Notifications", icon: Bell, route: "/notifications" },
   // { label: "Marketplace", icon: Users, route: "/talent" },
 ];
 
@@ -38,6 +39,7 @@ const clientNavItems = [
   { label: "Docs", icon: FileArchive, route: "/library" },
   { label: "CRM", icon: Wrench, route: "/library/crm" },
   { label: "Deadlines", icon: Clock, route: "/calendar" },
+  // { label: "Notifications", icon: Bell, route: "/notifications" },
 ];
 
 const talentNavItems = [
@@ -48,6 +50,7 @@ const talentNavItems = [
   { label: "My Files", icon: FileArchive, route: "/library" },
   { label: "CRM", icon: Wrench, route: "/library/crm" },
   { label: "Deadlines", icon: Clock, route: "/calendar" },
+  // { label: "Notifications", icon: Bell, route: "/notifications" },
 ];
 
 const bottomNavItems = [

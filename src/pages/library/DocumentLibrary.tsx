@@ -44,13 +44,16 @@ import {
   X,
   Plus,
   FolderOpen,
+  Folder as FolderIcon,
   Clock,
   Wrench,
   Table2,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
-import type { LibraryDocument } from "@/types/library";
+import type { LibraryDocument, LibraryFolder } from "@/types/library";
 import type { DocListItem } from "@/hooks/useDocs";
+import { fetchFolders } from "@/lib/libraryFolders";
+import { FolderManagerDialog } from "@/components/library/FolderManagerDialog";
 
 // ── Unified item type ─────────────────────────────────────────────────────────
 
@@ -67,6 +70,7 @@ interface UnifiedItem {
   createdAt: string;
   fileUrl?: string;
   tags?: string[];
+  folderId?: string;
   folderName?: string;
 }
 
@@ -81,6 +85,7 @@ function fileToUnified(d: LibraryDocument): UnifiedItem {
     createdAt: d.created_at,
     fileUrl: d.file,
     tags: d.tags,
+    folderId: d.folder,
     folderName: d.folder_name,
   };
 }
@@ -394,6 +399,14 @@ export default function DocumentLibrary() {
   const [showTrash, setShowTrash] = useState(false);
   const [newFileModalOpen, setNewFileModalOpen] = useState(false);
 
+  const [folders, setFolders] = useState<LibraryFolder[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<LibraryFolder | null>(null);
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
+  // When true, selecting a folder in FolderManagerDialog resolves the
+  // pending upload instead of setting the page's active folder filter.
+  const [pickingFolderForUpload, setPickingFolderForUpload] = useState(false);
+  const [pendingUploadFiles, setPendingUploadFiles] = useState<File[]>([]);
+
   const loadFiles = useCallback(async () => {
     try {
       const res = await secureFetch("/api/v6/documents/");
@@ -426,18 +439,23 @@ export default function DocumentLibrary() {
 
   useEffect(() => {
     Promise.all([loadFiles(), loadDocs(), loadCRM()]).finally(() => setLoading(false));
+    fetchFolders().then(setFolders);
   }, [loadFiles, loadDocs, loadCRM]);
 
   // ── Search filter ────────────────────────────────────────────────────────
   const q = query.toLowerCase();
 
+  const folderFilteredFiles = selectedFolder
+    ? files.filter((f) => f.folderId === selectedFolder.id)
+    : files;
+
   const filteredFiles = q
-    ? files.filter(
+    ? folderFilteredFiles.filter(
         (f) =>
           f.name.toLowerCase().includes(q) ||
           f.tags?.some((t) => t.toLowerCase().includes(q))
       )
-    : files;
+    : folderFilteredFiles;
 
   const filteredDocs = q
     ? docs.filter((d) => d.name.toLowerCase().includes(q))
@@ -503,27 +521,9 @@ export default function DocumentLibrary() {
     }
   };
 
-  const handleUpload = async (fileList: FileList | File[]) => {
-    const arr = Array.from(fileList);
-    if (!arr.length) return;
-
+  const uploadFilesToFolder = async (arr: File[], folderId: string) => {
     setUploading(true);
     let uploaded = 0;
-    let folderId: string | null = null;
-
-    try {
-      const res = await secureFetch("/api/v6/folders/");
-      if (res.ok) {
-        const folders = await res.json();
-        if (folders.length > 0) folderId = folders[0].id;
-      }
-    } catch { /* ignore */ }
-
-    if (!folderId) {
-      toast.error("No folder found, create a folder in the legacy Files section first");
-      setUploading(false);
-      return;
-    }
 
     for (const file of arr) {
       const fd = new FormData();
@@ -547,6 +547,32 @@ export default function DocumentLibrary() {
       await loadFiles();
     }
     setUploading(false);
+  };
+
+  const handleUpload = async (fileList: FileList | File[]) => {
+    const arr = Array.from(fileList);
+    if (!arr.length) return;
+
+    // Upload into the folder the user's currently filtered on, if any.
+    if (selectedFolder) {
+      await uploadFilesToFolder(arr, selectedFolder.id);
+      return;
+    }
+
+    // Otherwise resolve a destination: exactly one folder -> use it
+    // automatically; zero or several -> ask via the folder picker instead
+    // of silently guessing (this used to grab folders[0] and dead-end with
+    // a toast if there were none).
+    const currentFolders = await fetchFolders();
+    setFolders(currentFolders);
+    if (currentFolders.length === 1) {
+      await uploadFilesToFolder(arr, currentFolders[0].id);
+      return;
+    }
+
+    setPendingUploadFiles(arr);
+    setPickingFolderForUpload(true);
+    setFolderDialogOpen(true);
   };
 
   const handleDrop = useCallback(
@@ -669,6 +695,10 @@ export default function DocumentLibrary() {
               <>
                 {canUpload && (
                   <>
+                    <Button variant="outline" size="sm" onClick={() => { setPickingFolderForUpload(false); setFolderDialogOpen(true); }}>
+                      <FolderIcon size={14} className="mr-1.5" />
+                      Folders
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => { setShowTrash(true); loadTrash(); }}>
                       <Trash2 size={14} className="mr-1.5" />
                       Trash
@@ -734,6 +764,17 @@ export default function DocumentLibrary() {
                   </button>
                 )}
               </div>
+
+              {selectedFolder && (
+                <button
+                  onClick={() => setSelectedFolder(null)}
+                  className="flex items-center gap-1.5 rounded-full bg-secondary/50 px-3 h-9 text-sm text-foreground hover:bg-secondary transition-colors flex-shrink-0"
+                >
+                  <FolderIcon size={13} />
+                  {selectedFolder.name}
+                  <X size={13} className="text-muted-foreground" />
+                </button>
+              )}
 
               <div className="flex items-center border border-border rounded-lg overflow-hidden">
                 <button
@@ -827,7 +868,7 @@ export default function DocumentLibrary() {
           <DialogHeader>
             <DialogTitle>Create new file</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 pt-2">
+          <div className="grid grid-cols-3 gap-3 pt-2">
             <button
               onClick={async () => {
                 setNewFileModalOpen(false);
@@ -853,9 +894,46 @@ export default function DocumentLibrary() {
               </div>
               <span className="text-sm font-medium">Spreadsheet</span>
             </button>
+
+            <button
+              onClick={() => {
+                setNewFileModalOpen(false);
+                setPickingFolderForUpload(false);
+                setFolderDialogOpen(true);
+              }}
+              className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-5 hover:bg-muted transition-colors text-center"
+            >
+              <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <FolderIcon size={22} className="text-amber-500" />
+              </div>
+              <span className="text-sm font-medium">Folder</span>
+            </button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Folder CRUD + picker */}
+      {folderDialogOpen && (
+        <FolderManagerDialog
+          open={folderDialogOpen}
+          onClose={() => {
+            setFolderDialogOpen(false);
+            setPickingFolderForUpload(false);
+            setPendingUploadFiles([]);
+          }}
+          onFoldersChanged={setFolders}
+          onSelectFolder={(folder) => {
+            setFolderDialogOpen(false);
+            if (pickingFolderForUpload) {
+              uploadFilesToFolder(pendingUploadFiles, folder.id);
+              setPendingUploadFiles([]);
+              setPickingFolderForUpload(false);
+            } else {
+              setSelectedFolder(folder);
+            }
+          }}
+        />
+      )}
 
       {/* Drop overlay */}
       {dragOver && (
