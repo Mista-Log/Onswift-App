@@ -11,6 +11,8 @@ export interface LibraryFolder {
   client: string | null;
   document_count: number;
   subfolder_count: number;
+  doc_count: number;
+  crm_count: number;
   created_at: string;
 }
 
@@ -18,8 +20,8 @@ export interface LibraryDocument {
   id: string;
   creator: string;
   client: string | null;
-  folder: string;
-  folder_name: string;
+  folder: string | null;
+  folder_name: string | null;
   name: string;
   file: string;
   file_type: string;
@@ -27,6 +29,7 @@ export interface LibraryDocument {
   tags: string[];
   color_label: string | null;
   is_locked: boolean;
+  is_favorite: boolean;
   is_deleted: boolean;
   deleted_at: string | null;
   version: number;

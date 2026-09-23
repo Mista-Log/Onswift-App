@@ -13,6 +13,9 @@ export interface DocListItem {
   order: number;
   children_count: number;
   updated_at: string;
+  folder: string | null;
+  folder_name: string | null;
+  is_favorite: boolean;
 }
 
 export interface DocDetail {
@@ -26,6 +29,9 @@ export interface DocDetail {
   created_at: string;
   updated_at: string;
   user_role: "owner" | "editor" | "viewer";
+  folder: string | null;
+  folder_name: string | null;
+  is_favorite: boolean;
 }
 
 // ── Share / Access types ──────────────────────────────────────────────────────
@@ -85,6 +91,7 @@ export function useDocs() {
     icon?: string;
     parent?: string | null;
     project?: number | null;
+    folder?: string | null;
   }): Promise<DocDetail | null> => {
     try {
       const res = await secureFetch("/api/v8/docs/", {
@@ -153,6 +160,17 @@ export async function saveDoc(id: string, patch: Partial<Omit<DocDetail, "id" | 
 export async function fetchDocChildren(id: string): Promise<DocListItem[]> {
   try {
     const res = await secureFetch(`/api/v8/docs/${id}/children/`);
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchDocsByFolder(folderId: string | null): Promise<DocListItem[]> {
+  try {
+    const qs = folderId === null ? "null" : folderId;
+    const res = await secureFetch(`/api/v8/docs/?all=1&folder_id=${qs}`);
     if (!res.ok) return [];
     return res.json();
   } catch {

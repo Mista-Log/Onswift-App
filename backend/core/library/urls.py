@@ -26,6 +26,7 @@ from .views import (
     # Sharing
     DocumentShareLinkCreateView,
     DocumentShareLinkListView,
+    DocumentShareLinkDeleteView,
     SharedDocumentPublicView,
     # Lock
     DocumentLockToggleView,
@@ -52,6 +53,7 @@ urlpatterns = [
     path("documents/<uuid:pk>/activity/", DocumentActivityListView.as_view(), name="library-document-activity"),
     path("documents/<uuid:pk>/share/", DocumentShareLinkCreateView.as_view(), name="library-document-share-create"),
     path("documents/<uuid:pk>/shares/", DocumentShareLinkListView.as_view(), name="library-document-share-list"),
+    path("documents/<uuid:pk>/share/<uuid:link_id>/", DocumentShareLinkDeleteView.as_view(), name="library-document-share-delete"),
     path("documents/<uuid:pk>/lock/", DocumentLockToggleView.as_view(), name="library-document-lock"),
 
     # Search

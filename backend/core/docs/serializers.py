@@ -8,10 +8,14 @@ User = get_user_model()
 class DocListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for sidebar tree — no content field."""
     children_count = serializers.SerializerMethodField()
+    folder_name = serializers.CharField(source="folder.name", read_only=True, default=None)
 
     class Meta:
         model = Doc
-        fields = ["id", "title", "icon", "parent", "project", "order", "children_count", "updated_at"]
+        fields = [
+            "id", "title", "icon", "parent", "project", "order",
+            "children_count", "updated_at", "folder", "folder_name", "is_favorite",
+        ]
 
     def get_children_count(self, obj):
         return obj.children.count()
@@ -20,10 +24,14 @@ class DocListSerializer(serializers.ModelSerializer):
 class DocDetailSerializer(serializers.ModelSerializer):
     """Full serializer including BlockNote content."""
     user_role = serializers.SerializerMethodField()
+    folder_name = serializers.CharField(source="folder.name", read_only=True, default=None)
 
     class Meta:
         model = Doc
-        fields = ["id", "title", "icon", "content", "parent", "project", "order", "created_at", "updated_at", "user_role"]
+        fields = [
+            "id", "title", "icon", "content", "parent", "project", "order",
+            "created_at", "updated_at", "user_role", "folder", "folder_name", "is_favorite",
+        ]
         read_only_fields = ["id", "created_at", "updated_at", "user_role"]
 
     def get_user_role(self, obj):
@@ -39,15 +47,25 @@ class DocDetailSerializer(serializers.ModelSerializer):
         except DocAccess.DoesNotExist:
             return "viewer"
 
+    def validate_folder(self, value):
+        if value and value.creator != self.context["request"].user:
+            raise serializers.ValidationError("Folder not found.")
+        return value
+
 
 class DocCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Doc
-        fields = ["title", "icon", "parent", "project"]
+        fields = ["title", "icon", "parent", "project", "folder"]
 
     def validate_parent(self, value):
         if value and value.owner != self.context["request"].user:
             raise serializers.ValidationError("Parent doc not found.")
+        return value
+
+    def validate_folder(self, value):
+        if value and value.creator != self.context["request"].user:
+            raise serializers.ValidationError("Folder not found.")
         return value
 
 

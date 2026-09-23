@@ -14,13 +14,15 @@ class FolderSerializer(serializers.ModelSerializer):
     """Full folder representation."""
     document_count = serializers.SerializerMethodField()
     subfolder_count = serializers.SerializerMethodField()
+    doc_count = serializers.SerializerMethodField()
+    crm_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Folder
         fields = [
             "id", "creator", "parent_folder", "name",
             "folder_type", "client",
-            "document_count", "subfolder_count",
+            "document_count", "subfolder_count", "doc_count", "crm_count",
             "created_at",
         ]
         read_only_fields = ["id", "creator", "created_at"]
@@ -30,6 +32,14 @@ class FolderSerializer(serializers.ModelSerializer):
 
     def get_subfolder_count(self, obj):
         return obj.subfolders.count()
+
+    def get_doc_count(self, obj):
+        from docs.models import Doc
+        return Doc.objects.filter(folder=obj).count()
+
+    def get_crm_count(self, obj):
+        from crm.models import CRMSheet
+        return CRMSheet.objects.filter(folder=obj).count()
 
 
 class FolderCreateSerializer(serializers.Serializer):
@@ -69,14 +79,14 @@ class FolderAccessSerializer(serializers.ModelSerializer):
 
 class DocumentSerializer(serializers.ModelSerializer):
     """Full document representation."""
-    folder_name = serializers.CharField(source="folder.name", read_only=True)
+    folder_name = serializers.CharField(source="folder.name", read_only=True, default=None)
 
     class Meta:
         model = Document
         fields = [
             "id", "creator", "client", "folder", "folder_name",
             "name", "file", "file_type", "size_kb",
-            "tags", "color_label", "is_locked",
+            "tags", "color_label", "is_locked", "is_favorite",
             "is_deleted", "deleted_at",
             "version", "created_at", "updated_at",
         ]
@@ -89,7 +99,7 @@ class DocumentSerializer(serializers.ModelSerializer):
 class DocumentUploadSerializer(serializers.Serializer):
     """Input schema for uploading a file."""
     file = serializers.FileField()
-    folder_id = serializers.UUIDField()
+    folder_id = serializers.UUIDField(required=False, allow_null=True)
     tags = serializers.JSONField(required=False, default=list)
     color_label = serializers.CharField(max_length=50, required=False, allow_blank=True)
 
@@ -100,6 +110,8 @@ class DocumentUpdateSerializer(serializers.Serializer):
     tags = serializers.JSONField(required=False)
     color_label = serializers.CharField(max_length=50, required=False, allow_null=True, allow_blank=True)
     is_locked = serializers.BooleanField(required=False)
+    is_favorite = serializers.BooleanField(required=False)
+    folder_id = serializers.UUIDField(required=False, allow_null=True)
     created_at = serializers.DateTimeField(required=False, help_text="Manually overridable date")
 
 

@@ -24,10 +24,18 @@ class Doc(models.Model):
         blank=True,
         related_name="docs",
     )
+    folder = models.ForeignKey(
+        "library.Folder",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="docs",
+    )
     title = models.CharField(max_length=500, default="Untitled")
     icon = models.CharField(max_length=10, blank=True)
     content = models.JSONField(default=list, blank=True)
     order = models.PositiveIntegerField(default=0)
+    is_favorite = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

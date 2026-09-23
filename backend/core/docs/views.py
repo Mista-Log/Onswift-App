@@ -31,6 +31,11 @@ class DocListCreateView(generics.ListCreateAPIView):
         qs = Doc.objects.filter(Q(owner=user) | Q(id__in=shared_ids))
         if not self.request.query_params.get("all"):
             qs = qs.filter(parent=None)
+        folder_id = self.request.query_params.get("folder_id")
+        if folder_id in ("null", ""):
+            qs = qs.filter(folder__isnull=True)
+        elif folder_id:
+            qs = qs.filter(folder_id=folder_id)
         return qs
 
     def perform_create(self, serializer):

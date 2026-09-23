@@ -32,12 +32,14 @@ class CRMSheetListSerializer(serializers.ModelSerializer):
     row_count = serializers.IntegerField(source="rows.count", read_only=True)
     column_names = serializers.SerializerMethodField()
     user_role = serializers.SerializerMethodField()
+    folder_name = serializers.CharField(source="folder.name", read_only=True, default=None)
 
     class Meta:
         model = CRMSheet
         fields = [
             "id", "name", "column_count", "row_count",
             "column_names", "user_role", "created_at", "updated_at",
+            "folder", "folder_name", "is_favorite",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
@@ -54,6 +56,12 @@ class CRMSheetListSerializer(serializers.ModelSerializer):
         access = CRMAccess.objects.filter(sheet=obj, user=user).first()
         return access.role if access else None
 
+    def validate_folder(self, value):
+        request = self.context.get("request")
+        if value and request and value.creator != request.user:
+            raise serializers.ValidationError("Folder not found.")
+        return value
+
 
 class CRMSheetDetailSerializer(serializers.ModelSerializer):
     """Full serializer — includes nested columns, rows, access list, and caller's role."""
@@ -61,12 +69,14 @@ class CRMSheetDetailSerializer(serializers.ModelSerializer):
     rows = CRMRowSerializer(many=True, read_only=True)
     access_list = CRMAccessSerializer(many=True, read_only=True)
     user_role = serializers.SerializerMethodField()
+    folder_name = serializers.CharField(source="folder.name", read_only=True, default=None)
 
     class Meta:
         model = CRMSheet
         fields = [
             "id", "name", "columns", "rows", "access_list",
             "user_role", "created_at", "updated_at",
+            "folder", "folder_name", "is_favorite",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
@@ -79,3 +89,9 @@ class CRMSheetDetailSerializer(serializers.ModelSerializer):
             return "owner"
         access = CRMAccess.objects.filter(sheet=obj, user=user).first()
         return access.role if access else None
+
+    def validate_folder(self, value):
+        request = self.context.get("request")
+        if value and request and value.creator != request.user:
+            raise serializers.ValidationError("Folder not found.")
+        return value

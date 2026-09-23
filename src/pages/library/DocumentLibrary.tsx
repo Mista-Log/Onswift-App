@@ -1,10 +1,11 @@
 /**
- * Files — Unified workspace for uploaded files and rich-text docs.
- * Think Google Drive: all roles see what belongs to them, search by content,
- * upload files (creator/talent), navigate to docs editor pages.
+ * Files — Unified workspace for uploaded files, rich-text docs, and CRM
+ * sheets, browsable as real nested folders (Google Drive style): the
+ * breadcrumb is the page heading, folder tiles are drop targets, and Home
+ * is just the folder with no parent.
  */
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { secureFetch } from "@/api/apiClient";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,7 +26,27 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -44,16 +65,28 @@ import {
   X,
   Plus,
   FolderOpen,
-  Folder as FolderIcon,
   Clock,
   Wrench,
   Table2,
+  ArrowUpDown,
+  Star,
+  FolderInput,
+  Share2,
+  Menu,
 } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import type { LibraryDocument, LibraryFolder } from "@/types/library";
-import type { DocListItem } from "@/hooks/useDocs";
-import { fetchFolders } from "@/lib/libraryFolders";
-import { FolderManagerDialog } from "@/components/library/FolderManagerDialog";
+import { fetchDoc, fetchDocsByFolder, type DocListItem, type DocDetail } from "@/hooks/useDocs";
+import { fetchSheetsByFolder, type CRMSheetSummary } from "@/hooks/useCRM";
+import { createFolder, renameFolder, deleteFolder } from "@/lib/libraryFolders";
+import { useFolderBrowser } from "@/hooks/useFolderBrowser";
+import { FolderTileGrid } from "@/components/library/FolderTileGrid";
+import { FolderShareModal } from "@/components/library/FolderShareModal";
+import { LibraryTable } from "@/components/library/LibraryTable";
+import { MoveToDialog } from "@/components/library/MoveToDialog";
+import { FileShareModal } from "@/components/library/FileShareModal";
+import { CRMShareModal } from "@/components/library/CRMShareModal";
+import { DocShareModal } from "@/components/docs/DocShareModal";
 
 // ── Unified item type ─────────────────────────────────────────────────────────
 
@@ -70,8 +103,9 @@ interface UnifiedItem {
   createdAt: string;
   fileUrl?: string;
   tags?: string[];
-  folderId?: string;
-  folderName?: string;
+  folderId: string | null;
+  folderName: string | null;
+  isFavorite: boolean;
 }
 
 function fileToUnified(d: LibraryDocument): UnifiedItem {
@@ -87,6 +121,7 @@ function fileToUnified(d: LibraryDocument): UnifiedItem {
     tags: d.tags,
     folderId: d.folder,
     folderName: d.folder_name,
+    isFavorite: d.is_favorite,
   };
 }
 
@@ -98,16 +133,10 @@ function docToUnified(d: DocListItem): UnifiedItem {
     icon: d.icon || undefined,
     updatedAt: d.updated_at,
     createdAt: d.updated_at,
+    folderId: d.folder,
+    folderName: d.folder_name,
+    isFavorite: d.is_favorite,
   };
-}
-
-interface CRMSheetSummary {
-  id: string;
-  name: string;
-  column_count: number;
-  row_count: number;
-  created_at: string;
-  updated_at: string;
 }
 
 function crmToUnified(s: CRMSheetSummary): UnifiedItem {
@@ -118,6 +147,9 @@ function crmToUnified(s: CRMSheetSummary): UnifiedItem {
     fileType: `${s.column_count} col · ${s.row_count} row`,
     updatedAt: s.updated_at,
     createdAt: s.created_at,
+    folderId: s.folder,
+    folderName: s.folder_name,
+    isFavorite: s.is_favorite,
   };
 }
 
@@ -172,11 +204,17 @@ function ItemCard({
   onOpen,
   onDownload,
   onDelete,
+  onToggleFavorite,
+  onMoveTo,
+  onShare,
 }: {
   item: UnifiedItem;
   onOpen: (item: UnifiedItem) => void;
   onDownload?: (item: UnifiedItem) => void;
   onDelete?: (item: UnifiedItem) => void;
+  onToggleFavorite?: (item: UnifiedItem) => void;
+  onMoveTo?: (item: UnifiedItem) => void;
+  onShare?: (item: UnifiedItem) => void;
 }) {
   return (
     <div
@@ -202,6 +240,22 @@ function ItemCard({
                 <Download size={13} className="mr-2" /> Download
               </DropdownMenuItem>
             )}
+            {onShare && (
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onShare(item); }}>
+                <Share2 size={13} className="mr-2" /> Share
+              </DropdownMenuItem>
+            )}
+            {onToggleFavorite && (
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onToggleFavorite(item); }}>
+                <Star size={13} className={cn("mr-2", item.isFavorite && "fill-current text-amber-500")} />
+                {item.isFavorite ? "Remove from favorites" : "Add to favorites"}
+              </DropdownMenuItem>
+            )}
+            {onMoveTo && (
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMoveTo(item); }}>
+                <FolderInput size={13} className="mr-2" /> Move to
+              </DropdownMenuItem>
+            )}
             {onDelete && (
               <>
                 <DropdownMenuSeparator />
@@ -220,7 +274,10 @@ function ItemCard({
       <ItemIcon item={item} size={44} />
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+        <p className="text-sm font-medium text-foreground truncate flex items-center gap-1.5">
+          {item.isFavorite && <Star size={11} className="fill-current text-amber-500 flex-shrink-0" />}
+          {item.name}
+        </p>
         <p className="text-[11px] text-muted-foreground mt-0.5">
           {formatDistanceToNow(new Date(item.updatedAt), { addSuffix: true })}
         </p>
@@ -246,96 +303,17 @@ function ItemCard({
   );
 }
 
-// ── List row ──────────────────────────────────────────────────────────────────
-
-function ItemRow({
-  item,
-  onOpen,
-  onDownload,
-  onDelete,
-}: {
-  item: UnifiedItem;
-  onOpen: (item: UnifiedItem) => void;
-  onDownload?: (item: UnifiedItem) => void;
-  onDelete?: (item: UnifiedItem) => void;
-}) {
-  return (
-    <div
-      className="group flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted/50 cursor-pointer transition-colors border border-transparent hover:border-border/50"
-      onClick={() => onOpen(item)}
-    >
-      <ItemIcon item={item} size={36} />
-
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-        <p className="text-[11px] text-muted-foreground">
-          {item.kind === "doc" ? "Docs" : item.kind === "crm" ? "CRM Sheet" : item.fileType || "File"}
-          {item.folderName ? ` · ${item.folderName}` : ""}
-        </p>
-      </div>
-
-      <div className="hidden sm:flex items-center gap-1.5">
-        {item.tags?.slice(0, 2).map((t) => (
-          <Badge key={t} variant="outline" className="text-[10px]">
-            {t}
-          </Badge>
-        ))}
-      </div>
-
-      <p className="hidden md:block text-xs text-muted-foreground flex-shrink-0 w-28 text-right">
-        {format(new Date(item.updatedAt), "MMM d, yyyy")}
-      </p>
-
-      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-muted"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreVertical size={14} className="text-muted-foreground" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onOpen(item); }}>
-              <Eye size={13} className="mr-2" /> Open
-            </DropdownMenuItem>
-            {item.kind === "file" && onDownload && (
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDownload(item); }}>
-                <Download size={13} className="mr-2" /> Download
-              </DropdownMenuItem>
-            )}
-            {onDelete && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={(e) => { e.stopPropagation(); onDelete(item); }}
-                >
-                  <Trash2 size={13} className="mr-2" /> Delete
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </div>
-  );
-}
-
 // ── Empty state ───────────────────────────────────────────────────────────────
 
 function EmptyState({
   query,
   tab,
   canUpload,
-  onUpload,
   onNewDoc,
 }: {
   query: string;
   tab: string;
   canUpload: boolean;
-  onUpload: () => void;
   onNewDoc: () => void;
 }) {
   if (query) {
@@ -386,6 +364,11 @@ export default function DocumentLibrary() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canUpload = user?.role === "creator" || user?.role === "talent";
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlFolderId = searchParams.get("folder");
+  const browser = useFolderBrowser(urlFolderId);
+  const didMountFolderSync = useRef(false);
+
   const [files, setFiles] = useState<UnifiedItem[]>([]);
   const [docs, setDocs] = useState<UnifiedItem[]>([]);
   const [crmSheets, setCrmSheets] = useState<UnifiedItem[]>([]);
@@ -395,21 +378,50 @@ export default function DocumentLibrary() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [tab, setTab] = useState<"all" | "files" | "docs" | "crm">("all");
   const [query, setQuery] = useState("");
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [trash, setTrash] = useState<UnifiedItem[]>([]);
   const [showTrash, setShowTrash] = useState(false);
   const [newFileModalOpen, setNewFileModalOpen] = useState(false);
 
-  const [folders, setFolders] = useState<LibraryFolder[]>([]);
-  const [selectedFolder, setSelectedFolder] = useState<LibraryFolder | null>(null);
-  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
-  // When true, selecting a folder in FolderManagerDialog resolves the
-  // pending upload instead of setting the page's active folder filter.
-  const [pickingFolderForUpload, setPickingFolderForUpload] = useState(false);
-  const [pendingUploadFiles, setPendingUploadFiles] = useState<File[]>([]);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [renamingFolder, setRenamingFolder] = useState<LibraryFolder | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [sharingFolder, setSharingFolder] = useState<LibraryFolder | null>(null);
+  const [deletingFolder, setDeletingFolder] = useState<LibraryFolder | null>(null);
+  const [sortMethod, setSortMethod] = useState<"date-desc" | "date-asc" | "name-asc" | "name-desc">("date-desc");
 
-  const loadFiles = useCallback(async () => {
+  const [movingItem, setMovingItem] = useState<UnifiedItem | null>(null);
+  const [shareTarget, setShareTarget] = useState<UnifiedItem | null>(null);
+  const [shareDocDetail, setShareDocDetail] = useState<DocDetail | null>(null);
+
+  // Keep the folder-browsing hook in sync with the URL (back/forward, direct
+  // links, breadcrumb clicks) — skip the very first run since the hook's own
+  // mount effect already loads the initial folder.
+  useEffect(() => {
+    if (!didMountFolderSync.current) {
+      didMountFolderSync.current = true;
+      return;
+    }
+    if (urlFolderId !== browser.currentId) {
+      browser.goTo(urlFolderId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlFolderId]);
+
+  const navigateToFolder = useCallback((folderId: string | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (folderId === null) next.delete("folder");
+      else next.set("folder", folderId);
+      return next;
+    });
+  }, [setSearchParams]);
+
+  const loadFiles = useCallback(async (folderId: string | null) => {
     try {
-      const res = await secureFetch("/api/v6/documents/");
+      const qs = folderId === null ? "null" : folderId;
+      const res = await secureFetch(`/api/v6/documents/?folder_id=${qs}`);
       if (res.ok) {
         const data: LibraryDocument[] = await res.json();
         setFiles(data.map(fileToUnified));
@@ -417,63 +429,63 @@ export default function DocumentLibrary() {
     } catch { /* ignore */ }
   }, []);
 
-  const loadDocs = useCallback(async () => {
-    try {
-      const res = await secureFetch("/api/v8/docs/?all=1");
-      if (res.ok) {
-        const data: DocListItem[] = await res.json();
-        setDocs(data.map(docToUnified));
-      }
-    } catch { /* ignore */ }
+  const loadDocs = useCallback(async (folderId: string | null) => {
+    const data = await fetchDocsByFolder(folderId);
+    setDocs(data.map(docToUnified));
   }, []);
 
-  const loadCRM = useCallback(async () => {
-    try {
-      const res = await secureFetch("/api/v7/sheets/");
-      if (res.ok) {
-        const data: CRMSheetSummary[] = await res.json();
-        setCrmSheets(data.map(crmToUnified));
-      }
-    } catch { /* ignore */ }
+  const loadCRM = useCallback(async (folderId: string | null) => {
+    const data = await fetchSheetsByFolder(folderId);
+    setCrmSheets(data.map(crmToUnified));
   }, []);
 
   useEffect(() => {
-    Promise.all([loadFiles(), loadDocs(), loadCRM()]).finally(() => setLoading(false));
-    fetchFolders().then(setFolders);
-  }, [loadFiles, loadDocs, loadCRM]);
+    setLoading(true);
+    Promise.all([loadFiles(browser.currentId), loadDocs(browser.currentId), loadCRM(browser.currentId)])
+      .finally(() => setLoading(false));
+  }, [browser.currentId, loadFiles, loadDocs, loadCRM]);
 
-  // ── Search filter ────────────────────────────────────────────────────────
+  // ── Search + favorites filter ───────────────────────────────────────────
   const q = query.toLowerCase();
+  const matchesFavorite = (i: UnifiedItem) => !favoritesOnly || i.isFavorite;
 
-  const folderFilteredFiles = selectedFolder
-    ? files.filter((f) => f.folderId === selectedFolder.id)
-    : files;
-
-  const filteredFiles = q
-    ? folderFilteredFiles.filter(
-        (f) =>
-          f.name.toLowerCase().includes(q) ||
-          f.tags?.some((t) => t.toLowerCase().includes(q))
-      )
-    : folderFilteredFiles;
-
-  const filteredDocs = q
-    ? docs.filter((d) => d.name.toLowerCase().includes(q))
-    : docs;
-
-  const filteredCRM = q
-    ? crmSheets.filter((s) => s.name.toLowerCase().includes(q))
-    : crmSheets;
-
-  const allItems = [...filteredFiles, ...filteredDocs, ...filteredCRM].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  const filteredFiles = files.filter(
+    (f) => matchesFavorite(f) && (!q || f.name.toLowerCase().includes(q) || f.tags?.some((t) => t.toLowerCase().includes(q)))
   );
+  const filteredDocs = docs.filter((d) => matchesFavorite(d) && (!q || d.name.toLowerCase().includes(q)));
+  const filteredCRM = crmSheets.filter((s) => matchesFavorite(s) && (!q || s.name.toLowerCase().includes(q)));
+
+  const sortItems = (items: UnifiedItem[]) => {
+    const arr = [...items];
+    switch (sortMethod) {
+      case "name-asc":
+        return arr.sort((a, b) => a.name.localeCompare(b.name));
+      case "name-desc":
+        return arr.sort((a, b) => b.name.localeCompare(a.name));
+      case "date-asc":
+        return arr.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      case "date-desc":
+      default:
+        return arr.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+  };
+
+  const allItems = sortItems([...filteredFiles, ...filteredDocs, ...filteredCRM]);
 
   const displayItems =
-    tab === "files" ? filteredFiles :
-    tab === "docs"  ? filteredDocs  :
-    tab === "crm"   ? filteredCRM   :
+    tab === "files" ? sortItems(filteredFiles) :
+    tab === "docs"  ? sortItems(filteredDocs)  :
+    tab === "crm"   ? sortItems(filteredCRM)   :
     allItems;
+
+  const currentFolders = q ? browser.subfolders.filter((f) => f.name.toLowerCase().includes(q)) : browser.subfolders;
+  const sortedCurrentFolders = [...currentFolders].sort((a, b) => {
+    if (sortMethod === "name-asc") return a.name.localeCompare(b.name);
+    if (sortMethod === "name-desc") return b.name.localeCompare(a.name);
+    const diff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    return sortMethod === "date-asc" ? -diff : diff;
+  });
+  const showFolderTiles = (tab === "all" || tab === "files") && !showTrash && !favoritesOnly;
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
@@ -521,14 +533,64 @@ export default function DocumentLibrary() {
     }
   };
 
-  const uploadFilesToFolder = async (arr: File[], folderId: string) => {
+  const toggleFavorite = async (item: UnifiedItem) => {
+    const newVal = !item.isFavorite;
+    const endpoint =
+      item.kind === "file" ? `/api/v6/documents/${item.id}/` :
+      item.kind === "doc" ? `/api/v8/docs/${item.id}/` :
+      `/api/v7/sheets/${item.id}/`;
+    const res = await secureFetch(endpoint, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_favorite: newVal }),
+    });
+    if (res.ok) {
+      const update = (arr: UnifiedItem[]) =>
+        arr.map((i) => (i.kind === item.kind && i.id === item.id ? { ...i, isFavorite: newVal } : i));
+      if (item.kind === "file") setFiles(update);
+      else if (item.kind === "doc") setDocs(update);
+      else setCrmSheets(update);
+      toast.success(newVal ? "Added to favorites" : "Removed from favorites");
+    } else {
+      toast.error("Failed to update favorite");
+    }
+  };
+
+  const handleMoveItem = async (item: UnifiedItem, folderId: string | null): Promise<boolean> => {
+    const endpoint =
+      item.kind === "file" ? `/api/v6/documents/${item.id}/` :
+      item.kind === "doc" ? `/api/v8/docs/${item.id}/` :
+      `/api/v7/sheets/${item.id}/`;
+    const body = item.kind === "file" ? { folder_id: folderId } : { folder: folderId };
+    const res = await secureFetch(endpoint, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      await Promise.all([loadFiles(browser.currentId), loadDocs(browser.currentId), loadCRM(browser.currentId)]);
+    }
+    return res.ok;
+  };
+
+  const handleShare = async (item: UnifiedItem) => {
+    if (item.kind === "doc") {
+      const detail = await fetchDoc(item.id);
+      if (detail) setShareDocDetail(detail);
+      else toast.error("Failed to load page");
+    } else {
+      setShareTarget(item);
+    }
+  };
+
+  const uploadFilesToFolder = async (arr: File[], folderId: string | null) => {
     setUploading(true);
     let uploaded = 0;
 
     for (const file of arr) {
       const fd = new FormData();
       fd.append("file", file);
-      fd.append("folder_id", folderId);
+      if (folderId) fd.append("folder_id", folderId);
       try {
         const res = await secureFetch("/api/v6/documents/upload/", {
           method: "POST",
@@ -544,7 +606,7 @@ export default function DocumentLibrary() {
 
     if (uploaded > 0) {
       toast.success(`Uploaded ${uploaded} file${uploaded > 1 ? "s" : ""}`);
-      await loadFiles();
+      await loadFiles(browser.currentId);
     }
     setUploading(false);
   };
@@ -552,38 +614,18 @@ export default function DocumentLibrary() {
   const handleUpload = async (fileList: FileList | File[]) => {
     const arr = Array.from(fileList);
     if (!arr.length) return;
-
-    // Upload into the folder the user's currently filtered on, if any.
-    if (selectedFolder) {
-      await uploadFilesToFolder(arr, selectedFolder.id);
-      return;
-    }
-
-    // Otherwise resolve a destination: exactly one folder -> use it
-    // automatically; zero or several -> ask via the folder picker instead
-    // of silently guessing (this used to grab folders[0] and dead-end with
-    // a toast if there were none).
-    const currentFolders = await fetchFolders();
-    setFolders(currentFolders);
-    if (currentFolders.length === 1) {
-      await uploadFilesToFolder(arr, currentFolders[0].id);
-      return;
-    }
-
-    setPendingUploadFiles(arr);
-    setPickingFolderForUpload(true);
-    setFolderDialogOpen(true);
+    await uploadFilesToFolder(arr, browser.currentId);
   };
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setDragOver(false);
-      if (e.dataTransfer.files.length) handleUpload(e.dataTransfer.files);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files.length) handleUpload(e.dataTransfer.files);
+  };
+
+  const handleDropOnFolder = (folder: LibraryFolder, dropped: File[]) => {
+    uploadFilesToFolder(dropped, folder.id);
+  };
 
   const newPage = async () => {
     const res = await secureFetch("/api/v8/docs/", {
@@ -614,7 +656,7 @@ export default function DocumentLibrary() {
     if (res.ok) {
       toast.success("Restored");
       setTrash((p) => p.filter((t) => t.id !== id));
-      await loadFiles();
+      await loadFiles(browser.currentId);
     }
   };
 
@@ -640,30 +682,77 @@ export default function DocumentLibrary() {
           onOpen={openItem}
           onDownload={item.kind === "file" ? downloadItem : undefined}
           onDelete={canDelete(item) ? deleteItem : undefined}
+          onToggleFavorite={toggleFavorite}
+          onMoveTo={canUpload ? setMovingItem : undefined}
+          onShare={handleShare}
         />
       ))}
     </div>
   );
 
-  const renderList = (items: UnifiedItem[]) => (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-3 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        <div className="w-9 flex-shrink-0" />
-        <span className="flex-1">Name</span>
-        <span className="hidden md:block w-28 text-right">Modified</span>
-        <div className="w-7 flex-shrink-0" />
-      </div>
-      {items.map((item) => (
-        <ItemRow
-          key={`${item.kind}-${item.id}`}
-          item={item}
-          onOpen={openItem}
-          onDownload={item.kind === "file" ? downloadItem : undefined}
-          onDelete={canDelete(item) ? deleteItem : undefined}
-        />
-      ))}
-    </div>
-  );
+  const renderItems = (items: UnifiedItem[]) =>
+    viewMode === "grid" ? (
+      renderGrid(items)
+    ) : (
+      <LibraryTable
+        items={items}
+        onOpen={openItem}
+        onDownload={downloadItem}
+        canDelete={canDelete}
+        onDelete={deleteItem}
+        onToggleFavorite={toggleFavorite}
+        onMoveTo={canUpload ? (item: UnifiedItem) => setMovingItem(item) : undefined}
+        onShare={handleShare}
+      />
+    );
+
+  // ── Folder actions (apply at whatever level is currently browsed) ────────
+
+  const startRenameFolder = (folder: LibraryFolder) => {
+    setRenamingFolder(folder);
+    setRenameValue(folder.name);
+  };
+
+  const confirmRenameFolder = async () => {
+    if (!renamingFolder) return;
+    const name = renameValue.trim();
+    if (!name) return;
+    const updated = await renameFolder(renamingFolder.id, name);
+    if (updated) {
+      toast.success("Folder renamed");
+      setRenamingFolder(null);
+      await browser.refresh();
+    } else {
+      toast.error("Failed to rename folder");
+    }
+  };
+
+  const confirmDeleteFolder = async () => {
+    if (!deletingFolder) return;
+    const ok = await deleteFolder(deletingFolder.id);
+    if (ok) {
+      toast.success("Folder deleted");
+      setDeletingFolder(null);
+      await browser.refresh();
+    } else {
+      toast.error("Failed to delete folder");
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    const name = newFolderName.trim();
+    if (!name) return;
+    setCreatingFolder(true);
+    const { data, error } = await createFolder(name, browser.currentId);
+    setCreatingFolder(false);
+    if (data) {
+      setNewFolderName("");
+      toast.success("Folder created");
+      await browser.refresh();
+    } else {
+      toast.error(error || "Failed to create folder");
+    }
+  };
 
   return (
     <MainLayout>
@@ -676,29 +765,46 @@ export default function DocumentLibrary() {
         onDragLeave={() => setDragOver(false)}
         onDrop={canUpload ? handleDrop : undefined}
       >
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">Files</h1>
-            <p className="text-sm text-muted-foreground">
-               Manage and organize your creative documents and spreadsheets.
-            </p>
-          </div>
+        {/* Header: breadcrumb heading + actions */}
+        <div className="flex items-center justify-between gap-3">
+          <Breadcrumb className="min-w-0 flex-1 overflow-hidden">
+            <BreadcrumbList className="flex-nowrap">
+              {browser.breadcrumb.map((entry, i) => {
+                const isLast = i === browser.breadcrumb.length - 1;
+                const isParent = i === browser.breadcrumb.length - 2;
+                const hiddenOnMobile = !isLast && !isParent;
+                return (
+                  <span key={entry.id ?? "home"} className={hiddenOnMobile ? "hidden sm:contents" : "contents"}>
+                    <BreadcrumbItem>
+                      {isLast ? (
+                        <BreadcrumbPage className="truncate max-w-[12rem] sm:max-w-none text-base font-semibold text-foreground">
+                          {entry.name}
+                        </BreadcrumbPage>
+                      ) : (
+                        <BreadcrumbLink asChild>
+                          <button type="button" className="truncate max-w-[8rem] sm:max-w-none" onClick={() => navigateToFolder(entry.id)}>
+                            {entry.name}
+                          </button>
+                        </BreadcrumbLink>
+                      )}
+                    </BreadcrumbItem>
+                    {!isLast && <BreadcrumbSeparator className={isParent ? "" : "hidden sm:list-item"} />}
+                  </span>
+                );
+              })}
+            </BreadcrumbList>
+          </Breadcrumb>
 
-          <div className="flex items-center gap-2">
-            {showTrash ? (
-              <Button variant="outline" size="sm" onClick={() => setShowTrash(false)}>
-                <FolderOpen size={14} className="mr-1.5" />
-                Back to Files
-              </Button>
-            ) : (
-              <>
+          {showTrash ? (
+            <Button variant="outline" size="sm" onClick={() => setShowTrash(false)} className="flex-shrink-0">
+              <FolderOpen size={14} className="mr-1.5" />
+              Back to Files
+            </Button>
+          ) : (
+            <>
+              <div className="hidden md:flex items-center gap-2 flex-shrink-0">
                 {canUpload && (
                   <>
-                    <Button variant="outline" size="sm" onClick={() => { setPickingFolderForUpload(false); setFolderDialogOpen(true); }}>
-                      <FolderIcon size={14} className="mr-1.5" />
-                      Folders
-                    </Button>
                     <Button variant="outline" size="sm" onClick={() => { setShowTrash(true); loadTrash(); }}>
                       <Trash2 size={14} className="mr-1.5" />
                       Trash
@@ -711,11 +817,36 @@ export default function DocumentLibrary() {
                 )}
                 <Button size="sm" onClick={() => setNewFileModalOpen(true)}>
                   <Plus size={14} className="mr-1.5" />
-                  New Files
+                  Create
                 </Button>
-              </>
-            )}
-          </div>
+              </div>
+
+              <div className="md:hidden flex-shrink-0">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground">
+                      <Menu size={18} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    {canUpload && (
+                      <>
+                        <DropdownMenuItem onClick={() => { setShowTrash(true); loadTrash(); }}>
+                          <Trash2 size={14} className="mr-2" /> Trash
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                          <Upload size={14} className="mr-2" /> Upload
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    <DropdownMenuItem onClick={() => setNewFileModalOpen(true)}>
+                      <Plus size={14} className="mr-2" /> Create
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Trash view */}
@@ -749,12 +880,12 @@ export default function DocumentLibrary() {
         ) : (
           <>
             {/* Toolbar */}
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative flex-1 min-w-[10rem] max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  className="pl-9 pr-8 rounded-full h-9 bg-secondary/50"
-                  placeholder="Filter by name or tag…"
+                  className="pl-9 pr-8 rounded-full h-9 bg-white"
+                  placeholder="Search by name or tag…"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
@@ -765,18 +896,51 @@ export default function DocumentLibrary() {
                 )}
               </div>
 
-              {selectedFolder && (
-                <button
-                  onClick={() => setSelectedFolder(null)}
-                  className="flex items-center gap-1.5 rounded-full bg-secondary/50 px-3 h-9 text-sm text-foreground hover:bg-secondary transition-colors flex-shrink-0"
-                >
-                  <FolderIcon size={13} />
-                  {selectedFolder.name}
-                  <X size={13} className="text-muted-foreground" />
-                </button>
+              {canUpload && (
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    className="h-9 w-40"
+                    placeholder="New folder…"
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleCreateFolder(); }}
+                    disabled={creatingFolder}
+                  />
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-9 w-9 flex-shrink-0"
+                    onClick={handleCreateFolder}
+                    disabled={creatingFolder || !newFolderName.trim()}
+                  >
+                    {creatingFolder ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                  </Button>
+                </div>
               )}
 
-              <div className="flex items-center border border-border rounded-lg overflow-hidden">
+              <Button
+                variant={favoritesOnly ? "default" : "outline"}
+                size="sm"
+                className="gap-1.5 flex-shrink-0"
+                onClick={() => setFavoritesOnly((v) => !v)}
+              >
+                <Star size={14} className={favoritesOnly ? "fill-current" : ""} />
+                Favorites
+              </Button>
+
+              <Select value={sortMethod} onValueChange={(v: typeof sortMethod) => setSortMethod(v)}>
+                <SelectTrigger className="w-9 h-9 px-2 flex-shrink-0 [&>span]:hidden">
+                  <ArrowUpDown size={14} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date-desc">Newest first</SelectItem>
+                  <SelectItem value="date-asc">Oldest first</SelectItem>
+                  <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+                  <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center border border-border rounded-lg overflow-hidden flex-shrink-0">
                 <button
                   className={cn("px-2.5 py-1.5 text-muted-foreground hover:text-foreground transition-colors", viewMode === "grid" && "bg-muted text-foreground")}
                   onClick={() => setViewMode("grid")}
@@ -821,27 +985,46 @@ export default function DocumentLibrary() {
                 <div className="flex items-center justify-center py-24">
                   <Loader2 size={28} className="animate-spin text-muted-foreground" />
                 </div>
-              ) : displayItems.length === 0 ? (
+              ) : displayItems.length === 0 && !(showFolderTiles && sortedCurrentFolders.length > 0) ? (
                 <EmptyState
                   query={query}
                   tab={tab}
                   canUpload={canUpload}
-                  onUpload={() => fileInputRef.current?.click()}
                   onNewDoc={() => setNewFileModalOpen(true)}
                 />
               ) : (
                 <>
-                  <TabsContent value="all" className="mt-4">
-                    {viewMode === "grid" ? renderGrid(allItems) : renderList(allItems)}
+                  <TabsContent value="all" className="mt-4 space-y-5">
+                    {showFolderTiles && (
+                      <FolderTileGrid
+                        folders={sortedCurrentFolders}
+                        onOpen={(f) => navigateToFolder(f.id)}
+                        onRename={startRenameFolder}
+                        onShare={setSharingFolder}
+                        onDelete={setDeletingFolder}
+                        onDropFiles={canUpload ? handleDropOnFolder : undefined}
+                      />
+                    )}
+                    {renderItems(allItems)}
                   </TabsContent>
-                  <TabsContent value="files" className="mt-4">
-                    {viewMode === "grid" ? renderGrid(filteredFiles) : renderList(filteredFiles)}
+                  <TabsContent value="files" className="mt-4 space-y-5">
+                    {showFolderTiles && (
+                      <FolderTileGrid
+                        folders={sortedCurrentFolders}
+                        onOpen={(f) => navigateToFolder(f.id)}
+                        onRename={startRenameFolder}
+                        onShare={setSharingFolder}
+                        onDelete={setDeletingFolder}
+                        onDropFiles={canUpload ? handleDropOnFolder : undefined}
+                      />
+                    )}
+                    {renderItems(sortItems(filteredFiles))}
                   </TabsContent>
                   <TabsContent value="docs" className="mt-4">
-                    {viewMode === "grid" ? renderGrid(filteredDocs) : renderList(filteredDocs)}
+                    {renderItems(sortItems(filteredDocs))}
                   </TabsContent>
                   <TabsContent value="crm" className="mt-4">
-                    {viewMode === "grid" ? renderGrid(filteredCRM) : renderList(filteredCRM)}
+                    {renderItems(sortItems(filteredCRM))}
                   </TabsContent>
                 </>
               )}
@@ -868,7 +1051,7 @@ export default function DocumentLibrary() {
           <DialogHeader>
             <DialogTitle>Create new file</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-3 gap-3 pt-2">
+          <div className="grid grid-cols-2 gap-2 pt-2">
             <button
               onClick={async () => {
                 setNewFileModalOpen(false);
@@ -894,45 +1077,81 @@ export default function DocumentLibrary() {
               </div>
               <span className="text-sm font-medium">Spreadsheet</span>
             </button>
-
-            <button
-              onClick={() => {
-                setNewFileModalOpen(false);
-                setPickingFolderForUpload(false);
-                setFolderDialogOpen(true);
-              }}
-              className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-5 hover:bg-muted transition-colors text-center"
-            >
-              <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <FolderIcon size={22} className="text-amber-500" />
-              </div>
-              <span className="text-sm font-medium">Folder</span>
-            </button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Folder CRUD + picker */}
-      {folderDialogOpen && (
-        <FolderManagerDialog
-          open={folderDialogOpen}
-          onClose={() => {
-            setFolderDialogOpen(false);
-            setPickingFolderForUpload(false);
-            setPendingUploadFiles([]);
-          }}
-          onFoldersChanged={setFolders}
-          onSelectFolder={(folder) => {
-            setFolderDialogOpen(false);
-            if (pickingFolderForUpload) {
-              uploadFilesToFolder(pendingUploadFiles, folder.id);
-              setPendingUploadFiles([]);
-              setPickingFolderForUpload(false);
-            } else {
-              setSelectedFolder(folder);
-            }
-          }}
+      {/* Folder rename */}
+      {renamingFolder && (
+        <Dialog open onOpenChange={() => setRenamingFolder(null)}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Rename folder</DialogTitle>
+            </DialogHeader>
+            <Input
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") confirmRenameFolder(); }}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRenamingFolder(null)}>Cancel</Button>
+              <Button onClick={confirmRenameFolder}>Rename</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Folder share */}
+      {sharingFolder && (
+        <FolderShareModal
+          folder={sharingFolder}
+          open={!!sharingFolder}
+          onClose={() => setSharingFolder(null)}
         />
+      )}
+
+      {/* Folder delete confirmation */}
+      <AlertDialog open={!!deletingFolder} onOpenChange={(open) => !open && setDeletingFolder(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deletingFolder?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This also deletes everything inside it. This can't be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteFolder}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Move to */}
+      {movingItem && (
+        <MoveToDialog
+          open={!!movingItem}
+          onClose={() => setMovingItem(null)}
+          itemName={movingItem.name}
+          currentFolderId={movingItem.folderId}
+          onMove={(folderId) => handleMoveItem(movingItem, folderId)}
+        />
+      )}
+
+      {/* Share */}
+      {shareDocDetail && (
+        <DocShareModal doc={shareDocDetail} open={!!shareDocDetail} onClose={() => setShareDocDetail(null)} />
+      )}
+      {shareTarget?.kind === "file" && (
+        <FileShareModal fileId={shareTarget.id} fileName={shareTarget.name} open onClose={() => setShareTarget(null)} />
+      )}
+      {shareTarget?.kind === "crm" && (
+        <CRMShareModal sheetId={shareTarget.id} sheetName={shareTarget.name} open onClose={() => setShareTarget(null)} />
       )}
 
       {/* Drop overlay */}

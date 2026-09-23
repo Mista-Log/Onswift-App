@@ -44,6 +44,9 @@ export interface CRMSheetSummary {
   user_role: UserRole;
   created_at: string;
   updated_at: string;
+  folder: string | null;
+  folder_name: string | null;
+  is_favorite: boolean;
 }
 
 export interface CRMSheetFull {
@@ -55,6 +58,9 @@ export interface CRMSheetFull {
   user_role: UserRole;
   created_at: string;
   updated_at: string;
+  folder: string | null;
+  folder_name: string | null;
+  is_favorite: boolean;
 }
 
 export interface SharableUser {
@@ -62,6 +68,19 @@ export interface SharableUser {
   name: string;
   email: string;
   type: "team" | "client";
+}
+
+// ── Folder-scoped fetch (standalone, for the Library page) ─────────────────────
+
+export async function fetchSheetsByFolder(folderId: string | null): Promise<CRMSheetSummary[]> {
+  try {
+    const qs = folderId === null ? "null" : folderId;
+    const res = await secureFetch(`/api/v7/sheets/?folder_id=${qs}`);
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -102,10 +121,10 @@ export function useCRM() {
 
   // ── Sheet CRUD ─────────────────────────────────────────────────────────────
 
-  const createSheet = useCallback(async (name: string) => {
+  const createSheet = useCallback(async (name: string, folderId?: string | null) => {
     const res = await secureFetch("/api/v7/sheets/", {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify(folderId !== undefined ? { name, folder: folderId } : { name }),
     });
     if (!res.ok) throw new Error("Failed to create sheet");
     const created: CRMSheetSummary = await res.json();

@@ -293,14 +293,16 @@ class DocumentUploadView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        # Verify folder ownership
-        try:
-            folder = Folder.objects.get(id=data["folder_id"], creator=request.user)
-        except Folder.DoesNotExist:
-            return Response(
-                {"error": "Folder not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+        # Verify folder ownership (folder is optional — omitted means Home/root)
+        folder = None
+        if data.get("folder_id"):
+            try:
+                folder = Folder.objects.get(id=data["folder_id"], creator=request.user)
+            except Folder.DoesNotExist:
+                return Response(
+                    {"error": "Folder not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
         uploaded_file = data["file"]
         file_name = uploaded_file.name
@@ -342,7 +344,7 @@ class DocumentUploadView(APIView):
             doc = Document.objects.create(
                 creator=request.user,
                 folder=folder,
-                client=folder.client,
+                client=folder.client if folder else None,
                 name=file_name,
                 file=uploaded_file,
                 file_type=file_type,
@@ -385,8 +387,11 @@ class DocumentListView(APIView):
         qs = qs.select_related("folder")
 
         folder_id = request.query_params.get("folder_id")
-        if folder_id and user.role == "creator":
-            qs = qs.filter(folder_id=folder_id)
+        if user.role == "creator":
+            if folder_id in ("null", ""):
+                qs = qs.filter(folder__isnull=True)
+            elif folder_id:
+                qs = qs.filter(folder_id=folder_id)
 
         return Response(DocumentSerializer(qs, many=True).data)
 
@@ -431,9 +436,20 @@ class DocumentDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        for field in ["name", "tags", "color_label", "is_locked"]:
+        for field in ["name", "tags", "color_label", "is_locked", "is_favorite"]:
             if field in data:
                 setattr(doc, field, data[field])
+
+        # Move to a different folder (or None for Home)
+        if "folder_id" in data:
+            folder_id = data["folder_id"]
+            if folder_id is None:
+                doc.folder = None
+            else:
+                new_folder = Folder.objects.filter(id=folder_id, creator=request.user).first()
+                if not new_folder:
+                    return Response({"error": "Folder not found"}, status=status.HTTP_404_NOT_FOUND)
+                doc.folder = new_folder
 
         # Allow manual date override
         if "created_at" in data:
@@ -691,6 +707,27 @@ class DocumentShareLinkCreateView(APIView):
             DocumentShareLinkSerializer(link, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class DocumentShareLinkDeleteView(APIView):
+    """
+    DELETE /api/v6/documents/<id>/share/<link_id>/
+    Revoke (delete) a share link.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCreatorRole]
+
+    def delete(self, request, pk, link_id):
+        try:
+            doc = Document.objects.get(id=pk, creator=request.user)
+        except Document.DoesNotExist:
+            return Response({"error": "Document not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        link = DocumentShareLink.objects.filter(id=link_id, document=doc).first()
+        if not link:
+            return Response({"error": "Share link not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        link.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class DocumentShareLinkListView(APIView):

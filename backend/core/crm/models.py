@@ -10,7 +10,15 @@ class CRMSheet(models.Model):
         on_delete=models.CASCADE,
         related_name="crm_sheets",
     )
+    folder = models.ForeignKey(
+        "library.Folder",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="crm_sheets",
+    )
     name = models.CharField(max_length=255)
+    is_favorite = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
