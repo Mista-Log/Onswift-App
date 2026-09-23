@@ -127,6 +127,8 @@ class Document(models.Model):
     folder = models.ForeignKey(
         Folder,
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="documents",
     )
     name = models.CharField(max_length=255)
@@ -136,6 +138,7 @@ class Document(models.Model):
     tags = models.JSONField(default=list, blank=True)
     color_label = models.CharField(max_length=50, null=True, blank=True)
     is_locked = models.BooleanField(default=False)
+    is_favorite = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
     version = models.IntegerField(default=1)

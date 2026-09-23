@@ -3,11 +3,43 @@
  * Mirrors the fetch* helpers in src/hooks/useDocs.ts for DocAccess.
  */
 import { secureFetch } from "@/api/apiClient";
-import type { LibraryFolder, FolderAccess, FolderSharableUser } from "@/types/library";
+import type { LibraryFolder, LibraryDocument, FolderAccess, FolderSharableUser } from "@/types/library";
 
-export async function fetchFolders(): Promise<LibraryFolder[]> {
+export async function fetchFolders(opts?: { parentId?: string | null }): Promise<LibraryFolder[]> {
   try {
-    const res = await secureFetch("/api/v6/folders/");
+    const qs = opts && "parentId" in opts ? `?parent_id=${opts.parentId === null ? "null" : opts.parentId}` : "";
+    const res = await secureFetch(`/api/v6/folders/${qs}`);
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchFolderPath(
+  folderId: string | null
+): Promise<{ id: string | null; name: string }[]> {
+  const path: { id: string | null; name: string }[] = [];
+  let currentId: string | null = folderId;
+
+  while (currentId) {
+    try {
+      const res = await secureFetch(`/api/v6/folders/${currentId}/`);
+      if (!res.ok) break;
+      const body: { folder: LibraryFolder } = await res.json();
+      path.unshift({ id: body.folder.id, name: body.folder.name });
+      currentId = body.folder.parent_folder;
+    } catch {
+      break;
+    }
+  }
+
+  return [{ id: null, name: "Home" }, ...path];
+}
+
+export async function fetchFolderDocuments(folderId: string): Promise<LibraryDocument[]> {
+  try {
+    const res = await secureFetch(`/api/v6/documents/?folder_id=${folderId}`);
     if (!res.ok) return [];
     return res.json();
   } catch {

@@ -48,7 +48,13 @@ class CRMSheetListCreateView(generics.ListCreateAPIView):
     serializer_class = CRMSheetListSerializer
 
     def get_queryset(self):
-        return _accessible_sheets_qs(self.request.user)
+        qs = _accessible_sheets_qs(self.request.user)
+        folder_id = self.request.query_params.get("folder_id")
+        if folder_id in ("null", ""):
+            qs = qs.filter(folder__isnull=True)
+        elif folder_id:
+            qs = qs.filter(folder_id=folder_id)
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
