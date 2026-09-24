@@ -358,6 +358,29 @@ function EmptyState({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+function SectionHeader({
+  icon: Icon,
+  label,
+  count,
+  children,
+}: {
+  icon: typeof File;
+  label: string;
+  count: number;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-2">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <Icon size={15} className="text-muted-foreground" />
+        {label}
+        <span className="text-xs font-normal text-muted-foreground">{count}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export default function DocumentLibrary() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -376,6 +399,7 @@ export default function DocumentLibrary() {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [tab, setTab] = useState<"all" | "files" | "docs" | "crm">("all");
   const [query, setQuery] = useState("");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
@@ -383,7 +407,6 @@ export default function DocumentLibrary() {
   const [showTrash, setShowTrash] = useState(false);
   const [newFileModalOpen, setNewFileModalOpen] = useState(false);
 
-  const [newFolderName, setNewFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [renamingFolder, setRenamingFolder] = useState<LibraryFolder | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -690,6 +713,25 @@ export default function DocumentLibrary() {
     </div>
   );
 
+  const viewToggle = (
+    <div className="flex items-center border border-border rounded-lg overflow-hidden flex-shrink-0">
+      <button
+        aria-label="Grid view"
+        className={cn("px-2.5 py-1.5 text-muted-foreground hover:text-foreground transition-colors", viewMode === "grid" && "bg-muted text-foreground")}
+        onClick={() => setViewMode("grid")}
+      >
+        <Grid3X3 size={15} />
+      </button>
+      <button
+        aria-label="List view"
+        className={cn("px-2.5 py-1.5 text-muted-foreground hover:text-foreground transition-colors border-l border-border", viewMode === "list" && "bg-muted text-foreground")}
+        onClick={() => setViewMode("list")}
+      >
+        <List size={15} />
+      </button>
+    </div>
+  );
+
   const renderItems = (items: UnifiedItem[]) =>
     viewMode === "grid" ? (
       renderGrid(items)
@@ -739,19 +781,19 @@ export default function DocumentLibrary() {
     }
   };
 
-  const handleCreateFolder = async () => {
-    const name = newFolderName.trim();
-    if (!name) return;
+  const handleCreateFolder = async (rawName: string): Promise<boolean> => {
+    const name = rawName.trim();
+    if (!name) return false;
     setCreatingFolder(true);
     const { data, error } = await createFolder(name, browser.currentId);
     setCreatingFolder(false);
     if (data) {
-      setNewFolderName("");
       toast.success("Folder created");
       await browser.refresh();
-    } else {
-      toast.error(error || "Failed to create folder");
+      return true;
     }
+    toast.error(error || "Failed to create folder");
+    return false;
   };
 
   return (
@@ -881,7 +923,8 @@ export default function DocumentLibrary() {
           <>
             {/* Toolbar */}
             <div className="flex flex-wrap items-center gap-3">
-              <div className="relative flex-1 min-w-[10rem] max-w-sm">
+              {/* Desktop: full search box */}
+              <div className="relative hidden sm:block flex-1 min-w-[10rem] max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   className="pl-9 pr-8 rounded-full h-9 bg-white"
@@ -896,26 +939,33 @@ export default function DocumentLibrary() {
                 )}
               </div>
 
-              {canUpload && (
-                <div className="flex items-center gap-1.5">
+              {/* Mobile: just a lens that opens the search box, kept open while a query is active */}
+              {searchOpen || query ? (
+                <div className="relative w-full sm:hidden">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    className="h-9 w-40"
-                    placeholder="New folder…"
-                    value={newFolderName}
-                    onChange={(e) => setNewFolderName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleCreateFolder(); }}
-                    disabled={creatingFolder}
+                    autoFocus
+                    className="pl-9 pr-9 rounded-full h-9 bg-white"
+                    placeholder="Search by name or tag…"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
                   />
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="h-9 w-9 flex-shrink-0"
-                    onClick={handleCreateFolder}
-                    disabled={creatingFolder || !newFolderName.trim()}
+                  <button
+                    aria-label="Close search"
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    onClick={() => { setQuery(""); setSearchOpen(false); }}
                   >
-                    {creatingFolder ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                  </Button>
+                    <X size={14} className="text-muted-foreground" />
+                  </button>
                 </div>
+              ) : (
+                <button
+                  aria-label="Search"
+                  className="sm:hidden h-9 w-9 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground flex-shrink-0"
+                  onClick={() => setSearchOpen(true)}
+                >
+                  <Search size={16} />
+                </button>
               )}
 
               <Button
@@ -940,20 +990,6 @@ export default function DocumentLibrary() {
                 </SelectContent>
               </Select>
 
-              <div className="flex items-center border border-border rounded-lg overflow-hidden flex-shrink-0">
-                <button
-                  className={cn("px-2.5 py-1.5 text-muted-foreground hover:text-foreground transition-colors", viewMode === "grid" && "bg-muted text-foreground")}
-                  onClick={() => setViewMode("grid")}
-                >
-                  <Grid3X3 size={15} />
-                </button>
-                <button
-                  className={cn("px-2.5 py-1.5 text-muted-foreground hover:text-foreground transition-colors border-l border-border", viewMode === "list" && "bg-muted text-foreground")}
-                  onClick={() => setViewMode("list")}
-                >
-                  <List size={15} />
-                </button>
-              </div>
             </div>
 
             {/* Tabs */}
@@ -986,45 +1022,99 @@ export default function DocumentLibrary() {
                   <Loader2 size={28} className="animate-spin text-muted-foreground" />
                 </div>
               ) : displayItems.length === 0 && !(showFolderTiles && sortedCurrentFolders.length > 0) ? (
-                <EmptyState
-                  query={query}
-                  tab={tab}
-                  canUpload={canUpload}
-                  onNewDoc={() => setNewFileModalOpen(true)}
-                />
+                <div className="space-y-5">
+                  {showFolderTiles && canUpload && !query && (
+                    <section className="space-y-3">
+                      <SectionHeader icon={FolderOpen} label="Folders" count={0} />
+                      <FolderTileGrid
+                        folders={[]}
+                        onOpen={(f) => navigateToFolder(f.id)}
+                        onRename={startRenameFolder}
+                        onShare={setSharingFolder}
+                        onDelete={setDeletingFolder}
+                        onCreateFolder={handleCreateFolder}
+                        creatingFolder={creatingFolder}
+                      />
+                    </section>
+                  )}
+                  <EmptyState
+                    query={query}
+                    tab={tab}
+                    canUpload={canUpload}
+                    onNewDoc={() => setNewFileModalOpen(true)}
+                  />
+                </div>
               ) : (
                 <>
-                  <TabsContent value="all" className="mt-4 space-y-5">
+                  <TabsContent value="all" className="mt-4 space-y-8">
                     {showFolderTiles && (
-                      <FolderTileGrid
-                        folders={sortedCurrentFolders}
-                        onOpen={(f) => navigateToFolder(f.id)}
-                        onRename={startRenameFolder}
-                        onShare={setSharingFolder}
-                        onDelete={setDeletingFolder}
-                        onDropFiles={canUpload ? handleDropOnFolder : undefined}
-                      />
+                      <section className="space-y-3">
+                        <SectionHeader icon={FolderOpen} label="Folders" count={sortedCurrentFolders.length} />
+                        <FolderTileGrid
+                          folders={sortedCurrentFolders}
+                          onOpen={(f) => navigateToFolder(f.id)}
+                          onRename={startRenameFolder}
+                          onShare={setSharingFolder}
+                          onDelete={setDeletingFolder}
+                          onDropFiles={canUpload ? handleDropOnFolder : undefined}
+                          onCreateFolder={canUpload && !query ? handleCreateFolder : undefined}
+                          creatingFolder={creatingFolder}
+                        />
+                      </section>
                     )}
-                    {renderItems(allItems)}
+                    {allItems.length > 0 && (
+                      <section className="space-y-3">
+                        <SectionHeader icon={File} label="Files" count={allItems.length}>
+                          {viewToggle}
+                        </SectionHeader>
+                        {renderItems(allItems)}
+                      </section>
+                    )}
                   </TabsContent>
-                  <TabsContent value="files" className="mt-4 space-y-5">
+                  <TabsContent value="files" className="mt-4 space-y-8">
                     {showFolderTiles && (
-                      <FolderTileGrid
-                        folders={sortedCurrentFolders}
-                        onOpen={(f) => navigateToFolder(f.id)}
-                        onRename={startRenameFolder}
-                        onShare={setSharingFolder}
-                        onDelete={setDeletingFolder}
-                        onDropFiles={canUpload ? handleDropOnFolder : undefined}
-                      />
+                      <section className="space-y-3">
+                        <SectionHeader icon={FolderOpen} label="Folders" count={sortedCurrentFolders.length} />
+                        <FolderTileGrid
+                          folders={sortedCurrentFolders}
+                          onOpen={(f) => navigateToFolder(f.id)}
+                          onRename={startRenameFolder}
+                          onShare={setSharingFolder}
+                          onDelete={setDeletingFolder}
+                          onDropFiles={canUpload ? handleDropOnFolder : undefined}
+                          onCreateFolder={canUpload && !query ? handleCreateFolder : undefined}
+                          creatingFolder={creatingFolder}
+                        />
+                      </section>
                     )}
-                    {renderItems(sortItems(filteredFiles))}
+                    {filteredFiles.length > 0 && (
+                      <section className="space-y-3">
+                        <SectionHeader icon={File} label="Files" count={filteredFiles.length}>
+                          {viewToggle}
+                        </SectionHeader>
+                        {renderItems(sortItems(filteredFiles))}
+                      </section>
+                    )}
                   </TabsContent>
                   <TabsContent value="docs" className="mt-4">
-                    {renderItems(sortItems(filteredDocs))}
+                    {filteredDocs.length > 0 && (
+                      <section className="space-y-3">
+                        <SectionHeader icon={NotebookPen} label="Docs" count={filteredDocs.length}>
+                          {viewToggle}
+                        </SectionHeader>
+                        {renderItems(sortItems(filteredDocs))}
+                      </section>
+                    )}
                   </TabsContent>
                   <TabsContent value="crm" className="mt-4">
-                    {renderItems(sortItems(filteredCRM))}
+                    {filteredCRM.length > 0 && (
+                      <section className="space-y-3">
+                        <SectionHeader icon={Wrench} label="CRM sheets" count={filteredCRM.length}>
+                          {viewToggle}
+                        </SectionHeader>
+                        {renderItems(sortItems(filteredCRM))}
+                      </section>
+                    )}
                   </TabsContent>
                 </>
               )}
