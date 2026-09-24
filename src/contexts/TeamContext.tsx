@@ -4,8 +4,10 @@ import {
   useState,
   ReactNode,
   useEffect,
+  useRef,
 } from "react";
 import { secureFetch } from "../api/apiClient";
+import { useAuth } from "./AuthContext";
 import { readCache, writeCache } from "../lib/cache";
 
 export interface TeamMember {
@@ -33,6 +35,8 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     () => readCache<TeamMember[]>("team") ?? []
   );
   const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
+  const signedInUserId = useRef<string | undefined>(undefined);
 
   // Fetch team members
   const fetchTeam = async () => {
@@ -73,10 +77,20 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Fetch on mount
+  // Load when a user signs in (or the session is restored), clear when they sign out.
+  // A mount-only fetch ran on the landing page with no token and never re-ran after login.
   useEffect(() => {
+    if (!user) {
+      if (signedInUserId.current) {
+        setTeamMembers([]);
+        setIsLoading(true);
+      }
+      signedInUserId.current = undefined;
+      return;
+    }
+    signedInUserId.current = user.id;
     fetchTeam();
-  }, []);
+  }, [user?.id]);
 
   return (
     <TeamContext.Provider

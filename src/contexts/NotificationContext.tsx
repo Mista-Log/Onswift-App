@@ -5,8 +5,10 @@ import {
   ReactNode,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import { secureFetch } from "../api/apiClient";
+import { useAuth } from "./AuthContext";
 import { Notification } from "@/types/notification";
 import { readCache, writeCache } from "../lib/cache";
 
@@ -30,6 +32,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     () => readCache<Notification[]>("notifications") ?? []
   );
   const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
+  const signedInUserId = useRef<string | undefined>(undefined);
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
@@ -129,15 +133,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   // Calculate unread count
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
-  // Fetch on mount
+  // Load when a user signs in (or the session is restored), clear when they sign out.
   useEffect(() => {
+    if (!user) {
+      if (signedInUserId.current) setNotifications([]);
+      signedInUserId.current = undefined;
+      return;
+    }
+    signedInUserId.current = user.id;
     fetchNotifications();
 
     // Poll for new notifications every 30 seconds
     const interval = setInterval(fetchNotifications, 30000);
 
     return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  }, [user?.id, fetchNotifications]);
 
   return (
     <NotificationContext.Provider
