@@ -61,6 +61,7 @@ from .personal_tasks import (
     PersonalTaskDetailView,
     PersonalTaskEligibilityView,
 )
+from .reminders import ReminderReportView, SendDueDigestsView
 
 urlpatterns = [
     # Projects
@@ -81,6 +82,8 @@ urlpatterns = [
     path("personal-tasks/", PersonalTaskListCreateView.as_view(), name="personal-task-list-create"),
     path("personal-tasks/eligibility/", PersonalTaskEligibilityView.as_view(), name="personal-task-eligibility"),
     path("personal-tasks/<uuid:pk>/", PersonalTaskDetailView.as_view(), name="personal-task-detail"),
+    path("reminders/report/", ReminderReportView.as_view(), name="reminder-report"),
+    path("reminders/send-due/", SendDueDigestsView.as_view(), name="reminder-send-due"),
     path("creator/analytics/", CreatorAnalyticsView.as_view(), name="creator-analytics"),
 
     # Task Comments

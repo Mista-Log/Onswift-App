@@ -261,7 +261,26 @@ class UserSettingsSerializer(serializers.ModelSerializer):
     """Serializer for user notification settings"""
     class Meta:
         model = UserSettings
-        fields = ['email_notifications', 'push_notifications', 'message_alerts']
+        fields = [
+            'email_notifications', 'push_notifications', 'message_alerts',
+            'reminder_enabled', 'reminder_frequency', 'reminder_weekday',
+            'reminder_time', 'reminder_timezone', 'reminder_email',
+            'last_reminder_sent_on',
+        ]
+        read_only_fields = ['last_reminder_sent_on']
+
+    def validate_reminder_weekday(self, value):
+        if not 0 <= value <= 6:
+            raise serializers.ValidationError("Weekday must be 0 (Monday) to 6 (Sunday).")
+        return value
+
+    def validate_reminder_timezone(self, value):
+        from zoneinfo import ZoneInfo
+        try:
+            ZoneInfo(value)
+        except Exception:
+            raise serializers.ValidationError("Unknown timezone.")
+        return value
 
 
 class AccountStatsSerializer(serializers.Serializer):
