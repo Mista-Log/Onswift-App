@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect } from "react";
 import { AppSidebar, TopBar } from "./AppSidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { QuickStartLauncher } from "@/components/quickstart/QuickStartLauncher";
+import { CreatorUpsellBar } from "./CreatorUpsellBar";
 import { DailyReportDialog } from "@/components/reminders/DailyReportDialog";
 
 export interface MainLayoutRenderProps {
@@ -71,6 +72,7 @@ export function MainLayout({ children, hideTopBarOnMobile = false }: MainLayoutP
           isCollapsed ? 'md:ml-20' : 'md:ml-64'
         }`}
       >
+        <CreatorUpsellBar />
         <div className={hideTopBarOnMobile ? "hidden md:block" : undefined}>
           <TopBar
             onToggleSidebar={toggleSidebar}
