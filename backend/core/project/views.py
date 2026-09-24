@@ -699,12 +699,19 @@ class CreatorAnalyticsView(APIView):
 
         # ── Talent performance: per accepted team member (current snapshot) ──
         from notification.models import HireRequest
-        team = HireRequest.objects.filter(
-            creator=user, status="accepted"
-        ).select_related("talent")
+        team = {
+            hr.talent_id: hr.talent
+            for hr in HireRequest.objects.filter(
+                creator=user, status="accepted"
+            ).select_related("talent")
+        }
+        # Members assigned to this creator's tasks count as team even without an accepted hire request.
+        for assignee in get_user_model().objects.filter(
+            assigned_tasks__project__creator=user
+        ).exclude(id=user.id).distinct():
+            team.setdefault(assignee.id, assignee)
         talent = []
-        for hr in team:
-            t = hr.talent
+        for t in team.values():
             dels = Deliverable.objects.filter(task__project__creator=user, submitted_by=t)
             submitted = dels.count()
             approved = dels.filter(status="approved").count()

@@ -40,14 +40,21 @@ export function useCreatorAnalytics(initial: AnalyticsRange = "30d") {
   const [range, setRange] = useState<AnalyticsRange>(initial);
   const [data, setData] = useState<CreatorAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchAnalytics = useCallback(async (r: AnalyticsRange) => {
     try {
       setIsLoading(true);
+      setError(null);
       const res = await secureFetch(`/api/v2/creator/analytics/?range=${r}`);
-      if (res.ok) setData(await res.json());
-    } catch (error) {
-      console.error("Error fetching analytics:", error);
+      if (res.ok) {
+        setData(await res.json());
+      } else {
+        setError(`Couldn't load analytics (error ${res.status}).`);
+      }
+    } catch (err) {
+      console.error("Error fetching analytics:", err);
+      setError("Couldn't reach the server. Check your connection and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -57,5 +64,7 @@ export function useCreatorAnalytics(initial: AnalyticsRange = "30d") {
     fetchAnalytics(range);
   }, [range, fetchAnalytics]);
 
-  return { data, isLoading, range, setRange };
+  const refetch = useCallback(() => fetchAnalytics(range), [range, fetchAnalytics]);
+
+  return { data, isLoading, error, refetch, range, setRange };
 }

@@ -22,7 +22,7 @@ const RANGES: { value: AnalyticsRange; label: string }[] = [
 
 function ChartSkeleton() {
   return (
-    <div className="flex h-[220px] items-center justify-center">
+    <div className="flex h-[240px] sm:h-[300px] xl:h-[380px] items-center justify-center">
       <Loader2 className="h-6 w-6 animate-spin text-primary" />
     </div>
   );
@@ -52,11 +52,11 @@ function ChartCard({
 }
 
 export function AnalyticsSection() {
-  const { data, isLoading, range, setRange } = useCreatorAnalytics("30d");
+  const { data, isLoading, error, refetch, range, setRange } = useCreatorAnalytics("30d");
   const activeLabel = RANGES.find((r) => r.value === range)?.label ?? "Range";
 
   return (
-    <section className="glass-card p-5 sm:p-6 md:p-7 space-y-6">
+    <section className="glass-card p-4 sm:p-6 md:p-7 lg:p-8 space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">Analytics</h2>
         <DropdownMenu>
@@ -76,6 +76,13 @@ export function AnalyticsSection() {
         </DropdownMenu>
       </div>
 
+      {error && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3">
+          <p className="text-sm text-destructive">{error}</p>
+          <Button size="sm" variant="outline" onClick={refetch}>Try again</Button>
+        </div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard icon={TrendingUp} title="Completed work" subtitle="Approved deliverables">
           {isLoading ? <ChartSkeleton /> : <CompletionChart data={data?.completion ?? []} />}
@@ -89,10 +96,14 @@ export function AnalyticsSection() {
       <ChartCard icon={Users} title="Talent performance" subtitle="How your team is delivering">
         {isLoading ? (
           <ChartSkeleton />
+        ) : error ? (
+          <div className="flex h-[240px] sm:h-[300px] xl:h-[380px] items-center justify-center text-sm text-muted-foreground">
+            Data unavailable.
+          </div>
         ) : data && data.talent.length > 0 ? (
           <TeamStatusDonut data={data.talent} />
         ) : (
-          <div className="flex h-[220px] flex-col items-center justify-center text-center text-muted-foreground">
+          <div className="flex h-[240px] sm:h-[300px] xl:h-[380px] flex-col items-center justify-center text-center text-muted-foreground">
             <Users className="mb-2 h-10 w-10 opacity-40" />
             <p className="text-sm">No team activity yet</p>
             <p className="text-xs">Invite talent and assign work to see performance here.</p>

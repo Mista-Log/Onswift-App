@@ -28,6 +28,7 @@ import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
 import Settings from "./pages/Settings";
 import Calendar from "./pages/Calendar";
+import AnalyticsPage from "./pages/Analytics";
 import TalentProfileEdit from "./pages/TalentProfileEdit";
 import CreatorProfileEdit from "./pages/CreatorProfileEdit";
 // import TalentPublicProfile from "./pages/TalentPublicProfile";
@@ -187,6 +188,7 @@ const App = () => (
                     <Route path="/projects/:projectId/messages" element={<ProtectedRoute><ClientMessages /></ProtectedRoute>} />
                     <Route path="/projects/:id" element={<ProtectedRoute><ProjectDetailRoute /></ProtectedRoute>} />
                     <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
+                    <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
                     <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                     <Route path="/profile/edit" element={<ProtectedRoute><TalentProfileEdit /></ProtectedRoute>} />
                     <Route path="/profile/creator/edit" element={<ProtectedRoute><CreatorProfileEdit /></ProtectedRoute>} />

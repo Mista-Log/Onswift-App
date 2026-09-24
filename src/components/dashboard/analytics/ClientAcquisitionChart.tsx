@@ -17,7 +17,7 @@ const config = {
 
 export function ClientAcquisitionChart({ data }: { data: ClientPoint[] }) {
   return (
-    <ChartContainer config={config} className="h-[220px] w-full">
+    <ChartContainer config={config} className="h-[240px] w-full sm:h-[300px] xl:h-[380px]">
       <BarChart data={data} margin={{ left: -12, right: 8, top: 8 }}>
         <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-border/40" />
         <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} minTickGap={16} interval="preserveStartEnd" className="text-xs" />
