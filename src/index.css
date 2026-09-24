@@ -7,6 +7,15 @@
 /* Landing page hero headline only — see tailwind.config.ts `instrument-serif` font family */
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
 
+/* 7-segment LCD digits for the deadline countdown (DSEG7, SIL OFL 1.1 — see public/fonts/DSEG-LICENSE.txt) */
+@font-face {
+  font-family: "DSEG7 Classic";
+  src: url("/fonts/DSEG7Classic-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -400,6 +409,48 @@
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Deadline countdown ring: blinks when the deadline is under an hour away or overdue.
+   Reduced-motion users get a steady glowing ring instead. */
+@keyframes countdown-blink {
+  0%, 100% {
+    border-color: hsl(var(--destructive));
+    box-shadow: 0 0 24px hsl(var(--destructive) / 0.7);
+  }
+  50% {
+    border-color: hsl(var(--destructive) / 0.15);
+    box-shadow: 0 0 0 hsl(var(--destructive) / 0);
+  }
+}
+.countdown-blink {
+  animation: countdown-blink 1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .countdown-blink {
+    animation: none;
+    box-shadow: 0 0 24px hsl(var(--destructive) / 0.7);
+  }
+}
+
+/* Utility: fully transparent scrollbar; content still scrolls, a faint thumb shows on hover */
+.scrollbar-transparent {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.scrollbar-transparent::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-transparent::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-transparent::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+}
+.scrollbar-transparent:hover::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.2);
 }
 
 /* Utility: minimal light-purple scrollbar (theme-token based, correct in both light/dark) */

@@ -301,8 +301,8 @@ class ClientOnboardingSubmitView(APIView):
                         membership.completed_at = None
                         membership.save(update_fields=["status", "archived_at", "completed_at"])
 
-                # 3. Auto-file responses into Document Library
-                self._auto_file_responses(creator, client_user, instance)
+                # 3. Ensure the client's library folders exist
+                self._ensure_client_folders(creator, client_user)
 
                 # 4. Create notification for creator
                 from notification.services import create_notification
@@ -335,16 +335,14 @@ class ClientOnboardingSubmitView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def _auto_file_responses(self, creator, client_user, instance):
+    def _ensure_client_folders(self, creator, client_user):
         """
-        Auto-file onboarding responses into the Document Library.
-        Creates client folder structure if it doesn't exist.
-        This runs within the outer transaction — if it fails, the entire
-        onboarding is rolled back (atomicity guaranteed).
+        Create the client's library folder structure if it doesn't exist.
+        Responses themselves are not filed as documents; they live on
+        OnboardingInstance.responses.
         """
         try:
-            from library.models import Folder, Document
-            import json
+            from library.models import Folder
 
             # Get or create client root folder
             client_folder, _ = Folder.objects.get_or_create(
@@ -356,7 +354,7 @@ class ClientOnboardingSubmitView(APIView):
             )
 
             # Get or create Onboarding Responses subfolder
-            responses_folder, _ = Folder.objects.get_or_create(
+            Folder.objects.get_or_create(
                 creator=creator,
                 parent_folder=client_folder,
                 name="Onboarding Responses",
@@ -365,33 +363,8 @@ class ClientOnboardingSubmitView(APIView):
                     "client": client_user,
                 },
             )
-
-            # Create a structured JSON document from the responses
-            response_content = json.dumps({
-                "template_title": instance.template.title,
-                "completed_at": str(instance.completed_at),
-                "client_name": client_user.full_name,
-                "client_email": client_user.email,
-                "responses": instance.responses,
-            }, indent=2)
-
-            # Save as a JSON file
-            from django.core.files.base import ContentFile
-            file_name = f"onboarding_{instance.slug}.json"
-            content_file = ContentFile(response_content.encode("utf-8"), name=file_name)
-
-            Document.objects.create(
-                creator=creator,
-                client=client_user,
-                folder=responses_folder,
-                name=file_name,
-                file=content_file,
-                file_type="application/json",
-                size_kb=len(response_content) / 1024,
-                tags=["onboarding", "auto-filed"],
-            )
         except ImportError:
-            # Library app not yet migrated — skip auto-filing silently
+            # Library app not yet migrated — skip silently
             pass
 
 

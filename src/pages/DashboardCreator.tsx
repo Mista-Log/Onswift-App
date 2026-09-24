@@ -11,13 +11,12 @@ import { useProjects } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { InviteMemberModal } from "@/components/dashboard/InviteMemberModal";
 import { MyTasksPanel } from "@/components/tasks/MyTasksPanel";
-import { AnalyticsSection } from "@/components/dashboard/analytics/AnalyticsSection";
 import { toast } from "sonner";
 
 export default function DashboardCreator() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { projects: allProjects, deleteProject } = useProjects();
+  const { projects: allProjects, isLoading: isLoadingProjects, deleteProject } = useProjects();
   const { teamMembers, isLoading: isLoadingTeam, removeTeamMember } = useTeam();
   const [showInviteModal, setShowInviteModal] = useState(false);
 
@@ -64,9 +63,9 @@ export default function DashboardCreator() {
           </h1>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Left Column - Projects & Stats */}
-          <div className="space-y-6 lg:col-span-2">
+          <div className="min-w-0 space-y-6 lg:col-span-2">
             {/* Active Projects */}
             <section className="glass-card p-5 sm:p-6 md:p-7 space-y-6">
               <div className="flex items-center justify-between gap-2">
@@ -83,7 +82,11 @@ export default function DashboardCreator() {
                 </Button>
               </div>
 
-              {projects.length === 0 ? (
+              {isLoadingProjects && projects.length === 0 ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                </div>
+              ) : projects.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 sm:py-12 text-center gap-4">
                   <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-primary/10">
                     <Plus className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
@@ -179,9 +182,6 @@ export default function DashboardCreator() {
   </section>
 </div>
         </div>
-
-        {/* Analytics — completion, client acquisition, talent performance */}
-        <AnalyticsSection />
       </div>
 
       <InviteMemberModal

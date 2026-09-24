@@ -4,6 +4,7 @@ import {
   useState,
   ReactNode,
   useEffect,
+  useRef,
 } from "react";
 import { mapFromBackend } from "../lib/api";
 import { useAuth } from "./AuthContext";
@@ -45,6 +46,8 @@ export interface Project {
 
 interface ProjectContextType {
   projects: Project[];
+  /** True only while the very first load is in flight and nothing is cached yet. */
+  isLoading: boolean;
   fetchProjects: () => Promise<void>;
   addProject: (
     project: Omit<Project, "id" | "teamMembers" | "task_count" | "completed_tasks" | "status" | "progress">
@@ -71,9 +74,14 @@ const deriveStatus = (p: Project): Project["status"] => {
 };
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>(
     () => readCache<Project[]>("projects") ?? []
   );
+  const [isLoading, setIsLoading] = useState<boolean>(
+    () => readCache<Project[]>("projects") === null && !!localStorage.getItem("onswift_access")
+  );
+  const signedInUserId = useRef<string | undefined>(undefined);
 
   const getToken = () => localStorage.getItem("onswift_access");
 
@@ -93,10 +101,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // 🚀 Fetch on mount (near-realtime)
+  // Load when a user signs in (or the session is restored), clear when they sign out.
+  // A mount-only fetch ran on the landing page with no token and never re-ran after login.
   useEffect(() => {
-    fetchProjects();
-  }, []);
+    if (!user) {
+      if (signedInUserId.current) setProjects([]);
+      signedInUserId.current = undefined;
+      return;
+    }
+    signedInUserId.current = user.id;
+    setIsLoading(projects.length === 0);
+    fetchProjects().finally(() => setIsLoading(false));
+  }, [user?.id]);
 
   // ---------------- ADD PROJECT ----------------
   const addProject = async (projectData: {name: string; description: string; due_date: string;}): Promise<string | undefined> => {
@@ -282,6 +298,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     <ProjectContext.Provider
       value={{
         projects,
+        isLoading,
         fetchProjects,
         addProject,
         updateProject,

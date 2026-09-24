@@ -70,6 +70,8 @@ import { format, parseISO } from "date-fns";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DeliverablesPanel } from "@/components/team/DeliverablesPanel";
+import { PersonalTaskCard } from "@/components/tasks/PersonalTaskCard";
+import { PersonalTaskDialog, type PersonalTask } from "@/components/tasks/PersonalTaskDialog";
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -79,6 +81,10 @@ export default function ProjectDetail() {
   const { projects, fetchProjectTasks, addTask, updateTask, deleteTask, deleteProject, updateProject } = useProjects();
   const { teamMembers } = useTeam();
   const [tasks, setTasks] = useState<Task[]>([]);
+  // The signed-in user's own personal tasks linked to this project (private to them).
+  const [personalTasks, setPersonalTasks] = useState<PersonalTask[]>([]);
+  const [linkableProjects, setLinkableProjects] = useState<{ id: string; name: string }[]>([]);
+  const [editingPersonal, setEditingPersonal] = useState<PersonalTask | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
@@ -157,10 +163,54 @@ export default function ProjectDetail() {
     if (!id) return;
     setIsLoading(true);
     try {
-      const data = await fetchProjectTasks(id);
+      const [data, personal] = await Promise.all([
+        fetchProjectTasks(id),
+        loadPersonalTasks(id),
+      ]);
       setTasks(data);
+      setPersonalTasks(personal.tasks);
+      setLinkableProjects(personal.projects);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Personal tasks the user linked to this project; the endpoint is owner-scoped, so nobody
+  // else's ever come back.
+  const loadPersonalTasks = async (projectId: string) => {
+    try {
+      const [tasksRes, eligibilityRes] = await Promise.all([
+        secureFetch(`/api/v2/personal-tasks/?project=${projectId}`),
+        secureFetch("/api/v2/personal-tasks/eligibility/"),
+      ]);
+      return {
+        tasks: tasksRes.ok ? ((await tasksRes.json()) as PersonalTask[]) : [],
+        projects: eligibilityRes.ok
+          ? (((await eligibilityRes.json()).projects ?? []) as { id: string; name: string }[])
+          : [],
+      };
+    } catch {
+      return { tasks: [], projects: [] };
+    }
+  };
+
+  const handlePersonalSaved = (saved: PersonalTask) =>
+    setPersonalTasks((prev) => {
+      const stillLinked = saved.linked_projects.some((p) => p.id === id);
+      const without = prev.filter((t) => t.id !== saved.id);
+      return stillLinked ? [saved, ...without] : without;
+    });
+
+  const handlePersonalStatusChange = async (taskId: string, status: PersonalTask["status"]) => {
+    try {
+      const res = await secureFetch(`/api/v2/personal-tasks/${taskId}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("update failed");
+      handlePersonalSaved(await res.json());
+    } catch {
+      toast.error("Couldn't update the task. Please try again.");
     }
   };
 
@@ -406,6 +456,9 @@ export default function ProjectDetail() {
   const planningTasks = sortTasks(tasks.filter((t) => t.status === "planning"));
   const inProgressTasks = sortTasks(tasks.filter((t) => t.status === "in-progress"));
   const completedTasks = sortTasks(tasks.filter((t) => t.status === "completed"));
+  const planningPersonal = personalTasks.filter((t) => t.status === "planning");
+  const inProgressPersonal = personalTasks.filter((t) => t.status === "in-progress");
+  const completedPersonal = personalTasks.filter((t) => t.status === "completed");
 
   // Available team members for assignment (if creator)
   const availableAssignees = isCreator ? [
@@ -909,7 +962,7 @@ export default function ProjectDetail() {
                 <div className="flex items-center gap-2 pb-2 border-b">
                   <Pencil className="h-4 w-4 text-yellow-500" />
                   <h3 className="font-semibold">Planning</h3>
-                  <span className="text-xs text-muted-foreground">({planningTasks.length})</span>
+                  <span className="text-xs text-muted-foreground">({planningTasks.length + planningPersonal.length})</span>
                 </div>
                 <div
                   className={cn(
@@ -920,6 +973,14 @@ export default function ProjectDetail() {
                   onDragLeave={() => setDragOverCol(null)}
                   onDrop={(e) => handleDrop(e, "planning")}
                 >
+                  {planningPersonal.map((pt) => (
+                    <PersonalTaskCard
+                      key={`personal-${pt.id}`}
+                      task={pt}
+                      onStatusChange={(status) => handlePersonalStatusChange(pt.id, status)}
+                      onOpen={() => setEditingPersonal(pt)}
+                    />
+                  ))}
                   {planningTasks.map((task) => (
                     <TaskCard
                       key={task.id}
@@ -933,7 +994,7 @@ export default function ProjectDetail() {
                       onDragEnd={() => { setDragTaskId(null); setDragOverCol(null); }}
                     />
                   ))}
-                  {planningTasks.length === 0 && (
+                  {planningTasks.length + planningPersonal.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-8">No tasks in planning</p>
                   )}
                 </div>
@@ -944,7 +1005,7 @@ export default function ProjectDetail() {
                 <div className="flex items-center gap-2 pb-2 border-b">
                   <Clock className="h-4 w-4 text-primary" />
                   <h3 className="font-semibold">In Progress</h3>
-                  <span className="text-xs text-muted-foreground">({inProgressTasks.length})</span>
+                  <span className="text-xs text-muted-foreground">({inProgressTasks.length + inProgressPersonal.length})</span>
                 </div>
                 <div
                   className={cn(
@@ -955,6 +1016,14 @@ export default function ProjectDetail() {
                   onDragLeave={() => setDragOverCol(null)}
                   onDrop={(e) => handleDrop(e, "in-progress")}
                 >
+                  {inProgressPersonal.map((pt) => (
+                    <PersonalTaskCard
+                      key={`personal-${pt.id}`}
+                      task={pt}
+                      onStatusChange={(status) => handlePersonalStatusChange(pt.id, status)}
+                      onOpen={() => setEditingPersonal(pt)}
+                    />
+                  ))}
                   {inProgressTasks.map((task) => (
                     <TaskCard
                       key={task.id}
@@ -968,7 +1037,7 @@ export default function ProjectDetail() {
                       onDragEnd={() => { setDragTaskId(null); setDragOverCol(null); }}
                     />
                   ))}
-                  {inProgressTasks.length === 0 && (
+                  {inProgressTasks.length + inProgressPersonal.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-8">No tasks in progress</p>
                   )}
                 </div>
@@ -979,7 +1048,7 @@ export default function ProjectDetail() {
                 <div className="flex items-center gap-2 pb-2 border-b">
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
                   <h3 className="font-semibold">Completed</h3>
-                  <span className="text-xs text-muted-foreground">({completedTasks.length})</span>
+                  <span className="text-xs text-muted-foreground">({completedTasks.length + completedPersonal.length})</span>
                 </div>
                 <div
                   className={cn(
@@ -990,6 +1059,14 @@ export default function ProjectDetail() {
                   onDragLeave={() => setDragOverCol(null)}
                   onDrop={(e) => handleDrop(e, "completed")}
                 >
+                  {completedPersonal.map((pt) => (
+                    <PersonalTaskCard
+                      key={`personal-${pt.id}`}
+                      task={pt}
+                      onStatusChange={(status) => handlePersonalStatusChange(pt.id, status)}
+                      onOpen={() => setEditingPersonal(pt)}
+                    />
+                  ))}
                   {completedTasks.map((task) => (
                     <TaskCard
                       key={task.id}
@@ -1003,7 +1080,7 @@ export default function ProjectDetail() {
                       onDragEnd={() => { setDragTaskId(null); setDragOverCol(null); }}
                     />
                   ))}
-                  {completedTasks.length === 0 && (
+                  {completedTasks.length + completedPersonal.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-8">No completed tasks</p>
                   )}
                 </div>
@@ -1070,6 +1147,15 @@ export default function ProjectDetail() {
           availableAssignees={availableAssignees}
           currentUserId={user?.id ?? ""}
           isCreator={isCreator}
+        />
+
+        <PersonalTaskDialog
+          open={!!editingPersonal}
+          onOpenChange={(open) => { if (!open) setEditingPersonal(null); }}
+          task={editingPersonal}
+          linkableProjects={linkableProjects}
+          onSaved={handlePersonalSaved}
+          onDeleted={(taskId) => setPersonalTasks((prev) => prev.filter((t) => t.id !== taskId))}
         />
 
         {/* First task celebration */}

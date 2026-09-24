@@ -11,7 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Folder as FolderIcon, MoreVertical, Pencil, Trash2, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Folder as FolderIcon, Loader2, MoreVertical, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LibraryFolder } from "@/types/library";
 
@@ -23,12 +24,27 @@ interface FolderTileGridProps {
   onDelete: (folder: LibraryFolder) => void;
   /** Files dropped directly onto this folder tile. */
   onDropFiles?: (folder: LibraryFolder, files: File[]) => void;
+  /** When set, a "+" button ends the folder row; resolves true on success. */
+  onCreateFolder?: (name: string) => Promise<boolean>;
+  creatingFolder?: boolean;
 }
 
-export function FolderTileGrid({ folders, onOpen, onRename, onShare, onDelete, onDropFiles }: FolderTileGridProps) {
+export function FolderTileGrid({
+  folders, onOpen, onRename, onShare, onDelete, onDropFiles, onCreateFolder, creatingFolder,
+}: FolderTileGridProps) {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
 
-  if (folders.length === 0) return null;
+  if (folders.length === 0 && !onCreateFolder) return null;
+
+  const submitNew = async () => {
+    if (!onCreateFolder || !newName.trim() || creatingFolder) return;
+    if (await onCreateFolder(newName)) {
+      setNewName("");
+      setAdding(false);
+    }
+  };
 
   const itemCount = (folder: LibraryFolder) =>
     folder.document_count + folder.doc_count + folder.crm_count;
@@ -106,6 +122,35 @@ export function FolderTileGrid({ folders, onOpen, onRename, onShare, onDelete, o
           </div>
         </div>
       ))}
+
+      {onCreateFolder && (
+        <div className="col-span-full flex min-w-0 items-center justify-end gap-2 sm:col-span-1 sm:justify-start">
+          {adding ? (
+            <Input
+              autoFocus
+              className="h-10 min-w-0 flex-1 sm:flex-none"
+              placeholder="Folder name…"
+              value={newName}
+              disabled={creatingFolder}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitNew();
+                if (e.key === "Escape") { setAdding(false); setNewName(""); }
+              }}
+              onBlur={() => { if (!newName.trim() && !creatingFolder) setAdding(false); }}
+            />
+          ) : null}
+          <Button
+            size="icon"
+            aria-label="New folder"
+            className="h-10 w-10 flex-shrink-0 rounded-xl bg-primary text-white hover:bg-primary/90"
+            disabled={creatingFolder}
+            onClick={() => (adding ? submitNew() : setAdding(true))}
+          >
+            {creatingFolder ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

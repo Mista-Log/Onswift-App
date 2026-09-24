@@ -1,6 +1,7 @@
 from django.utils import timezone
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+import datetime
 import uuid
 from cloudinary.models import CloudinaryField
 
@@ -98,6 +99,23 @@ class UserSettings(models.Model):
     email_notifications = models.BooleanField(default=True)
     push_notifications = models.BooleanField(default=True)
     message_alerts = models.BooleanField(default=True)
+
+    # Daily/weekly "what's left" report (Deadlines page toggle).
+    REMINDER_FREQUENCY_CHOICES = [
+        ("daily", "Daily"),
+        ("weekly", "Weekly"),
+        ("weekends", "Weekends only"),
+    ]
+    reminder_enabled = models.BooleanField(default=False)
+    reminder_frequency = models.CharField(
+        max_length=10, choices=REMINDER_FREQUENCY_CHOICES, default="daily"
+    )
+    reminder_weekday = models.PositiveSmallIntegerField(default=0)  # 0=Mon .. 6=Sun (weekly only)
+    reminder_time = models.TimeField(default=datetime.time(8, 0))
+    reminder_timezone = models.CharField(max_length=64, default="UTC")
+    reminder_email = models.BooleanField(default=True)
+    last_reminder_sent_on = models.DateField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

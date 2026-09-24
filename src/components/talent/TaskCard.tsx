@@ -79,7 +79,7 @@ export function TaskCard({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 p-4 rounded-lg border border-border/50 transition-all duration-200 sm:gap-4",
+        "flex items-center gap-2 p-3 rounded-lg border border-border/50 transition-all duration-200 sm:gap-4 sm:p-4",
         "hover:border-primary/40 hover:shadow-[0_0_20px_hsl(250_76%_63%/0.15)]",
         isCompleted && "opacity-60"
       )}
@@ -128,7 +128,7 @@ export function TaskCard({
               </span>
             </div>
           )}
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="outline" className="hidden text-xs sm:inline-flex">
             {getStatusLabel()}
           </Badge>
           {awaitingApproval && (
@@ -137,14 +137,18 @@ export function TaskCard({
             </Badge>
           )}
           {assignedToMe && (
-            <Badge variant="outline" className="text-xs text-muted-foreground">
+            <Badge variant="outline" className="hidden text-xs text-muted-foreground sm:inline-flex">
               Assigned to you
             </Badge>
           )}
         </div>
       </div>
 
-      <Badge variant="secondary" className="flex-shrink-0 max-w-[110px] truncate text-xs sm:max-w-none">
+      <Badge
+        variant="secondary"
+        title={projectName}
+        className="flex-shrink-0 block max-w-[84px] truncate text-xs sm:inline-flex sm:max-w-none"
+      >
         {projectName}
       </Badge>
     </div>

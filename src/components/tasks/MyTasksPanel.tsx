@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, CheckSquare } from "lucide-react";
+import { Loader2, CheckSquare, Plus } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,7 +12,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { TaskCard } from "@/components/talent/TaskCard";
+import { PersonalTaskDialog, type PersonalTask } from "@/components/tasks/PersonalTaskDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProjects, type Task } from "@/contexts/ProjectContext";
 import { secureFetch } from "@/api/apiClient";
@@ -43,6 +45,11 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("todo");
   const [gateTaskId, setGateTaskId] = useState<string | null>(null);
+  const [personalTasks, setPersonalTasks] = useState<PersonalTask[]>([]);
+  const [canAddPersonal, setCanAddPersonal] = useState(false);
+  const [linkableProjects, setLinkableProjects] = useState<{ id: string; name: string }[]>([]);
+  const [personalDialogOpen, setPersonalDialogOpen] = useState(false);
+  const [editingPersonal, setEditingPersonal] = useState<PersonalTask | null>(null);
 
   useEffect(() => {
     fetchTasks();
@@ -51,14 +58,65 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
   const fetchTasks = async () => {
     try {
       setIsLoading(true);
-      const res = await secureFetch("/api/v2/my-tasks/");
+      const [res, personalRes, eligibilityRes] = await Promise.all([
+        secureFetch("/api/v2/my-tasks/"),
+        secureFetch("/api/v2/personal-tasks/"),
+        secureFetch("/api/v2/personal-tasks/eligibility/"),
+      ]);
       if (res.ok) setTasks(await res.json());
+      if (personalRes.ok) setPersonalTasks(await personalRes.json());
+      if (eligibilityRes.ok) {
+        const eligibility = await eligibilityRes.json();
+        setCanAddPersonal(!!eligibility.allowed);
+        setLinkableProjects(eligibility.projects ?? []);
+      }
     } catch (error) {
       console.error("Error fetching tasks:", error);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const openAddPersonal = () => {
+    setEditingPersonal(null);
+    setPersonalDialogOpen(true);
+  };
+
+  const openEditPersonal = (task: PersonalTask) => {
+    setEditingPersonal(task);
+    setPersonalDialogOpen(true);
+  };
+
+  const handlePersonalSaved = (saved: PersonalTask) =>
+    setPersonalTasks((prev) =>
+      prev.some((t) => t.id === saved.id)
+        ? prev.map((t) => (t.id === saved.id ? saved : t))
+        : [saved, ...prev],
+    );
+
+  // Personal tasks skip the deliverable gate: the owner just sets the status.
+  const handlePersonalStatusChange = async (
+    taskId: string,
+    newStatus: "planning" | "in-progress" | "completed",
+  ) => {
+    try {
+      const res = await secureFetch(`/api/v2/personal-tasks/${taskId}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) throw new Error("update failed");
+      handlePersonalSaved(await res.json());
+    } catch {
+      toast.error("Couldn't update the task. Please try again.");
+    }
+  };
+
+  const personalLabel = (task: PersonalTask) =>
+    task.linked_projects.length === 0
+      ? "Personal"
+      : task.linked_projects.length === 1
+      ? `Personal · ${task.linked_projects[0].name}`
+      : `Personal · ${task.linked_projects.length} projects`;
 
   const getProjectName = (task: MyTask) =>
     task.project_name || projects.find((p) => p.id === task.project)?.name || "Project";
@@ -119,16 +177,31 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
     }
   };
 
-  const pendingCount = tasks.filter((t) => t.status !== "completed").length;
-  const completedCount = tasks.filter((t) => t.status === "completed").length;
-  const filteredTasks = tasks.filter((t) =>
-    activeTab === "todo" ? t.status !== "completed" : t.status === "completed",
-  );
+  const pendingCount =
+    tasks.filter((t) => t.status !== "completed").length +
+    personalTasks.filter((t) => t.status !== "completed").length;
+  const completedCount =
+    tasks.filter((t) => t.status === "completed").length +
+    personalTasks.filter((t) => t.status === "completed").length;
+  const inActiveTab = (status: string) =>
+    activeTab === "todo" ? status !== "completed" : status === "completed";
+  const filteredTasks = tasks.filter((t) => inActiveTab(t.status));
+  const filteredPersonal = personalTasks.filter((t) => inActiveTab(t.status));
 
   return (
     <section className="glass-card p-5 sm:p-6 md:p-7">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-foreground">My Tasks</h2>
+        {canAddPersonal && (
+          <Button
+            size="icon"
+            aria-label="Add a task"
+            className="h-9 w-9 rounded-xl bg-primary text-white hover:bg-primary/90"
+            onClick={openAddPersonal}
+          >
+            <Plus className="h-5 w-5" />
+          </Button>
+        )}
       </div>
 
       {/* To Do/ Completed tabs */} 
@@ -147,22 +220,37 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : filteredTasks.length > 0 ? (
-            filteredTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                id={task.id}
-                name={task.name}
-                description={task.description}
-                deadline={task.deadline}
-                projectName={getProjectName(task)}
-                status={task.status}
-                awaitingApproval={task.awaiting_approval}
-                assignedToMe={isCreator}
-                onStatusChange={handleStatusChange}
-                onClick={() => navigate(`/projects/${task.project}?task=${task.id}`)}
-              />
-            ))
+          ) : filteredPersonal.length + filteredTasks.length > 0 ? (
+            <>
+              {filteredPersonal.map((task) => (
+                <TaskCard
+                  key={`personal-${task.id}`}
+                  id={task.id}
+                  name={task.name}
+                  description={task.description ?? undefined}
+                  deadline={task.deadline}
+                  projectName={personalLabel(task)}
+                  status={task.status}
+                  onStatusChange={handlePersonalStatusChange}
+                  onClick={() => openEditPersonal(task)}
+                />
+              ))}
+              {filteredTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  id={task.id}
+                  name={task.name}
+                  description={task.description}
+                  deadline={task.deadline}
+                  projectName={getProjectName(task)}
+                  status={task.status}
+                  awaitingApproval={task.awaiting_approval}
+                  assignedToMe={isCreator}
+                  onStatusChange={handleStatusChange}
+                  onClick={() => navigate(`/projects/${task.project}?task=${task.id}`)}
+                />
+              ))}
+            </>
           ) : (
             <div className="text-center py-8">
               <CheckSquare className="h-12 w-12 text-primary mx-auto mb-2" />
@@ -176,6 +264,15 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
           )}
         </TabsContent>
       </Tabs>
+
+      <PersonalTaskDialog
+        open={personalDialogOpen}
+        onOpenChange={setPersonalDialogOpen}
+        task={editingPersonal}
+        linkableProjects={linkableProjects}
+        onSaved={handlePersonalSaved}
+        onDeleted={(id) => setPersonalTasks((prev) => prev.filter((t) => t.id !== id))}
+      />
 
       <AlertDialog open={!!gateTaskId} onOpenChange={(o) => { if (!o) setGateTaskId(null); }}>
         <AlertDialogContent>

@@ -124,6 +124,39 @@ class Task(models.Model):
         return self.name
 
 
+class PersonalTask(models.Model):
+    """
+    A private to-do owned by one user, independent of any project. It may be
+    linked to any number of projects for context, but has no approval flow,
+    deliverables, or creator notifications.
+    """
+    STATUS_CHOICES = [
+        ("planning", "Planning"),
+        ("in-progress", "In Progress"),
+        ("completed", "Completed"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="personal_tasks"
+    )
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="planning")
+    deadline = models.DateField(null=True, blank=True)
+    linked_projects = models.ManyToManyField(
+        Project, blank=True, related_name="linked_personal_tasks"
+    )
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.name
+
+
 class ProjectSample(models.Model):
     SAMPLE_TYPE_CHOICES = [
         ("file", "File"),

@@ -1,4 +1,4 @@
-import { LayoutGrid, Users, FolderKanban, Clock, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, ClipboardList, FileArchive, Wrench, Loader2, FileText } from "lucide-react";
+import { LayoutGrid, Users, FolderKanban, Clock, Settings, Search, Bell, LogOut, User, Menu, X, ChevronLeft, ChevronRight, MessageCircle, ClipboardList, FileArchive, Wrench, Loader2, FileText, BarChart3 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { useDeadlineCount } from "@/hooks/useDeadlineCount";
@@ -21,11 +21,12 @@ import { useTheme } from "next-themes";
 const creatorNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
   { label: "Projects", icon: FolderKanban, route: "/projects" },
-  { label: "My Team", icon: Users, route: "/team" },
+  { label: "Analytics", icon: BarChart3, route: "/analytics" },
+  { label: "Teams", icon: Users, route: "/team" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "Client Portal", icon: ClipboardList, route: "/onboarding" },
   { label: "Forms", icon: FileText, route: "/forms" },
-  { label: "My Files", icon: FileArchive, route: "/library" },
+  { label: "Files", icon: FileArchive, route: "/library" },
   { label: "Deadlines", icon: Clock, route: "/calendar" },
   // { label: "Notifications", icon: Bell, route: "/notifications" },
   // { label: "Marketplace", icon: Users, route: "/talent" },
@@ -91,9 +92,9 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
       {onClose && (
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 md:hidden p-2 rounded-lg hover:bg-sidebar-accent text-muted-foreground hover:text-foreground"
+          className="destructive-ghost absolute top-4 right-4 md:hidden p-2 rounded-lg hover:bg-sidebar-accent text-muted-foreground hover:text-muted-foreground transition-colors"
         >
-          <X className="h-5 w-5" />
+          <X className="color h-5 w-5" />
         </button>
       )}
 
@@ -120,9 +121,9 @@ export function AppSidebar({ isCollapsed = false, onClose }: AppSidebarProps) {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xl font-bold text-foreground">OnSwift</span>
-              <span className="inline-flex items-center rounded-full bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-0.5">
+              {/* <span className="inline-flex items-center rounded-full bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-0.5">
                 Beta 2.0
-              </span>
+              </span> */}
             </div>
           </div>
         )}

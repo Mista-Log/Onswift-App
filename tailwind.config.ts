@@ -15,6 +15,7 @@ export default {
     extend: {
       fontFamily: {
         "instrument-serif": ['"Instrument Serif"', "serif"], // landing page hero headline only
+        digital: ['"DSEG7 Classic"', "ui-monospace", "monospace"], // 7-segment LCD digits (deadline countdown)
         sans: [
           "Poppins",
           "ui-sans-serif",

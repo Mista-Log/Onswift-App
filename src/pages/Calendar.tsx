@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ChevronLeft, ChevronRight, ChevronDown, Clock, AlertCircle, Calendar as CalendarIcon } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   format,
@@ -10,6 +10,7 @@ import {
   endOfMonth,
   startOfWeek,
   endOfWeek,
+  endOfDay,
   eachDayOfInterval,
   isSameMonth,
   isSameDay,
@@ -24,14 +25,28 @@ import {
   differenceInSeconds,
 } from "date-fns";
 import { useNavigate } from "react-router-dom";
-import { useProjects, type Task as ProjectTask } from "@/contexts/ProjectContext";
+import { readCache, writeCache } from "@/lib/cache";
 import { useAuth } from "@/contexts/AuthContext";
+import { secureFetch } from "@/api/apiClient";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
+import { ReminderDialog } from "@/components/reminders/ReminderDialog";
+import { CountdownCircle } from "@/components/deadlines/CountdownCircle";
+import { describeReminder, useReminderSettings } from "@/hooks/useReminderSettings";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Task {
   id: string;
@@ -44,6 +59,36 @@ interface Task {
     id: string;
     name: string;
     avatar: string;
+  };
+}
+
+interface DeadlineRow {
+  id: string;
+  name: string;
+  project_id: string | null;
+  project_name: string;
+  deadline: string;
+  status: string;
+  assignee_id: string | null;
+  assignee_name: string | null;
+  is_personal: boolean;
+}
+
+function toTask(row: DeadlineRow): Task {
+  const [y, m, d] = row.deadline.split("-").map(Number);
+  const assignee = row.assignee_name || "Unassigned";
+  return {
+    id: row.is_personal ? `personal-${row.id}` : row.id,
+    name: row.name,
+    projectId: row.project_id ?? "",
+    projectName: row.project_name,
+    dueDate: new Date(y, m - 1, d),
+    status: row.status === "completed" ? "done" : row.status === "in-progress" ? "in-progress" : "todo",
+    assignedTo: {
+      id: row.assignee_id || "unknown",
+      name: assignee,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(assignee)}`,
+    },
   };
 }
 
@@ -71,192 +116,138 @@ function getStatusColor(status: TaskStatus): string {
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function CountdownTimer({ targetDate }: { targetDate: Date }) {
-  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-  const [isUrgent, setIsUrgent] = useState(false);
+const STATUS_LABEL: Record<TaskStatus, string> = {
+  completed: "Completed",
+  overdue: "Overdue",
+  urgent: "Due soon",
+  due: "Upcoming",
+};
 
-  useEffect(() => {
-    const updateTimer = () => {
-      const now = new Date();
-      const diff = targetDate.getTime() - now.getTime();
+const STATUS_BADGE: Record<TaskStatus, string> = {
+  completed: "bg-success/15 text-success",
+  overdue: "bg-destructive/15 text-destructive",
+  urgent: "bg-destructive/15 text-destructive",
+  due: "bg-warning/15 text-warning",
+};
 
-      if (diff <= 0) {
-        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-        setIsUrgent(true);
-        return;
-      }
+type StatusFilter = "all" | TaskStatus;
 
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+const FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "overdue", label: STATUS_LABEL.overdue },
+  { value: "urgent", label: STATUS_LABEL.urgent },
+  { value: "due", label: STATUS_LABEL.due },
+  { value: "completed", label: STATUS_LABEL.completed },
+];
 
-      setTimeLeft({ days, hours, minutes, seconds });
-      setIsUrgent(days === 0 && hours < 24);
-    };
-
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
-  }, [targetDate]);
+function DeadlineRow({ task, onOpen }: { task: Task; onOpen: (projectId: string) => void }) {
+  const status = getTaskStatus(task);
+  const daysLeft = differenceInDays(task.dueDate, new Date());
+  const relative =
+    status === "completed"
+      ? ""
+      : daysLeft < 0
+      ? `${Math.abs(daysLeft)}d overdue`
+      : daysLeft === 0
+      ? "Due today"
+      : daysLeft === 1
+      ? "Due tomorrow"
+      : `In ${daysLeft} days`;
 
   return (
-    <div className={cn(
-      "glass-card p-5 sm:p-6 border-2",
-      isUrgent ? "border-destructive animate-pulse-border" : "border-primary/30"
-    )}>
-      <div className="flex items-center gap-2 mb-4">
-        <Clock className={cn("h-5 w-5", isUrgent ? "text-destructive" : "text-primary")} />
-        <h3 className="font-semibold text-foreground">Next Deadline</h3>
-      </div>
-
-      <div className="flex items-start justify-center gap-2 mb-4">
-  <div className="text-center">
-    <div className={cn(
-      "text-3xl font-bold mb-1",
-      isUrgent ? "text-destructive" : "text-foreground"
-    )}>
-      {timeLeft.days}
-    </div>
-    <div className="text-xs text-muted-foreground uppercase">Days</div>
-  </div>
-
-  <div className="text-3xl font-bold mb-1 text-destructive">:</div>
-
-  <div className="text-center">
-    <div className={cn(
-      "text-3xl font-bold mb-1",
-      isUrgent ? "text-destructive" : "text-foreground"
-    )}>
-      {timeLeft.hours}
-    </div>
-    <div className="text-xs text-muted-foreground uppercase">Hours</div>
-  </div>
-
-  <div className="text-3xl font-bold mb-1 text-destructive">:</div>
-
-  <div className="text-center">
-    <div className={cn(
-      "text-3xl font-bold mb-1",
-      isUrgent ? "text-destructive" : "text-foreground"
-    )}>
-      {timeLeft.minutes}
-    </div>
-    <div className="text-xs text-muted-foreground uppercase">Min</div>
-  </div>
-
-  <div className="text-3xl font-bold mb-1 text-destructive">:</div>
-
-  <div className="text-center">
-    <div className={cn(
-      "text-3xl font-bold mb-1",
-      isUrgent ? "text-destructive" : "text-foreground"
-    )}>
-      {timeLeft.seconds}
-    </div>
-    <div className="text-xs text-muted-foreground uppercase">Sec</div>
-  </div>
-</div>
-
-      {isUrgent && (
-        <div className="flex items-center gap-2 text-destructive text-sm font-medium">
-          <AlertCircle className="h-4 w-4" />
-
-          <span>URGENT: Due in less than 24 hours!</span>
+    <TableRow
+      onClick={() => onOpen(task.projectId)}
+      className={cn("cursor-pointer", (status === "overdue" || status === "urgent") && "bg-destructive/5")}
+    >
+      <TableCell className="max-w-[12rem] font-medium text-foreground">
+        <span className="block truncate" title={task.projectName}>{task.projectName}</span>
+      </TableCell>
+      <TableCell className="max-w-[18rem]">
+        <span className="block truncate" title={task.name}>{task.name}</span>
+      </TableCell>
+      <TableCell className="whitespace-nowrap">
+        <div>{format(task.dueDate, "MMM d, yyyy")}</div>
+        {relative && <div className="text-xs text-muted-foreground">{relative}</div>}
+      </TableCell>
+      <TableCell>
+        <span className={cn("inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_BADGE[status])}>
+          {STATUS_LABEL[status]}
+        </span>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2 min-w-0">
+          <Avatar className="h-6 w-6 flex-shrink-0">
+            <AvatarImage src={task.assignedTo.avatar} />
+            <AvatarFallback className="text-[10px]">{task.assignedTo.name.charAt(0)}</AvatarFallback>
+          </Avatar>
+          <span className="truncate max-w-[9rem]">{task.assignedTo.name}</span>
         </div>
-      )}
-    </div>
+      </TableCell>
+    </TableRow>
   );
 }
-
-type ExpandedBranches = {
-  [key: string]: boolean;
-};
 
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [expandedBranches, setExpandedBranches] = useState<ExpandedBranches>({
-    urgent: true,
-    due: true,
-    completed: true,
-  });
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  
+  // Cached rows render instantly on repeat visits; the fetch below refreshes them silently.
+  const [rows, setRows] = useState<DeadlineRow[]>(() => readCache<DeadlineRow[]>("deadlines") ?? []);
+  const [isLoading, setIsLoading] = useState(() => readCache<DeadlineRow[]>("deadlines") === null);
+  const tasks = useMemo(() => rows.map(toTask), [rows]);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
   const navigate = useNavigate();
-  const { projects, fetchProjects, fetchProjectTasks } = useProjects();
   const { user } = useAuth();
+  const { settings: reminder, save: saveReminder } = useReminderSettings();
+  const [reminderOpen, setReminderOpen] = useState(false);
 
-  // Fetch all tasks from all projects - interval-based (30 seconds)
-  useEffect(() => {
-    const loadAllTasks = async () => {
-      try {
-        await fetchProjects();
-      } catch (error) {
-        console.error("Error fetching projects:", error);
-      }
-    };
-
-    // Initial fetch
-    loadAllTasks();
-
-    // Set up interval-based polling (30 seconds instead of continuous)
-    const intervalId = setInterval(loadAllTasks, 30000);
-
-    // Cleanup interval on unmount
-    return () => clearInterval(intervalId);
-  }, []);
-
-  // Fetch tasks for each project when projects change
-  useEffect(() => {
-    const loadProjectTasks = async () => {
-      setIsLoading(true);
-      try {
-        const allTasks: Task[] = [];
-        
-        for (const project of projects) {
-          try {
-            const projectTasks = await fetchProjectTasks(project.id);
-            
-            // Transform ProjectTask to Calendar Task
-            const transformedTasks = projectTasks
-              .filter(task => task.deadline) // Only include tasks with deadlines
-              .map((task): Task => ({
-                id: task.id,
-                name: task.name,
-                projectId: project.id,
-                projectName: project.name,
-                dueDate: new Date(task.deadline!),
-                status: task.status === "completed" ? "done" : task.status === "in-progress" ? "in-progress" : "todo",
-                assignedTo: {
-                  id: task.assignees?.[0] || "unknown",
-                  name: task.assignee_names?.[0] || "Unassigned",
-                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${task.assignee_names?.[0] || "default"}`,
-                },
-              }));
-            
-            allTasks.push(...transformedTasks);
-          } catch (error) {
-            console.error(`Error fetching tasks for project ${project.id}:`, error);
-          }
-        }
-        
-        setTasks(allTasks);
-      } catch (error) {
-        console.error("Error loading project tasks:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (projects.length > 0) {
-      loadProjectTasks();
-    } else {
-      setIsLoading(false);
+  const toggleReminder = async (checked: boolean) => {
+    if (checked) {
+      setReminderOpen(true);
+      return;
     }
-  }, [projects, fetchProjectTasks]);
+    if (!(await saveReminder({ reminder_enabled: false }))) {
+      toast.error("Couldn't turn off reminders. Please try again.");
+    }
+  };
+
+  // One request for every deadline (project + personal), refreshed silently every 30s
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const res = await secureFetch("/api/v2/deadlines/");
+        if (cancelled) return;
+        if (!res.ok) {
+          setLoadError(true);
+          return;
+        }
+        const data: DeadlineRow[] = await res.json();
+        if (cancelled) return;
+        setRows(data);
+        setLoadError(false);
+        writeCache("deadlines", data);
+      } catch (error) {
+        console.error("Error fetching deadlines:", error);
+        if (!cancelled) setLoadError(true);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    load();
+    const intervalId = setInterval(() => {
+      if (!document.hidden) load();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [reloadKey]);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -268,58 +259,28 @@ export default function Calendar() {
     return tasks.filter((task) => isSameDay(task.dueDate, date));
   };
 
-  // Group tasks by status, then by project - memoized to prevent unnecessary recalculation
-  const groupedTasks = useMemo(() => {
-    const grouped: Record<string, Record<string, Task[]>> = {
-      urgent: {},
-      due: {},
-      completed: {},
-    };
-
-    tasks.forEach((task) => {
-      const status = getTaskStatus(task);
-      const statusKey =
-        status === "urgent" || status === "overdue"
-          ? "urgent"
-          : status === "due"
-          ? "due"
-          : "completed";
-
-      if (!grouped[statusKey][task.projectName]) {
-        grouped[statusKey][task.projectName] = [];
-      }
-      grouped[statusKey][task.projectName].push(task);
-    });
-
-    // Sort projects within each status and sort tasks within each project
-    Object.keys(grouped).forEach((statusKey) => {
-      Object.keys(grouped[statusKey]).forEach((projectName) => {
-        grouped[statusKey][projectName].sort(
-          (a, b) => a.dueDate.getTime() - b.dueDate.getTime()
-        );
-      });
-    });
-
-    return grouped;
+  // Open tasks first by due date (overdue naturally on top), completed last
+  const sortedTasks = useMemo(() => {
+    const isDone = (t: Task) => (t.status === "done" ? 1 : 0);
+    return [...tasks].sort(
+      (a, b) => isDone(a) - isDone(b) || a.dueDate.getTime() - b.dueDate.getTime()
+    );
   }, [tasks]);
 
-  const toggleBranch = (branchKey: string) => {
-    setExpandedBranches((prev) => ({
-      ...prev,
-      [branchKey]: !prev[branchKey],
-    }));
-  };
-
-  const toggleProjectBranch = (projectKey: string) => {
-    setExpandedBranches((prev) => ({
-      ...prev,
-      [projectKey]: !prev[projectKey],
-    }));
-  };
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const statusCounts = useMemo(() => {
+    const counts: Record<StatusFilter, number> = { all: sortedTasks.length, overdue: 0, urgent: 0, due: 0, completed: 0 };
+    sortedTasks.forEach((t) => { counts[getTaskStatus(t)] += 1; });
+    return counts;
+  }, [sortedTasks]);
+  const visibleTasks = useMemo(
+    () => (statusFilter === "all" ? sortedTasks : sortedTasks.filter((t) => getTaskStatus(t) === statusFilter)),
+    [sortedTasks, statusFilter]
+  );
 
   // Get next deadline
   const nextDeadline = tasks
-    .filter(task => task.status !== "done" && task.dueDate >= new Date())
+    .filter(task => task.status !== "done" && endOfDay(task.dueDate) >= new Date())
     .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
 
   const handlePrevMonth = () => setCurrentDate(subMonths(currentDate, 1));
@@ -335,86 +296,6 @@ export default function Calendar() {
 
   const selectedDateTasks = selectedDate ? getTasksForDate(selectedDate) : [];
 
-  // Tree Node Component
-  const TreeNode = ({
-    label,
-    branchKey,
-    isExpanded,
-    onToggle,
-    children,
-    icon,
-    count,
-  }: {
-    label: string;
-    branchKey: string;
-    isExpanded: boolean;
-    onToggle: () => void;
-    children: React.ReactNode;
-    icon?: React.ReactNode;
-    count?: number;
-  }) => (
-    <div className="mb-4">
-      <button
-        onClick={onToggle}
-        className="flex w-full items-center gap-3 rounded-lg p-3 hover:bg-secondary/50 transition-colors"
-      >
-        {isExpanded ? (
-          <ChevronDown className="h-5 w-5 text-primary flex-shrink-0" />
-        ) : (
-          <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-        )}
-        {icon}
-        <span className="font-semibold text-foreground flex-1 text-left">{label}</span>
-        {count !== undefined && (
-          <span className="text-xs px-2 py-1 bg-primary/20 text-primary rounded-full font-medium">
-            {count}
-          </span>
-        )}
-      </button>
-      {isExpanded && <div className="ml-4 space-y-2">{children}</div>}
-    </div>
-  );
-
-  // Task Item Component
-  const TaskItem = ({ task }: { task: Task }) => {
-    const status = getTaskStatus(task);
-    const daysLeft = differenceInDays(task.dueDate, new Date());
-    return (
-      <div
-        onClick={() => navigate(`/projects/${task.projectId}`)}
-        className={cn(
-          "p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-lg hover:scale-102 group",
-          status === "urgent" || status === "overdue"
-            ? "border-destructive bg-destructive/10"
-            : "border-border/50 bg-secondary/30"
-        )}
-      >
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-              {task.name}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {daysLeft === 0
-                ? "Due today!"
-                : daysLeft === 1
-                ? "Due tomorrow"
-                : daysLeft < 0
-                ? `${Math.abs(daysLeft)} days overdue`
-                : `Due in ${daysLeft} days`}
-            </p>
-          </div>
-          <Avatar className="h-6 w-6 flex-shrink-0">
-            <AvatarImage src={task.assignedTo.avatar} />
-            <AvatarFallback className="text-[10px]">
-              {task.assignedTo.name.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <MainLayout>
       <div className="animate-fade-in space-y-6 sm:space-y-8">
@@ -427,6 +308,30 @@ export default function Calendar() {
             <p className="mt-1 text-muted-foreground">
               Track deadlines and stay on schedule
             </p>
+
+            <div className="mt-3 flex items-center gap-3 rounded-xl border border-border/60 bg-card/60 px-3 py-2 w-fit max-w-full">
+              <Bell className="h-4 w-4 text-primary flex-shrink-0" />
+              <label htmlFor="reminder-toggle" className="text-sm font-medium text-foreground cursor-pointer">
+                Enable reminder
+              </label>
+              <Switch
+                id="reminder-toggle"
+                checked={!!reminder?.reminder_enabled}
+                disabled={!reminder}
+                onCheckedChange={toggleReminder}
+              />
+              {reminder?.reminder_enabled && (
+                <button
+                  type="button"
+                  className="flex-shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  title={`${describeReminder(reminder)} · Edit`}
+                  aria-label={`Reminder settings. ${describeReminder(reminder)}`}
+                  onClick={() => setReminderOpen(true)}
+                >
+                  <Settings className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="relative shrink-0">
@@ -517,160 +422,94 @@ export default function Calendar() {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid gap-6 lg:grid-cols-[1fr_350px]">
-          {/* Left: Tree View */}
-          <div className="space-y-6">
+        <div className={cn("grid gap-6", showCalendar && "lg:grid-cols-[1fr_350px]")}>
+          {/* Left: Deadlines */}
+          <div className="min-w-0 space-y-6">
             {/* Next Deadline Countdown */}
-            {nextDeadline && <CountdownTimer targetDate={nextDeadline.dueDate} />}
+            {nextDeadline && <CountdownCircle target={endOfDay(nextDeadline.dueDate)} />}
 
-            {/* Task Tree */}
-            <div className="glass-card p-6 rounded-lg border border-border/50">
-              <h2 className="text-2xl font-bold text-foreground mb-6">Tasks by Priority</h2>
+            {/* Deadlines Table */}
+            <div className="glass-card p-4 sm:p-6 rounded-lg border border-border/50">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h2 className="text-xl sm:text-2xl font-bold text-foreground">All Deadlines</h2>
+                <span className="text-xs px-2 py-1 bg-primary/20 text-primary rounded-full font-medium">
+                  {visibleTasks.length}
+                </span>
+              </div>
 
-              {/* Urgent Section */}
-              <TreeNode
-                label="Urgent / Overdue"
-                branchKey="urgent"
-                isExpanded={expandedBranches.urgent}
-                onToggle={() => toggleBranch("urgent")}
-                count={
-                  Object.values(groupedTasks.urgent).reduce(
-                    (sum, tasks) => sum + tasks.length,
-                    0
-                  ) || 0
-                }
-                icon={
-                  <div className="h-3 w-3 rounded-full bg-destructive shadow-glow" />
-                }
-              >
-                {Object.entries(groupedTasks.urgent).map(
-                  ([projectName, tasks]) => (
-                    <div key={projectName} className="mb-3">
+              {sortedTasks.length > 0 && (
+                <div className="scrollbar-transparent -mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1" role="group" aria-label="Filter by status">
+                  {FILTER_OPTIONS.map((option) => {
+                    const active = statusFilter === option.value;
+                    return (
                       <button
-                        onClick={() =>
-                          toggleProjectBranch(`urgent-${projectName}`)
-                        }
-                        className="flex w-full items-center gap-2 p-2 hover:bg-secondary/30 rounded transition-colors"
-                      >
-                        {expandedBranches[`urgent-${projectName}`] !== false ? (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        key={option.value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setStatusFilter(option.value)}
+                        className={cn(
+                          "flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                          active
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
                         )}
-                        <span className="font-medium text-sm text-foreground">
-                          {projectName}
-                        </span>
-                        <span className="text-xs px-1.5 py-0.5 bg-destructive/20 text-destructive rounded font-medium ml-auto">
-                          {tasks.length}
+                      >
+                        {option.label}
+                        <span className={cn("text-xs", active ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                          {statusCounts[option.value]}
                         </span>
                       </button>
-                      {expandedBranches[`urgent-${projectName}`] !== false && (
-                        <div className="ml-4 space-y-2 mt-2">
-                          {tasks.map((task) => (
-                            <TaskItem key={task.id} task={task} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                )}
-              </TreeNode>
+                    );
+                  })}
+                </div>
+              )}
 
-              {/* Due Soon Section */}
-              <TreeNode
-                label="Due Soon"
-                branchKey="due"
-                isExpanded={expandedBranches.due}
-                onToggle={() => toggleBranch("due")}
-                count={
-                  Object.values(groupedTasks.due).reduce(
-                    (sum, tasks) => sum + tasks.length,
-                    0
-                  ) || 0
-                }
-                icon={
-                  <div className="h-3 w-3 rounded-full bg-warning shadow-glow" />
-                }
-              >
-                {Object.entries(groupedTasks.due).map(([projectName, tasks]) => (
-                  <div key={projectName} className="mb-3">
-                    <button
-                      onClick={() =>
-                        toggleProjectBranch(`due-${projectName}`)
-                      }
-                      className="flex w-full items-center gap-2 p-2 hover:bg-secondary/30 rounded transition-colors"
-                    >
-                      {expandedBranches[`due-${projectName}`] !== false ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
-                      <span className="font-medium text-sm text-foreground">
-                        {projectName}
-                      </span>
-                      <span className="text-xs px-1.5 py-0.5 bg-warning/20 text-warning rounded font-medium ml-auto">
-                        {tasks.length}
-                      </span>
-                    </button>
-                    {expandedBranches[`due-${projectName}`] !== false && (
-                      <div className="ml-4 space-y-2 mt-2">
-                        {tasks.map((task) => (
-                          <TaskItem key={task.id} task={task} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </TreeNode>
-
-              {/* Completed Section */}
-              <TreeNode
-                label="Completed"
-                branchKey="completed"
-                isExpanded={expandedBranches.completed}
-                onToggle={() => toggleBranch("completed")}
-                count={
-                  Object.values(groupedTasks.completed).reduce(
-                    (sum, tasks) => sum + tasks.length,
-                    0
-                  ) || 0
-                }
-                icon={
-                  <div className="h-3 w-3 rounded-full bg-success shadow-glow" />
-                }
-              >
-                {Object.entries(groupedTasks.completed).map(
-                  ([projectName, tasks]) => (
-                    <div key={projectName} className="mb-3">
-                      <button
-                        onClick={() =>
-                          toggleProjectBranch(`completed-${projectName}`)
-                        }
-                        className="flex w-full items-center gap-2 p-2 hover:bg-secondary/30 rounded transition-colors"
-                      >
-                        {expandedBranches[`completed-${projectName}`] !== false ? (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        )}
-                        <span className="font-medium text-sm text-foreground">
-                          {projectName}
-                        </span>
-                        <span className="text-xs px-1.5 py-0.5 bg-success/20 text-success rounded font-medium ml-auto">
-                          {tasks.length}
-                        </span>
-                      </button>
-                      {expandedBranches[`completed-${projectName}`] !== false && (
-                        <div className="ml-4 space-y-2 mt-2">
-                          {tasks.map((task) => (
-                            <TaskItem key={task.id} task={task} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                )}
-              </TreeNode>
+              {isLoading ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">Loading deadlines…</p>
+              ) : loadError && rows.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  Couldn't load your deadlines.{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary hover:underline"
+                    onClick={() => { setIsLoading(true); setLoadError(false); setReloadKey((k) => k + 1); }}
+                  >
+                    Try again
+                  </button>
+                </p>
+              ) : sortedTasks.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  No deadlines yet. Tasks with a due date will show up here.
+                </p>
+              ) : visibleTasks.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  No {FILTER_OPTIONS.find((o) => o.value === statusFilter)?.label.toLowerCase()} deadlines.{" "}
+                  <button type="button" className="font-medium text-primary hover:underline" onClick={() => setStatusFilter("all")}>
+                    Show all
+                  </button>
+                </p>
+              ) : (
+                <Table className="min-w-[640px]" containerClassName="scrollbar-transparent">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Task</TableHead>
+                      <TableHead>Due date</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Assignee</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visibleTasks.map((task) => (
+                      <DeadlineRow
+                        key={task.id}
+                        task={task}
+                        onOpen={(projectId) => navigate(projectId ? `/projects/${projectId}` : "/dashboard")}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </div>
           </div>
 
@@ -768,6 +607,13 @@ export default function Calendar() {
           )}
         </div>
 
+        <ReminderDialog
+          open={reminderOpen}
+          onOpenChange={setReminderOpen}
+          settings={reminder}
+          onSave={saveReminder}
+        />
+
         {/* Date Details Dialog */}
         <Dialog open={!!selectedDate} onOpenChange={() => setSelectedDate(null)}>
           <DialogContent className="max-w-lg">
@@ -810,7 +656,7 @@ export default function Calendar() {
                 return (
                   <div
                     key={task.id}
-                    onClick={() => navigate(`/projects/${task.projectId}`)}
+                    onClick={() => navigate(task.projectId ? `/projects/${task.projectId}` : "/dashboard")}
                     className={cn(
                       "cursor-pointer rounded-lg border border-border/30 border-l-4 p-3 transition-all hover:shadow-md",
                       stripeColor,

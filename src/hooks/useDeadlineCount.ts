@@ -1,37 +1,27 @@
 import { useEffect, useState } from "react";
-import { useProjects } from "@/contexts/ProjectContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { secureFetch } from "@/api/apiClient";
 import { readCache, writeCache } from "@/lib/cache";
 
-// Counts active deadlines across all of the user's projects — tasks that have a
-// deadline set and are not yet completed (matches the Deadlines page's
-// urgent/overdue + due tasks). Drives the sidebar "Deadlines" badge.
-// The last value is cached so the badge shows instantly, then refreshes on mount.
+// Counts active deadlines — tasks (project and personal) that have a due date and are not yet
+// completed, matching the Deadlines page. Drives the sidebar "Deadlines" badge.
+// One request to /api/v2/deadlines/; the last value is cached so the badge shows instantly.
 export function useDeadlineCount(): number {
-  const { projects, fetchProjectTasks } = useProjects();
+  const { user } = useAuth();
   const [count, setCount] = useState<number>(
     () => readCache<number>("deadline-count") ?? 0
   );
 
   useEffect(() => {
+    if (!user) return;
     let cancelled = false;
 
-    const load = async () => {
-      if (projects.length === 0) {
-        if (!cancelled) {
-          setCount(0);
-          writeCache("deadline-count", 0);
-        }
-        return;
-      }
-
+    (async () => {
       try {
-        const results = await Promise.all(
-          projects.map((p) => fetchProjectTasks(p.id))
-        );
-        const total = results
-          .flat()
-          .filter((t) => t.deadline && t.status !== "completed").length;
-
+        const res = await secureFetch("/api/v2/deadlines/");
+        if (!res.ok || cancelled) return;
+        const rows: Array<{ status: string }> = await res.json();
+        const total = rows.filter((r) => r.status !== "completed").length;
         if (!cancelled) {
           setCount(total);
           writeCache("deadline-count", total);
@@ -39,13 +29,12 @@ export function useDeadlineCount(): number {
       } catch {
         // Keep the cached value on failure.
       }
-    };
+    })();
 
-    load();
     return () => {
       cancelled = true;
     };
-  }, [projects, fetchProjectTasks]);
+  }, [user?.id]);
 
   return count;
 }

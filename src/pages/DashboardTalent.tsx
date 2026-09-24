@@ -154,9 +154,9 @@ export default function DashboardTalent() {
           /> */}
         </div>
 
-        <div className="grid gap-6 sm:gap-8 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-3">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="min-w-0 lg:col-span-2 space-y-6">
             {/* My Tasks — shared with the creator dashboard */}
             <MyTasksPanel variant="talent" />
 
