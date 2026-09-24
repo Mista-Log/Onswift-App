@@ -56,6 +56,11 @@ from .views import (
     SyncAllTasksView,
     SyncedTasksListView,
 )
+from .personal_tasks import (
+    PersonalTaskListCreateView,
+    PersonalTaskDetailView,
+    PersonalTaskEligibilityView,
+)
 
 urlpatterns = [
     # Projects
@@ -73,6 +78,9 @@ urlpatterns = [
     path("tasks/<uuid:task_id>/request-completion/", TaskRequestCompletionView.as_view(), name="task-request-completion"),
     path("tasks/<uuid:task_id>/request-revision/", TaskRequestRevisionView.as_view(), name="task-request-revision"),
     path("my-tasks/", TalentTasksListView.as_view(), name="talent-tasks"),
+    path("personal-tasks/", PersonalTaskListCreateView.as_view(), name="personal-task-list-create"),
+    path("personal-tasks/eligibility/", PersonalTaskEligibilityView.as_view(), name="personal-task-eligibility"),
+    path("personal-tasks/<uuid:pk>/", PersonalTaskDetailView.as_view(), name="personal-task-detail"),
     path("creator/analytics/", CreatorAnalyticsView.as_view(), name="creator-analytics"),
 
     # Task Comments
