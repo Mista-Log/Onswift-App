@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { secureFetch } from "@/api/apiClient";
 import { readCache, writeCache } from "@/lib/cache";
+import { message } from "@/lib/feedback";
 
 const POLL_MS = 30_000;
 
@@ -14,6 +15,10 @@ export function useUnreadChatCount(): number {
   const [count, setCount] = useState<number>(
     () => readCache<number>("unread-chat-count") ?? 0
   );
+
+  const lastTotal = useRef<number | null>(null);
+  const pathRef = useRef(location.pathname);
+  pathRef.current = location.pathname;
 
   const load = useCallback(async () => {
     try {
@@ -30,6 +35,12 @@ export function useUnreadChatCount(): number {
         const groups: Array<{ unread_count?: number }> = await groupRes.json();
         total += groups.reduce((sum, g) => sum + (g.unread_count || 0), 0);
       }
+      // Chime when new unread messages arrive (not on the first load, and not while the Messages
+      // page is focused: the open chat plays its own sound).
+      const previous = lastTotal.current;
+      lastTotal.current = total;
+      const viewingChats = pathRef.current.startsWith("/messages") && document.hasFocus();
+      if (previous !== null && total > previous && !viewingChats) message();
       setCount(total);
       writeCache("unread-chat-count", total);
     } catch {

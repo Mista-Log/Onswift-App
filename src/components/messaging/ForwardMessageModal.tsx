@@ -55,9 +55,10 @@ export function ForwardMessageModal({
     const base: Recipient[] = isCreator
       ? teamMembers.map((m) => ({ user_id: m.user_id, name: m.name, avatar: m.avatar }))
       : myCreators.map((c) => ({ user_id: c.user_id, name: c.name, avatar: c.avatar }));
+    // other_user is null for conversations with no other participant (self-chat, deleted account).
     const fromConversations: Recipient[] = conversations
-      .filter((c) => c.other_user?.role !== "assistant")
-      .map((c) => ({ user_id: c.other_user.id, name: c.other_user.name, avatar: c.other_user.avatar }));
+      .filter((c) => c.other_user && c.other_user.role !== "assistant")
+      .map((c) => ({ user_id: c.other_user!.id, name: c.other_user!.name, avatar: c.other_user!.avatar }));
 
     const byId = new Map<string, Recipient>();
     for (const r of [...base, ...fromConversations]) {
@@ -66,7 +67,7 @@ export function ForwardMessageModal({
     return Array.from(byId.values());
   }, [isCreator, teamMembers, myCreators, conversations]);
 
-  const filtered = candidates.filter((r) => r.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filtered = candidates.filter((r) => (r.name ?? "").toLowerCase().includes(searchQuery.toLowerCase()));
 
   const handleToggle = (userId: string) => {
     setSelectedRecipientIds((prev) =>
@@ -120,7 +121,7 @@ export function ForwardMessageModal({
                     <Avatar className="h-10 w-10 border border-border/50">
                       <AvatarImage src={r.avatar || undefined} alt={r.name} />
                       <AvatarFallback className="bg-primary/20 text-primary">
-                        {r.name.charAt(0)}
+                        {(r.name || "?").charAt(0)}
                       </AvatarFallback>
                     </Avatar>
                     <p className="text-sm font-medium text-foreground">{r.name}</p>
