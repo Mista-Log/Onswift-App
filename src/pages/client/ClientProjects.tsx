@@ -6,6 +6,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { greeting } from "@/lib/greeting";
 import {
   ArrowRight,
   CheckCircle2,
@@ -86,7 +87,7 @@ export default function ClientProjects() {
         {/* Welcome Header */}
         <div>
           <h1 className="text-3xl font-bold text-foreground">
-            Welcome back, {user?.full_name?.split(" ")[0] || "there"}!
+            {greeting(user?.full_name)}
           </h1>
         </div>
 
