@@ -75,7 +75,7 @@ export function ReminderDialog({ open, onOpenChange, settings, onSave }: Reminde
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>Deadline reminders</DialogTitle>
           <DialogDescription>
@@ -132,9 +132,9 @@ export function ReminderDialog({ open, onOpenChange, settings, onSave }: Reminde
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
-          <Button onClick={submit} disabled={saving}>
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <Button variant="outline" className="w-full sm:w-auto" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+          <Button className="w-full sm:w-auto" onClick={submit} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save reminder
           </Button>
