@@ -29,6 +29,7 @@ import ProjectDetail from "./pages/ProjectDetail";
 import Settings from "./pages/Settings";
 import Calendar from "./pages/Calendar";
 import AnalyticsPage from "./pages/Analytics";
+import { RouteErrorBoundary } from "./components/ErrorBoundary";
 import TalentProfileEdit from "./pages/TalentProfileEdit";
 import CreatorProfileEdit from "./pages/CreatorProfileEdit";
 // import TalentPublicProfile from "./pages/TalentPublicProfile";
@@ -139,6 +140,7 @@ const App = () => (
                 <Analytics />
                 <BrowserRouter>
                   <PageTracker />
+                  <RouteErrorBoundary>
                   <Routes>
                     {/* Admin CMS — all admin routes wrapped in AdminAuthProvider */}
                     <Route
@@ -239,6 +241,7 @@ const App = () => (
                     {/* Catch-all */}
                     <Route path="*" element={<NotFound />} />
                   </Routes>
+                  </RouteErrorBoundary>
                 </BrowserRouter>
               </ThemeProvider>
             </NotificationProvider>
