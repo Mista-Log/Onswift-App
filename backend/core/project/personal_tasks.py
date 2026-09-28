@@ -7,7 +7,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import PersonalTask, Project
+from django.shortcuts import get_object_or_404
+
+from core.exceptions import storage_error_guard
+
+from .models import PersonalTask, PersonalTaskAttachment, Project
 
 
 def linkable_projects(user):
@@ -29,7 +33,23 @@ def can_create_personal_tasks(user):
     return user.role == "talent" and linkable_projects(user).exists()
 
 
+class PersonalTaskAttachmentSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PersonalTaskAttachment
+        fields = ["id", "name", "file_url", "url", "created_at"]
+        read_only_fields = fields
+
+    def get_file_url(self, obj):
+        if not obj.file:
+            return None
+        request = self.context.get("request")
+        return request.build_absolute_uri(obj.file.url) if request else obj.file.url
+
+
 class PersonalTaskSerializer(serializers.ModelSerializer):
+    attachments = PersonalTaskAttachmentSerializer(many=True, read_only=True)
     linked_project_ids = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=Project.objects.all(),
@@ -44,7 +64,7 @@ class PersonalTaskSerializer(serializers.ModelSerializer):
         model = PersonalTask
         fields = [
             "id", "name", "description", "status", "deadline",
-            "linked_project_ids", "linked_projects", "is_personal",
+            "linked_project_ids", "linked_projects", "is_personal", "attachments",
             "completed_at", "created_at",
         ]
         read_only_fields = ["completed_at", "created_at"]
@@ -87,7 +107,7 @@ class PersonalTaskListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = PersonalTask.objects.filter(owner=self.request.user).prefetch_related("linked_projects")
+        qs = PersonalTask.objects.filter(owner=self.request.user).prefetch_related("linked_projects", "attachments")
         project_id = self.request.query_params.get("project")
         if project_id:
             try:
@@ -111,7 +131,47 @@ class PersonalTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return PersonalTask.objects.filter(owner=self.request.user).prefetch_related("linked_projects")
+        return PersonalTask.objects.filter(owner=self.request.user).prefetch_related("linked_projects", "attachments")
+
+
+class PersonalTaskAttachmentListCreateView(generics.ListCreateAPIView):
+    """GET/POST /personal-tasks/<task_id>/attachments/ - files and links on your own personal task."""
+    serializer_class = PersonalTaskAttachmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def _task(self):
+        # Only the owner can see or add to a personal task's attachments (others get a 404).
+        return get_object_or_404(PersonalTask, id=self.kwargs["task_id"], owner=self.request.user)
+
+    def get_queryset(self):
+        return self._task().attachments.all()
+
+    def perform_create(self, serializer):
+        task = self._task()
+        uploaded_file = self.request.FILES.get("file")
+        url = (self.request.data.get("url") or "").strip()
+        name = (self.request.data.get("name") or "").strip()
+        if not uploaded_file and not url:
+            raise serializers.ValidationError("Either a file or a URL is required.")
+        if url and not url.startswith(("http://", "https://")):
+            url = "https://" + url
+        if not name:
+            name = uploaded_file.name if uploaded_file else url
+        with storage_error_guard():
+            serializer.save(task=task, name=name[:255], file=uploaded_file or None, url=url or None)
+
+
+class PersonalTaskAttachmentDeleteView(generics.DestroyAPIView):
+    """DELETE /personal-tasks/<task_id>/attachments/<attachment_id>/"""
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return get_object_or_404(
+            PersonalTaskAttachment,
+            id=self.kwargs["attachment_id"],
+            task_id=self.kwargs["task_id"],
+            task__owner=self.request.user,
+        )
 
 
 class PersonalTaskEligibilityView(APIView):

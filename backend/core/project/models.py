@@ -157,6 +157,22 @@ class PersonalTask(models.Model):
         return self.name
 
 
+class PersonalTaskAttachment(models.Model):
+    """A file or link the owner attaches to their own personal task (private to them)."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(PersonalTask, on_delete=models.CASCADE, related_name="attachments")
+    name = models.CharField(max_length=255)
+    file = models.FileField(upload_to="personal_task_attachments/", null=True, blank=True)
+    url = models.URLField(max_length=2048, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} on {self.task.name}"
+
+
 class ProjectSample(models.Model):
     SAMPLE_TYPE_CHOICES = [
         ("file", "File"),
