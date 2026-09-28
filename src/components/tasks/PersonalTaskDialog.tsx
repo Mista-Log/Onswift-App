@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { secureFetch } from "@/api/apiClient";
+import { uploadErrorMessage } from "@/lib/uploadError";
+import { AttachmentsSection, type AttachmentItem } from "@/components/tasks/AttachmentsSection";
 
 export interface PersonalTask {
   id: string;
@@ -22,6 +24,7 @@ export interface PersonalTask {
   status: "planning" | "in-progress" | "completed";
   deadline?: string | null;
   linked_projects: { id: string; name: string }[];
+  attachments?: AttachmentItem[];
   is_personal: true;
 }
 
@@ -47,6 +50,7 @@ export function PersonalTaskDialog({
   const [deadline, setDeadline] = useState("");
   const [projectIds, setProjectIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -54,7 +58,44 @@ export function PersonalTaskDialog({
     setDescription(task?.description ?? "");
     setDeadline(task?.deadline ?? "");
     setProjectIds(task?.linked_projects.map((p) => p.id) ?? []);
+    setAttachments(task?.attachments ?? []);
   }, [open, task]);
+
+  // Files and links are saved as soon as they're added (the task must exist first).
+  const attachmentsUrl = task ? `/api/v2/personal-tasks/${task.id}/attachments/` : "";
+
+  const sendAttachment = async (url: string, init: RequestInit, failure: string) => {
+    let res: Response;
+    try {
+      res = await secureFetch(url, init);
+    } catch (err) {
+      throw new Error(uploadErrorMessage(undefined, err, failure));
+    }
+    if (!res.ok) throw new Error(uploadErrorMessage(res.status, undefined, failure));
+    return res;
+  };
+
+  const updateAttachments = (next: AttachmentItem[]) => {
+    setAttachments(next);
+    if (task) onSaved({ ...task, attachments: next });
+  };
+
+  const addAttachmentLink = async (url: string) => {
+    const res = await sendAttachment(attachmentsUrl, { method: "POST", body: JSON.stringify({ url }) }, "Couldn't add that link.");
+    updateAttachments([(await res.json()) as AttachmentItem, ...attachments]);
+  };
+
+  const addAttachmentFile = async (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    const res = await sendAttachment(attachmentsUrl, { method: "POST", body }, "Couldn't upload that file.");
+    updateAttachments([(await res.json()) as AttachmentItem, ...attachments]);
+  };
+
+  const removeAttachment = async (id: string) => {
+    await sendAttachment(`${attachmentsUrl}${id}/`, { method: "DELETE" }, "Couldn't remove that attachment.");
+    updateAttachments(attachments.filter((a) => a.id !== id));
+  };
 
   const toggleProject = (id: string) =>
     setProjectIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
@@ -162,6 +203,18 @@ export function PersonalTaskDialog({
                 ))}
               </div>
             </div>
+          )}
+
+          {task ? (
+            <AttachmentsSection
+              attachments={attachments}
+              onAddLink={addAttachmentLink}
+              onAddFile={addAttachmentFile}
+              onRemove={removeAttachment}
+              hint="Only you can see these."
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground">Add the task first, then reopen it to attach files and links.</p>
           )}
         </div>
 

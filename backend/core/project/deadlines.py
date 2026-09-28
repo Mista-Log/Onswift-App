@@ -37,6 +37,8 @@ class DeadlineListView(APIView):
                 "project_id": str(t.project_id),
                 "project_name": t.project.name,
                 "deadline": t.deadline.isoformat(),
+                # Optional time of day (HH:MM:SS); the countdown uses it, else the end of the day.
+                "task_time": t.task_time.isoformat() if t.task_time else None,
                 "status": t.status,
                 "assignee_id": str(first.id) if first else None,
                 "assignee_name": (first.full_name or first.email) if first else None,
@@ -50,6 +52,7 @@ class DeadlineListView(APIView):
                 "project_id": None,
                 "project_name": "Personal",
                 "deadline": t.deadline.isoformat(),
+                "task_time": None,
                 "status": t.status,
                 "assignee_id": str(user.id),
                 "assignee_name": "You",

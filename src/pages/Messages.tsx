@@ -40,17 +40,20 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { useTheme } from "next-themes";
 import { secureFetch } from "@/api/apiClient";
+import { readCache, writeCache, clearCache } from "@/lib/cache";
+import { message as chimeMessage, send as chimeSend } from "@/lib/feedback";
 import { toast } from "sonner";
 
 export interface Conversation {
   id: string;
+  // null when the conversation has no other participant (self-chat, deleted account).
   other_user: {
     id: string;
     name: string;
     avatar: string | null;
     company: string | null;
     role: string;
-  };
+  } | null;
   last_message_content: string | null;
   last_message_time: string | null;
   unread_count: number;
@@ -125,28 +128,38 @@ interface GroupMember {
   is_admin: boolean;
 }
 
+const CHAT_CACHE_TTL_MS = 30 * 60 * 1000;
+const CHAT_CACHE_MAX_CHATS = 10;
+const CHAT_CACHE_MAX_MESSAGES = 50;
+
+// Keep the newest messages of the most recently opened chats in this browser, so storage stays small.
+function saveChatMessages(chatKey: string, data: unknown) {
+  if (!Array.isArray(data)) return;
+  writeCache(`chat-msgs:${chatKey}`, data.slice(-CHAT_CACHE_MAX_MESSAGES), CHAT_CACHE_TTL_MS);
+  const recent = [chatKey, ...(readCache<string[]>("chat-msgs-index") ?? []).filter((k) => k !== chatKey)];
+  recent.slice(CHAT_CACHE_MAX_CHATS).forEach((k) => clearCache(`chat-msgs:${k}`));
+  writeCache("chat-msgs-index", recent.slice(0, CHAT_CACHE_MAX_CHATS), CHAT_CACHE_TTL_MS);
+}
+
 export default function Messages() {
   const { user } = useAuth();
   const { teamMembers, removeTeamMember } = useTeam();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"direct" | "groups">("direct");
   const [searchParams, setSearchParams] = useSearchParams();
-  // Captured before any effect runs: when arriving via /messages?user=<id>,
-  // fetchConversations must NOT auto-select the first (pinned assistant)
-  // conversation — the deep-link handler picks the right one instead.
-  const deepLinkUserRef = useRef<string | null>(
-    new URLSearchParams(window.location.search).get("user")
+  // Chat lists start from this browser's last copy so the page isn't empty while the server answers.
+  const [conversations, setConversations] = useState<Conversation[]>(
+    () => readCache<Conversation[]>("chat-conversations") ?? []
   );
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [groups, setGroups] = useState<Group[]>(() => readCache<Group[]>("chat-groups") ?? []);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [groupMessages, setGroupMessages] = useState<GroupMessage[]>([]);
   const [message, setMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
-  const [isLoadingGroups, setIsLoadingGroups] = useState(true);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(() => !readCache("chat-conversations"));
+  const [isLoadingGroups, setIsLoadingGroups] = useState(() => !readCache("chat-groups"));
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [myCreators, setMyCreators] = useState<Contact[]>([]);
@@ -338,6 +351,9 @@ export default function Messages() {
       // Opening a thread should always land at the newest message.
       isNearBottomRef.current = true;
       setShowScrollToBottomBtn(false);
+      // Show the saved copy of this chat at once; the fetch below brings it up to date.
+      const savedMessages = readCache<Message[]>(`chat-msgs:c:${selectedConversation.id}`);
+      if (savedMessages) setMessages(savedMessages);
       fetchMessages(selectedConversation.id);
       markMessagesAsRead(selectedConversation.id);
       // Reset compose state — a reply/edit in flight belongs to the old thread
@@ -356,6 +372,8 @@ export default function Messages() {
       // Opening a thread should always land at the newest message.
       isNearBottomRef.current = true;
       setShowScrollToBottomBtn(false);
+      const savedGroupMessages = readCache<GroupMessage[]>(`chat-msgs:g:${selectedGroup.id}`);
+      if (savedGroupMessages) setGroupMessages(savedGroupMessages);
       fetchGroupMessages(selectedGroup.id);
       fetchGroupMembers(selectedGroup.id);
       markGroupMessagesAsRead(selectedGroup.id);
@@ -397,7 +415,7 @@ export default function Messages() {
 
   const fetchConversations = async () => {
     try {
-      setIsLoadingConversations(true);
+      if (!readCache("chat-conversations")) setIsLoadingConversations(true);
       const response = await secureFetch('/api/v2/conversations/');
       if (response.ok) {
         const data: Conversation[] = await response.json();
@@ -407,14 +425,7 @@ export default function Messages() {
           (a, b) => Number(isAssistantConv(b)) - Number(isAssistantConv(a))
         );
         setConversations(sorted);
-        if (
-          sorted.length > 0 &&
-          !selectedConversation &&
-          activeTab === "direct" &&
-          !deepLinkUserRef.current
-        ) {
-          setSelectedConversation(sorted[0]);
-        }
+        writeCache("chat-conversations", sorted, CHAT_CACHE_TTL_MS);
       }
     } catch (error) {
       console.error("Error fetching conversations:", error);
@@ -425,11 +436,12 @@ export default function Messages() {
 
   const fetchGroups = async () => {
     try {
-      setIsLoadingGroups(true);
+      if (!readCache("chat-groups")) setIsLoadingGroups(true);
       const response = await secureFetch('/api/v2/groups/');
       if (response.ok) {
         const data = await response.json();
         setGroups(data);
+        writeCache("chat-groups", data, CHAT_CACHE_TTL_MS);
       }
     } catch (error) {
       console.error("Error fetching groups:", error);
@@ -438,13 +450,24 @@ export default function Messages() {
     }
   };
 
+  // Chime when a poll brings in messages from other people. The first load of a chat only records
+  // what is there; our own messages never chime.
+  const chimeSeen = useRef<{ key: string; ids: Set<string> } | null>(null);
+  const chimeIncoming = <T extends { id: string }>(key: string, list: T[], fromOthers: (m: T) => boolean) => {
+    const prev = chimeSeen.current;
+    if (prev && prev.key === key && list.some((m) => !prev.ids.has(m.id) && fromOthers(m))) chimeMessage();
+    chimeSeen.current = { key, ids: new Set(list.map((m) => m.id)) };
+  };
+
   const fetchGroupMessages = async (groupId: string) => {
     try {
       setIsLoadingMessages(true);
       const response = await secureFetch(`/api/v2/groups/${groupId}/messages/`);
       if (response.ok) {
         const data = await response.json();
+        chimeIncoming(`g:${groupId}`, data as GroupMessage[], (m) => !m.is_mine);
         setGroupMessages(data);
+        saveChatMessages(`g:${groupId}`, data);
       }
     } catch (error) {
       console.error("Error fetching group messages:", error);
@@ -498,7 +521,9 @@ export default function Messages() {
       const response = await secureFetch(`/api/v2/conversations/${conversationId}/messages/`);
       if (response.ok) {
         const data = await response.json();
+        chimeIncoming(`c:${conversationId}`, data as Message[], (m) => m.sender !== user?.id);
         setMessages(data);
+        saveChatMessages(`c:${conversationId}`, data);
       }
     } catch (error) {
       console.error("Error fetching messages:", error);
@@ -578,6 +603,7 @@ export default function Messages() {
       if (response.ok) {
         const newMessage = await response.json();
         setMessages(prev => [...prev, newMessage]);
+        chimeSend();
         setMessage("");
         setReplyingTo(null);
         // Sending always jumps to the bottom, even if scrolled up.
@@ -624,6 +650,7 @@ export default function Messages() {
       if (response.ok) {
         const newMessage = await response.json();
         setGroupMessages(prev => [...prev, newMessage]);
+        chimeSend();
         setMessage("");
         setMentions([]); // Clear mentions after sending
         setReplyingTo(null);
@@ -923,9 +950,6 @@ export default function Messages() {
     setActiveTab(tab);
     if (tab === "direct") {
       setSelectedGroup(null);
-      if (conversations.length > 0 && !selectedConversation) {
-        setSelectedConversation(conversations[0]);
-      }
     } else {
       setSelectedConversation(null);
       if (groups.length > 0 && !selectedGroup) {
@@ -947,7 +971,7 @@ export default function Messages() {
     .filter(m => m.user_id !== user?.id)
     .map(m => ({
       id: m.user_id,
-      name: m.name,
+      name: m.name ?? "",
       avatar: m.avatar,
       role: m.role,
     }));

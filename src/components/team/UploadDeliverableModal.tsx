@@ -30,6 +30,8 @@ export interface DeliverableFormData {
   title: string;
   description: string;
   urls: string[];
+  /** Files picked in the form; optional because a resubmission from a card sends only links. */
+  files?: File[];
   mentionedUserIds: string[];
 }
 
@@ -69,6 +71,9 @@ export function UploadDeliverableModal({
   const [description, setDescription] = useState("");
   const [urls, setUrls] = useState<string[]>([]);
   const [newUrl, setNewUrl] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Build revision tasks list. We'll fetch from the API on open, with fallbacks.
@@ -170,6 +175,31 @@ export function UploadDeliverableModal({
     setUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // File attachments
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const dropped = Array.from(e.dataTransfer.files);
+    if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
+  };
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files ?? []);
+    if (selected.length) setFiles((prev) => [...prev, ...selected]);
+    // Allow picking the same file again after removing it.
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = () => {
     if (!taskId || !title) {
       toast.error("Please fill in all required fields");
@@ -187,6 +217,7 @@ export function UploadDeliverableModal({
       title,
       description,
       urls,
+      files,
       mentionedUserIds: [],
     });
 
@@ -203,6 +234,7 @@ export function UploadDeliverableModal({
     setTitle("");
     setDescription("");
     setUrls([]);
+    setFiles([]);
   };
 
   return (
@@ -266,6 +298,64 @@ export function UploadDeliverableModal({
               placeholder="Add notes about this attachment..."
               rows={3}
             />
+          </div>
+
+          {/* File Attachments */}
+          <div className="space-y-2">
+            <Label>File Attachments</Label>
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={cn(
+                "flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-all",
+                isDragging
+                  ? "border-primary bg-primary/10"
+                  : "border-border/50 hover:border-primary/50 hover:bg-secondary/30"
+              )}
+            >
+              <Upload className="h-10 w-10 text-muted-foreground mb-3" />
+              <p className="text-sm text-foreground font-medium">Drag files here or click to browse</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+                data-testid="attachment-file-input"
+              />
+            </div>
+
+            {files.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {files.map((file, index) => {
+                  const FileIcon = getFileIcon(file.type);
+                  return (
+                    <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-2">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <FileIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
+                          <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Remove ${file.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeFile(index);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* URL Attachments */}

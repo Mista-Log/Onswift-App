@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
+import { SyncStatusPill } from "@/components/layout/SyncStatusPill";
 import { useTheme } from "next-themes";
 const creatorNavItems = [
   { label: "Workspace", icon: LayoutGrid, route: "/dashboard" },
@@ -422,6 +423,7 @@ export function TopBar({ onToggleSidebar, onToggleMobileSidebar, isCollapsed }: 
 
       {/* Right side */}
       <div className="flex items-center gap-2 md:gap-4">
+        <SyncStatusPill />
         <NotificationDropdown />
 
         <DropdownMenu>

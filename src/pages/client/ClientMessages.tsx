@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import type { PortalMessage } from "@/types/portal";
+import { message as chimeMessage, send as chimeSend } from "@/lib/feedback";
 
 const POLL_INTERVAL = 5000;
 
@@ -100,9 +101,12 @@ export default function ClientMessages() {
           // Our tail isn't in the newest page (many new messages at once) —
           // resync to the latest page.
           setMessages(latest);
+          if (latest.some((m) => m.sender !== user?.id)) chimeMessage();
           markMessagesRead();
         } else if (lastIdx < latest.length - 1) {
-          setMessages((prev) => [...prev, ...latest.slice(lastIdx + 1)]);
+          const fresh = latest.slice(lastIdx + 1);
+          setMessages((prev) => [...prev, ...fresh]);
+          if (fresh.some((m) => m.sender !== user?.id)) chimeMessage();
           markMessagesRead();
         }
       }
@@ -152,6 +156,7 @@ export default function ClientMessages() {
       if (response.ok) {
         const newMessage = await response.json();
         setMessages((prev) => [...prev, newMessage]);
+        chimeSend();
         setContent("");
         setFile(null);
       } else {

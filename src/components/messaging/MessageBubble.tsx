@@ -68,7 +68,7 @@ export function MessageBubble({
         <Avatar className="h-8 w-8 mr-2 shrink-0 self-end">
           <AvatarImage src={msg.sender_avatar || undefined} alt={msg.sender_name} />
           <AvatarFallback className="bg-primary/20 text-primary text-xs">
-            {msg.sender_name.charAt(0)}
+            {(msg.sender_name || "?").charAt(0)}
           </AvatarFallback>
         </Avatar>
       )}

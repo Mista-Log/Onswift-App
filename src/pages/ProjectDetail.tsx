@@ -5,7 +5,7 @@ import { CelebrationModal } from "@/components/CelebrationModal";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
-import { Pencil} from "lucide-react";
+import { Pencil, Grip, Hourglass } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ArrowLeft,
@@ -71,14 +71,19 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DeliverablesPanel } from "@/components/team/DeliverablesPanel";
 import { PersonalTaskCard } from "@/components/tasks/PersonalTaskCard";
+import { queueStatusChange, applyPendingStatuses, onSyncResult } from "@/lib/syncQueue";
+import { success as feedbackSuccess, swipe as feedbackSwipe, error as feedbackError } from "@/lib/feedback";
 import { PersonalTaskDialog, type PersonalTask } from "@/components/tasks/PersonalTaskDialog";
+import { readCache } from "@/lib/cache";
+import { stageAction, type StageAction } from "@/lib/taskStages";
+import { CompletionGate } from "@/components/tasks/CompletionGate";
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
-  const { projects, fetchProjectTasks, addTask, updateTask, deleteTask, deleteProject, updateProject } = useProjects();
+  const { projects, fetchProjects, fetchProjectTasks, addTask, updateTask, deleteTask, deleteProject, updateProject } = useProjects();
   const { teamMembers } = useTeam();
   const [tasks, setTasks] = useState<Task[]>([]);
   // The signed-in user's own personal tasks linked to this project (private to them).
@@ -121,6 +126,8 @@ export default function ProjectDetail() {
   const [dragOverCol, setDragOverCol] = useState<"planning" | "in-progress" | "completed" | null>(null);
   const [activeTab, setActiveTab] = useState<"board" | "deliverables">("board");
   const [deliverablePrefill, setDeliverablePrefill] = useState<string | undefined>(undefined);
+  // Task a talent is trying to complete: asks "do you have an attachment?" before anything is sent.
+  const [gateTaskId, setGateTaskId] = useState<string | null>(null);
   const [uploadAttachmentSignal, setUploadAttachmentSignal] = useState(0);
 
   // Client chat now lives in a modal (ClientChatModal) instead of an inline card.
@@ -159,21 +166,51 @@ export default function ProjectDetail() {
     setShowTalentProjectDone(true);
   }, [project, isCreator]);
 
-  const loadTasks = async () => {
+  // `silent` refreshes in the background: no spinner replacing the board. Changes the server hasn't
+  // confirmed yet stay visible, so a refresh can't bounce a card back.
+  const loadTasks = async (silent = false) => {
     if (!id) return;
-    setIsLoading(true);
+    // Paint this browser's saved board first; the spinner is only for a project never opened here.
+    const saved = silent !== true ? readCache<Task[]>(`project-tasks:${id}`) : null;
+    if (saved) {
+      setTasks(applyPendingStatuses("task", saved));
+      setIsLoading(false);
+    } else if (silent !== true) {
+      setIsLoading(true);
+    }
     try {
       const [data, personal] = await Promise.all([
         fetchProjectTasks(id),
         loadPersonalTasks(id),
       ]);
-      setTasks(data);
-      setPersonalTasks(personal.tasks);
+      setTasks(applyPendingStatuses("task", data));
+      setPersonalTasks(applyPendingStatuses("personal", personal.tasks));
       setLinkableProjects(personal.projects);
     } finally {
-      setIsLoading(false);
+      if (silent !== true) setIsLoading(false);
     }
   };
+
+  // When the server answers a queued status change: refresh quietly on success (recurring tasks may
+  // have spawned a new one, project counts changed); on rejection tell the user and restore the truth.
+  const syncRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return onSyncResult((result) => {
+      if (!result.ok) {
+        feedbackError();
+        toast.error(
+          result.httpStatus === 403
+            ? "You don't have permission to change that task."
+            : "Couldn't save that change, so it was undone."
+        );
+      }
+      if (syncRefreshTimer.current) clearTimeout(syncRefreshTimer.current);
+      syncRefreshTimer.current = setTimeout(() => {
+        void fetchProjects();
+        void loadTasks(true);
+      }, 400);
+    });
+  }, [id]);
 
   // Personal tasks the user linked to this project; the endpoint is owner-scoped, so nobody
   // else's ever come back.
@@ -201,17 +238,17 @@ export default function ProjectDetail() {
       return stillLinked ? [saved, ...without] : without;
     });
 
-  const handlePersonalStatusChange = async (taskId: string, status: PersonalTask["status"]) => {
-    try {
-      const res = await secureFetch(`/api/v2/personal-tasks/${taskId}/`, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) throw new Error("update failed");
-      handlePersonalSaved(await res.json());
-    } catch {
-      toast.error("Couldn't update the task. Please try again.");
-    }
+  // Instant: the card moves now, the change is stored on this device and sent in the background.
+  const handlePersonalStatusChange = (taskId: string, status: PersonalTask["status"]) => {
+    setPersonalTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status } : t)));
+    (status === "completed" ? feedbackSuccess : feedbackSwipe)();
+    queueStatusChange("personal", taskId, status);
+  };
+
+  const changeTaskStatus = (taskId: string, status: Task["status"]) => {
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status } : t)));
+    (status === "completed" ? feedbackSuccess : feedbackSwipe)();
+    queueStatusChange("task", taskId, status);
   };
 
   const sortTasks = (tasksToSort: Task[]): Task[] => {
@@ -290,10 +327,24 @@ export default function ProjectDetail() {
 
   const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
     if (!isCreator) {
+      // A talent can start/pause their own task; completing goes through the gate; the rest is locked.
+      const current = tasks.find((t) => t.id === taskId);
+      const stageOnly = Object.keys(updates).length === 1 && updates.status !== undefined;
+      if (stageOnly) {
+        const action = current ? stageAction("talent", current.status, updates.status!, current.awaiting_approval) : "locked";
+        if (action === "apply") changeTaskStatus(taskId, updates.status!);
+        else if (action === "gate") setGateTaskId(taskId);
+        return;
+      }
       toast.info(
         "Task stages are managed by your project creator. To show progress on a task, submit a deliverable.",
         { duration: 4000 }
       );
+      return;
+    }
+    // A plain stage change (button, drag, swipe) is applied instantly and synced in the background.
+    if (Object.keys(updates).length === 1 && updates.status !== undefined) {
+      changeTaskStatus(taskId, updates.status);
       return;
     }
     try {
@@ -308,6 +359,29 @@ export default function ProjectDetail() {
         toast.error("Failed to update task");
       }
     }
+  };
+
+  // Gate answers for a talent completing a task (same behaviour as the My Tasks panel).
+  const gateRequestApproval = async () => {
+    const id = gateTaskId;
+    setGateTaskId(null);
+    if (!id) return;
+    try {
+      const res = await secureFetch(`/api/v2/tasks/${id}/request-completion/`, { method: "POST" });
+      if (!res.ok) throw new Error("request failed");
+      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, awaiting_approval: true } : t)));
+      toast.success("Sent. Awaiting your creator's approval");
+    } catch {
+      toast.error("Couldn't send for approval. Please try again.");
+    }
+  };
+
+  const gateAddAttachment = () => {
+    const id = gateTaskId;
+    setGateTaskId(null);
+    if (!id) return;
+    setActiveTab("deliverables");
+    setDeliverablePrefill(id);
   };
 
   const handleDeleteTask = async (taskId: string) => {
@@ -986,6 +1060,7 @@ export default function ProjectDetail() {
                       key={task.id}
                       task={task}
                       isCreator={isCreator}
+                      stageRule={(to) => stageAction(user?.role, task.status, to, task.awaiting_approval)}
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
                       onEdit={() => handleOpenTaskDetail(task.id)}
                       onDelete={() => handleDeleteTask(task.id)}
@@ -1029,6 +1104,7 @@ export default function ProjectDetail() {
                       key={task.id}
                       task={task}
                       isCreator={isCreator}
+                      stageRule={(to) => stageAction(user?.role, task.status, to, task.awaiting_approval)}
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
                       onEdit={() => handleOpenTaskDetail(task.id)}
                       onDelete={() => handleDeleteTask(task.id)}
@@ -1072,6 +1148,7 @@ export default function ProjectDetail() {
                       key={task.id}
                       task={task}
                       isCreator={isCreator}
+                      stageRule={(to) => stageAction(user?.role, task.status, to, task.awaiting_approval)}
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
                       onEdit={() => handleOpenTaskDetail(task.id)}
                       onDelete={() => handleDeleteTask(task.id)}
@@ -1134,6 +1211,13 @@ export default function ProjectDetail() {
           />
         )}
 
+        <CompletionGate
+          open={!!gateTaskId}
+          onClose={() => setGateTaskId(null)}
+          onHasAttachment={gateAddAttachment}
+          onRequestApproval={gateRequestApproval}
+        />
+
         {/* Task Detail Modal */}
         <TaskDetailModal
           taskId={selectedTaskId}
@@ -1194,6 +1278,8 @@ export default function ProjectDetail() {
 interface TaskCardProps {
   task: Task;
   isCreator: boolean;
+  /** What moving this card to a stage does for the signed-in user (see lib/taskStages). */
+  stageRule?: (to: Task["status"]) => StageAction;
   onStatusChange: (status: "planning" | "in-progress" | "completed") => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -1211,8 +1297,14 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUSES: Array<"planning" | "in-progress" | "completed"> = ["planning", "in-progress", "completed"];
 const SWIPE_THRESHOLD = 50;
 
-function TaskCard({ task, isCreator, onStatusChange, onEdit, onDelete, onAddDeliverable, onDragStart, onDragEnd }: TaskCardProps) {
+function TaskCard({ task, isCreator, stageRule, onStatusChange, onEdit, onDelete, onAddDeliverable, onDragStart, onDragEnd }: TaskCardProps) {
   const touchStartX = useRef(0);
+
+  // Which stages this user may move the card to; the swipe hint and drag only show where they work.
+  const canMoveTo = (to: Task["status"]) => (stageRule ? stageRule(to) !== "locked" : true);
+  const idx = STATUSES.indexOf(task.status);
+  const swipeable = [STATUSES[idx - 1], STATUSES[idx + 1]].some((s) => s && canMoveTo(s));
+  const draggable = STATUSES.some((s) => s !== task.status && canMoveTo(s));
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -1220,15 +1312,20 @@ function TaskCard({ task, isCreator, onStatusChange, onEdit, onDelete, onAddDeli
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     const delta = e.changedTouches[0].clientX - touchStartX.current;
-    const idx = STATUSES.indexOf(task.status);
-    if (delta < -SWIPE_THRESHOLD && idx < STATUSES.length - 1) onStatusChange(STATUSES[idx + 1]);
-    if (delta > SWIPE_THRESHOLD && idx > 0) onStatusChange(STATUSES[idx - 1]);
+    if (delta < -SWIPE_THRESHOLD && idx < STATUSES.length - 1 && canMoveTo(STATUSES[idx + 1])) {
+      feedbackSwipe();
+      onStatusChange(STATUSES[idx + 1]);
+    }
+    if (delta > SWIPE_THRESHOLD && idx > 0 && canMoveTo(STATUSES[idx - 1])) {
+      feedbackSwipe();
+      onStatusChange(STATUSES[idx - 1]);
+    }
   };
 
   return (
     <div
-      className={`glass-card p-4 rounded-lg border space-y-3 cursor-pointer select-none ${STATUS_COLORS[task.status] || "border-border/50"}`}
-      draggable
+      className={`glass-card p-4 rounded-lg border space-y-3 cursor-pointer select-none ${STATUS_COLORS[task.status] || "border-border/50"}${task.awaiting_approval ? " ring-2 ring-amber-400/60" : ""}`}
+      draggable={draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onTouchStart={handleTouchStart}
@@ -1241,6 +1338,11 @@ function TaskCard({ task, isCreator, onStatusChange, onEdit, onDelete, onAddDeli
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          {swipeable && (
+            <span aria-hidden title="Swipe left or right to change stage" className="-ml-1 shrink-0 text-muted-foreground/60">
+              <Grip className="h-4 w-4" />
+            </span>
+          )}
           <h4 className="font-medium text-sm truncate">{task.name}</h4>
           {task.recurrence_type && (
             <span title={`Repeats ${task.recurrence_type}`} className="shrink-0">
@@ -1294,6 +1396,13 @@ function TaskCard({ task, isCreator, onStatusChange, onEdit, onDelete, onAddDeli
 
       {task.description && (
         <p className="text-xs text-muted-foreground">{task.description}</p>
+      )}
+
+      {task.awaiting_approval && (
+        <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/60 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+          <Hourglass className="h-3 w-3" />
+          {isCreator ? "Needs your approval" : "Waiting on your creator"}
+        </span>
       )}
 
       <div className="flex items-center justify-between text-xs">

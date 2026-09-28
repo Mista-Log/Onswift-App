@@ -29,6 +29,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { uploadErrorMessage } from "@/lib/uploadError";
+import { AttachmentsSection } from "@/components/tasks/AttachmentsSection";
 import { secureFetch } from "@/api/apiClient";
 import {
   useTaskDetail,
@@ -284,6 +285,7 @@ export function TaskDetailModal({
     patchDeliverableLocal, removeDeliverableLocal, patchDeliverableLinkLocal,
     addDeliverableLinkLocal, removeDeliverableLinkLocal, addDeliverableFileLocal, removeDeliverableFileLocal,
     markTaskCompletedLocal,
+    addAttachment, deleteAttachment,
     clearTask,
   } = useTaskDetail();
 
@@ -418,11 +420,14 @@ export function TaskDetailModal({
   // task's current assignees — exactly who already has access to this thread.
   const mentionMembers: MentionMember[] = task ? (() => {
     const candidates: MentionMember[] = [
-      { id: task.project_creator_id, name: task.project_creator_name, avatar: task.project_creator_avatar, role: "creator" },
+      { id: task.project_creator_id, name: task.project_creator_name ?? "", avatar: task.project_creator_avatar, role: "creator" },
+      // assignee_names/assignee_avatars are only sent on some responses (e.g. a PATCH
+      // reply keeps the previous assignee_avatars via merge) — index defensively so a
+      // shape mismatch never crashes the whole modal, just drops that one field.
       ...task.assignees.map((id, i) => ({
         id,
-        name: task.assignee_names[i],
-        avatar: task.assignee_avatars[i] ?? null,
+        name: task.assignee_names?.[i] ?? "",
+        avatar: task.assignee_avatars?.[i] ?? null,
         role: "assignee",
       })),
     ];
@@ -529,7 +534,7 @@ export function TaskDetailModal({
 
   const handleCommentKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (showMentionDropdown && mentionMembers.length > 0) {
-      const filtered = mentionMembers.filter((m) => m.name.toLowerCase().includes(mentionQuery.toLowerCase()));
+      const filtered = mentionMembers.filter((m) => (m.name ?? "").toLowerCase().includes(mentionQuery.toLowerCase()));
       if (e.key === "ArrowDown") { e.preventDefault(); setSelectedMentionIndex((p) => (p < filtered.length - 1 ? p + 1 : 0)); }
       else if (e.key === "ArrowUp") { e.preventDefault(); setSelectedMentionIndex((p) => (p > 0 ? p - 1 : filtered.length - 1)); }
       else if (e.key === "Enter" && filtered.length > 0) { e.preventDefault(); handleMentionSelect(filtered[selectedMentionIndex]); }
@@ -602,6 +607,34 @@ export function TaskDetailModal({
       toast.success("Attachment added");
     } catch (err) { toast.error(uploadErrorMessage(undefined, err, "Failed to add attachment")); }
     finally { setIsCreatingDeliverable(false); }
+  };
+
+  // Reference files and links (plain attachments, not deliverables): assignees and the creator can add.
+  const addReference = async (data: FormData, failure: string) => {
+    if (!task) return;
+    try {
+      await addAttachment(task.id, data);
+    } catch (err) {
+      throw new Error(uploadErrorMessage(undefined, err, failure));
+    }
+  };
+  const addReferenceLink = (url: string) => {
+    const data = new FormData();
+    data.append("url", url);
+    return addReference(data, "Couldn't add that link.");
+  };
+  const addReferenceFile = (file: File) => {
+    const data = new FormData();
+    data.append("file", file);
+    return addReference(data, "Couldn't upload that file.");
+  };
+  const removeReference = async (attachmentId: string) => {
+    if (!task) return;
+    try {
+      await deleteAttachment(task.id, attachmentId);
+    } catch {
+      throw new Error("Couldn't remove that attachment.");
+    }
   };
 
   const handleDeleteConfirmed = async () => {
@@ -818,6 +851,9 @@ export function TaskDetailModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-none h-screen max-h-screen rounded-none sm:rounded-none left-0 top-0 translate-x-0 translate-y-0 md:max-w-[90vw] md:h-[90vh] md:max-h-[90vh] md:rounded-lg md:left-[50%] md:top-[50%] md:translate-x-[-50%] md:translate-y-[-50%] p-0 gap-0 overflow-hidden flex flex-col">
+        {/* The visible task-name heading below is a styled div, not Radix's DialogTitle —
+            this gives the dialog its required accessible name without changing how it looks. */}
+        <DialogTitle className="sr-only">{task ? task.name : "Task details"}</DialogTitle>
         {isLoading || !task ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
@@ -1700,6 +1736,18 @@ export function TaskDetailModal({
                   </div>
                 )}
               </div>
+
+              <AttachmentsSection
+                title="Reference files & links"
+                hint="Not a submission. Anyone on this task can add them; use Attachments above to submit work for approval."
+                attachments={task.attachments ?? []}
+                onAddLink={addReferenceLink}
+                onAddFile={addReferenceFile}
+                onRemove={removeReference}
+                canRemove={(a) =>
+                  isCreator || (task.attachments ?? []).find((x) => x.id === a.id)?.uploaded_by === currentUserId
+                }
+              />
             </div>
           );
 

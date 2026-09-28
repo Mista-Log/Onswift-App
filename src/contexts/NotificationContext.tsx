@@ -11,6 +11,7 @@ import { secureFetch } from "../api/apiClient";
 import { useAuth } from "./AuthContext";
 import { Notification } from "@/types/notification";
 import { readCache, writeCache } from "../lib/cache";
+import { notify } from "../lib/feedback";
 
 interface NotificationContextType {
   notifications: Notification[];
@@ -34,6 +35,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
   const signedInUserId = useRef<string | undefined>(undefined);
+  // Ids seen so far this session (null until the first load), used to chime only for new arrivals.
+  const seenIds = useRef<Set<string> | null>(null);
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
@@ -50,6 +53,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
+        // Chime once per poll for unread items we haven't seen; the first load only records them.
+        const ids = new Set<string>((data as Notification[]).map((n) => n.id));
+        if (seenIds.current) {
+          const known = seenIds.current;
+          if ((data as Notification[]).some((n) => !n.is_read && !known.has(n.id))) notify();
+        }
+        seenIds.current = ids;
         setNotifications(data);
         writeCache("notifications", data, 2 * 60 * 1000); // 2-min TTL — notifications are time-sensitive
       } else {
@@ -135,6 +145,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   // Load when a user signs in (or the session is restored), clear when they sign out.
   useEffect(() => {
+    seenIds.current = null; // a different session starts silent again
     if (!user) {
       if (signedInUserId.current) setNotifications([]);
       signedInUserId.current = undefined;

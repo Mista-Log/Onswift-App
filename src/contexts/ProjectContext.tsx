@@ -23,6 +23,8 @@ export interface Task {
   task_time?: string | null;
   recurrence_type?: "daily" | "weekly" | "monthly" | "custom" | null;
   recurrence_days?: number | null;
+  /** A talent asked for completion; waiting on the creator. */
+  awaiting_approval?: boolean;
   created_at: string;
 }
 
@@ -39,6 +41,8 @@ export interface Project {
   }>;
   task_count: number;
   completed_tasks: number;
+  /** Tasks currently in progress; absent on data cached before this field existed. */
+  in_progress_tasks?: number;
   progress?: number;
   has_clients?: boolean;
   allow_talent_task_creation?: boolean;
@@ -67,9 +71,15 @@ const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-const deriveStatus = (p: Project): Project["status"] => {
+/**
+ * A project is "planning" until work actually starts (a fresh duplicate has tasks but none begun),
+ * "completed" when every task is done, and "in-progress" otherwise. When the API doesn't report
+ * in_progress_tasks (older cached data) we can't tell, so it falls back to "in-progress".
+ */
+export const deriveStatus = (p: Project): Project["status"] => {
   if (p.task_count === 0) return "planning";
   if (p.completed_tasks >= p.task_count) return "completed";
+  if (p.in_progress_tasks === 0 && p.completed_tasks === 0) return "planning";
   return "in-progress";
 };
 
@@ -213,12 +223,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const response = await secureFetch(`/api/v2/projects/${projectId}/tasks/`);
       if (response.ok) {
         const data = await response.json();
+        // Keep a copy in this browser for slow or offline visits.
+        writeCache(`project-tasks:${projectId}`, data, 30 * 60 * 1000);
         return data;
       }
-      return [];
+      return readCache<Task[]>(`project-tasks:${projectId}`) ?? [];
     } catch (error) {
       console.error("Error loading tasks:", error);
-      return [];
+      return readCache<Task[]>(`project-tasks:${projectId}`) ?? [];
     }
   };
 

@@ -63,6 +63,18 @@ class DeadlineListTests(TestCase):
         self.assertIsNone(rows[0]["project_id"])
         self.assertEqual(rows[0]["project_name"], "Personal")
 
+    def test_rows_carry_the_optional_time_of_day(self):
+        timed = self.task("timed", assignee=self.talent)
+        timed.task_time = dt.time(14, 30)
+        timed.save(update_fields=["task_time"])
+        self.task("untimed", assignee=self.talent)
+        PersonalTask.objects.create(owner=self.talent, name="personal", deadline=DUE)
+
+        rows = {r["name"]: r for r in self.api(self.talent).get(URL).data}
+        self.assertEqual(rows["timed"]["task_time"], "14:30:00")
+        self.assertIsNone(rows["untimed"]["task_time"])
+        self.assertIsNone(rows["personal"]["task_time"])
+
     def test_requires_authentication(self):
         self.assertEqual(APIClient().get(URL).status_code, 401)
 

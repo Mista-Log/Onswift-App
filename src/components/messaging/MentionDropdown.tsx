@@ -30,9 +30,10 @@ export function MentionDropdown({
 }: MentionDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Filter members based on search query (text after @)
+  // Filter members based on search query (text after @). A member's name can be missing
+  // (a caller passed incomplete data) — never let that crash the whole page.
   const filteredMembers = members.filter((member) =>
-    member.name.toLowerCase().includes(searchQuery.toLowerCase())
+    (member.name ?? "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Close on click outside
@@ -86,12 +87,12 @@ export function MentionDropdown({
             <Avatar className="h-6 w-6">
               <AvatarImage src={member.avatar || undefined} alt={member.name} />
               <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                {member.name.charAt(0)}
+                {(member.name || "?").charAt(0)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">
-                {member.name}
+                {member.name || "Unknown"}
               </p>
               {member.role && (
                 <p className="text-xs text-muted-foreground truncate">

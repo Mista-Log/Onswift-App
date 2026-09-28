@@ -7,6 +7,7 @@ import { DeadlineCountdown } from "@/components/talent/DeadlineCountdown";
 import { MyTasksPanel } from "@/components/tasks/MyTasksPanel";
 import { Folder, CheckSquare, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { greeting } from "@/lib/greeting";
 import { useProjects, type Task } from "@/contexts/ProjectContext";
 import { secureFetch } from "@/api/apiClient";
 import { toast } from "sonner";
@@ -118,7 +119,7 @@ export default function DashboardTalent() {
         {/* Welcome Header */}
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">
-            Welcome back, {user?.full_name?.split(' ')[0] || 'there'}!
+            {greeting(user?.full_name)}
           </h1>
           <p className="text-muted-foreground mt-1">Here's what's happening with your projects today</p>
         </div>
@@ -193,7 +194,7 @@ export default function DashboardTalent() {
             </div> */}
 
             {/* Countdown to the next task deadline */}
-            <DeadlineCountdown tasks={tasks} />
+            <DeadlineCountdown />
 
             {/* Upcoming Deadlines */}
             <section className="glass-card p-5 sm:p-6 md:p-7">

@@ -6,6 +6,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Button } from "@/components/ui/button";
 import { Plus, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { greeting } from "@/lib/greeting";
 import { useNavigate } from "react-router-dom";
 import { useProjects } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
@@ -59,7 +60,7 @@ export default function DashboardCreator() {
         {/* Welcome Header */}
         <div>
           <h1 className="text-3xl font-bold text-foreground">
-            Welcome back, {user?.full_name?.split(' ')[0] || 'there'}!
+            {greeting(user?.full_name)}
           </h1>
         </div>
 

@@ -10,7 +10,6 @@ import {
   endOfMonth,
   startOfWeek,
   endOfWeek,
-  endOfDay,
   eachDayOfInterval,
   isSameMonth,
   isSameDay,
@@ -32,6 +31,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { ReminderDialog } from "@/components/reminders/ReminderDialog";
 import { CountdownCircle } from "@/components/deadlines/CountdownCircle";
+import { pickNextDeadline } from "@/lib/nextDeadline";
 import { describeReminder, useReminderSettings } from "@/hooks/useReminderSettings";
 import {
   Dialog,
@@ -68,6 +68,7 @@ interface DeadlineRow {
   project_id: string | null;
   project_name: string;
   deadline: string;
+  task_time?: string | null;
   status: string;
   assignee_id: string | null;
   assignee_name: string | null;
@@ -278,10 +279,8 @@ export default function Calendar() {
     [sortedTasks, statusFilter]
   );
 
-  // Get next deadline
-  const nextDeadline = tasks
-    .filter(task => task.status !== "done" && endOfDay(task.dueDate) >= new Date())
-    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
+  // Next deadline: same rule as the Talent dashboard clock (time of day included, overdue kept)
+  const nextDeadline = useMemo(() => pickNextDeadline(rows), [rows]);
 
   const handlePrevMonth = () => setCurrentDate(subMonths(currentDate, 1));
   const handleNextMonth = () => setCurrentDate(addMonths(currentDate, 1));
@@ -426,7 +425,7 @@ export default function Calendar() {
           {/* Left: Deadlines */}
           <div className="min-w-0 space-y-6">
             {/* Next Deadline Countdown */}
-            {nextDeadline && <CountdownCircle target={endOfDay(nextDeadline.dueDate)} />}
+            {nextDeadline && <CountdownCircle target={nextDeadline.at} taskName={nextDeadline.row.name} />}
 
             {/* Deadlines Table */}
             <div className="glass-card p-4 sm:p-6 rounded-lg border border-border/50">

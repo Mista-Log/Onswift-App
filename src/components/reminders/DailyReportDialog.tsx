@@ -58,11 +58,11 @@ function Section({
             <button
               type="button"
               onClick={() => onOpen(item)}
-              className="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left hover:bg-muted/60"
+              className="flex w-full min-w-0 items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left hover:bg-muted/60"
             >
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-foreground">{item.name}</span>
-                <span className="block truncate text-xs text-muted-foreground">
+              <span className="min-w-0 flex-1">
+                <span className="block whitespace-normal break-words text-sm font-medium text-foreground [overflow-wrap:anywhere]">{item.name}</span>
+                <span className="block whitespace-normal break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
                   {item.project_name}
                   {item.reason ? ` · ${item.reason}` : item.deadline ? ` · due ${item.deadline}` : ""}
                 </span>
@@ -123,7 +123,7 @@ export function DailyReportDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[85vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>Your report for today</DialogTitle>
           <DialogDescription>Here's what's left across your projects.</DialogDescription>
@@ -136,11 +136,11 @@ export function DailyReportDialog() {
           <Section title="Needs your action" items={report.needs_action} tone="text-primary" onOpen={openItem} />
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => { setOpen(false); navigate("/calendar"); }}>
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <Button variant="outline" className="w-full sm:w-auto" onClick={() => { setOpen(false); navigate("/calendar"); }}>
             View all deadlines
           </Button>
-          <Button onClick={() => setOpen(false)}>Got it</Button>
+          <Button className="w-full sm:w-auto" onClick={() => setOpen(false)}>Got it</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
