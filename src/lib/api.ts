@@ -11,6 +11,7 @@ const mapFromBackend = (p: any): Project => ({
   teamMembers: p.teamMembers || [],
   task_count: p.task_count,
   completed_tasks: p.completed_tasks,
+  in_progress_tasks: p.in_progress_tasks,
   allow_talent_task_creation: p.allow_talent_task_creation,
 });
 

@@ -110,6 +110,7 @@ def duplicate_project(project, creator):
         creator=creator,
         name=f"{project.name} (Copy)",
         description=project.description,
+        status="pending",  # a copy starts un-started; copied tasks below also start in planning
         allow_talent_task_creation=project.allow_talent_task_creation,
     )
 
@@ -119,6 +120,7 @@ def duplicate_project(project, creator):
             name=task.name,
             description=task.description,
             priority=task.priority,
+            status="planning",
             recurrence_type=task.recurrence_type,
             recurrence_days=task.recurrence_days,
         )
@@ -365,6 +367,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     task_count = serializers.SerializerMethodField()
     completed_tasks = serializers.SerializerMethodField()
+    in_progress_tasks = serializers.SerializerMethodField()
     progress = serializers.SerializerMethodField()
     has_clients = serializers.SerializerMethodField()
 
@@ -380,6 +383,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "teamMembers",
             "task_count",
             "completed_tasks",
+            "in_progress_tasks",
             "progress",
             "has_clients",
             "allow_talent_task_creation",
@@ -407,6 +411,9 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     def get_completed_tasks(self, obj):
         return obj.tasks.filter(status="completed").count()
+
+    def get_in_progress_tasks(self, obj):
+        return obj.tasks.filter(status="in-progress").count()
 
     def get_progress(self, obj):
         total = obj.tasks.count()
