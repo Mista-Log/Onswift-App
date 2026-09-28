@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { secureFetch } from "@/api/apiClient";
+import { useFeedbackPrefs, feedback } from "@/lib/feedback";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +45,7 @@ export default function Settings() {
   const navigate = useNavigate();
 
   const { theme, setTheme } = useTheme();
+  const [feedbackPrefs, setFeedbackPrefs] = useFeedbackPrefs();
 
   // Profile form state
   const [fullName, setFullName] = useState(user?.full_name || '');
@@ -313,6 +315,60 @@ export default function Settings() {
                     onCheckedChange={(checked) => 
                       setNotifications(prev => ({ ...prev, message_alerts: checked }))
                     }
+                  />
+                </div>
+              </div>
+
+              <Separator className="my-6 bg-border/50" />
+
+              {/* Sound & vibration — per device, applies immediately */}
+              <h3 className="mb-1 font-semibold text-foreground">Sound &amp; vibration</h3>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Feedback for taps, swipes and completed tasks. Saved on this device only.
+              </p>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-foreground">Vibration</p>
+                    <p className="text-sm text-muted-foreground">
+                      Short haptic taps. Not available on iPhone, where browsers don't allow vibration.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={feedbackPrefs.haptics}
+                    onCheckedChange={(checked) => {
+                      setFeedbackPrefs({ haptics: checked });
+                      if (checked) feedback("success");
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-foreground">Sounds</p>
+                    <p className="text-sm text-muted-foreground">Soft click and success tones</p>
+                  </div>
+                  <Switch
+                    checked={feedbackPrefs.sound}
+                    onCheckedChange={(checked) => {
+                      setFeedbackPrefs({ sound: checked });
+                      if (checked) feedback("success");
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-foreground">Message &amp; notification sounds</p>
+                    <p className="text-sm text-muted-foreground">
+                      A chime for new messages and notifications, and a tick when you send. Browsers only play
+                      sound after you've used the page, and may delay it while the tab is in the background.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={feedbackPrefs.alerts}
+                    onCheckedChange={(checked) => {
+                      setFeedbackPrefs({ alerts: checked });
+                      if (checked) feedback("notify");
+                    }}
                   />
                 </div>
               </div>
