@@ -288,13 +288,31 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         else:
             return Task.objects.filter(assignees=user).select_related("project__creator").prefetch_related(*deliverable_prefetch)
 
+    # A talent may start or pause their own task (planning <-> in-progress) and nothing else:
+    # completing stays with the creator (via deliverable approval or request-completion).
+    TALENT_STAGES = ("planning", "in-progress")
+
+    def _is_talent_stage_change(self, request):
+        if request.user.role != "talent" or request.method != "PATCH":
+            return False
+        data = request.data
+        return set(data.keys()) == {"status"} and data.get("status") in self.TALENT_STAGES
+
     def perform_update(self, serializer):
+        if self.request.user.role != "creator":
+            task = serializer.instance
+            if task.status == "completed":
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("This task is completed.")
+            if task.awaiting_approval:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("This task is waiting for your creator's approval.")
         serializer.save()
 
     def check_permissions(self, request):
         super().check_permissions(request)
         if request.method in ("PUT", "PATCH", "DELETE"):
-            if request.user.role != "creator":
+            if request.user.role != "creator" and not self._is_talent_stage_change(request):
                 from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied("Only creators can modify tasks.")
 
@@ -910,6 +928,13 @@ class ConversationCreateView(APIView):
         other_user_id = request.data.get("user_id")
         if not other_user_id:
             return Response({"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # A conversation needs a second participant; a self-chat serializes with other_user=None.
+        if str(other_user_id) == str(request.user.id):
+            return Response(
+                {"error": "You can't start a conversation with yourself"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         from account.models import User
         try:
