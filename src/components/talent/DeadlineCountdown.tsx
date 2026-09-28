@@ -1,25 +1,13 @@
-import { useMemo } from "react";
 import { Timer } from "lucide-react";
-import type { Task } from "@/contexts/ProjectContext";
 import { CountdownCircle } from "@/components/deadlines/CountdownCircle";
+import { useNextDeadline } from "@/hooks/useNextDeadline";
 
-// deadline is date-only; task_time (HH:MM:SS) sharpens it, else end of day.
-function effectiveDeadline(task: Task): Date {
-  return new Date(`${task.deadline}T${task.task_time || "23:59:59"}`);
-}
+// Same data and pick rule as the clock on the Deadlines page (see lib/nextDeadline), so the two
+// always count down to the same task.
+export function DeadlineCountdown() {
+  const next = useNextDeadline();
 
-export function DeadlineCountdown({ tasks }: { tasks: Task[] }) {
-  const nextTask = useMemo(
-    () =>
-      tasks
-        .filter((t) => t.deadline && t.status !== "completed")
-        .sort(
-          (a, b) => effectiveDeadline(a).getTime() - effectiveDeadline(b).getTime()
-        )[0],
-    [tasks]
-  );
-
-  if (!nextTask) {
+  if (!next) {
     return (
       <section className="glass-card p-5 sm:p-6 md:p-7">
         <div className="flex items-center gap-2 mb-4">
@@ -33,5 +21,5 @@ export function DeadlineCountdown({ tasks }: { tasks: Task[] }) {
     );
   }
 
-  return <CountdownCircle target={effectiveDeadline(nextTask)} taskName={nextTask.name} />;
+  return <CountdownCircle target={next.at} taskName={next.row.name} />;
 }
