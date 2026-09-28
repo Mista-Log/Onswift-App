@@ -1,5 +1,10 @@
 import { cn } from "@/lib/utils";
-import { Check, Circle, Clock, PlayCircle, CheckCircle2 } from "lucide-react";
+import { Check, ChevronDown, Circle, Clock, Grip, PlayCircle, CheckCircle2 } from "lucide-react";
+import { useSwipeStatus } from "@/hooks/use-swipe-status";
+import { success as feedbackSuccess } from "@/lib/feedback";
+import type { Stage, StageAction } from "@/lib/taskStages";
+
+const STAGE_LABELS = { planning: "Planning", "in-progress": "In Progress", completed: "Completed" } as const;
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -18,6 +23,8 @@ interface TaskCardProps {
   awaitingApproval?: boolean;
   assignedToMe?: boolean;
   onStatusChange?: (id: string, status: "planning" | "in-progress" | "completed") => void;
+  /** What moving this card to a stage does for the signed-in user (see lib/taskStages). Omit = any stage. */
+  stageRule?: (to: Stage) => StageAction;
   onClick?: () => void;
 }
 
@@ -31,6 +38,7 @@ export function TaskCard({
   awaitingApproval,
   assignedToMe,
   onStatusChange,
+  stageRule,
   onClick
 }: TaskCardProps) {
   const isCompleted = status === "completed";
@@ -76,37 +84,99 @@ export function TaskCard({
     return `Due: ${d.toLocaleDateString()}`;
   };
 
+  // Which stages this user may move the card to (default: any). Shown/handled per the role's rule.
+  const isLocked = (to: Stage) => to !== status && stageRule?.(to) === "locked";
+  const stageOrder: Stage[] = ["planning", "in-progress", "completed"];
+  const neighbours = [stageOrder[stageOrder.indexOf(status) - 1], stageOrder[stageOrder.indexOf(status) + 1]];
+  const swipeable = !!onStatusChange && neighbours.some((n) => n && !isLocked(n));
+  const menuStages = stageOrder.filter((s) => s === status || !isLocked(s));
+
+  const swipe = useSwipeStatus({
+    status,
+    onChange: (next) => {
+      onStatusChange?.(id, next);
+      if (next === "completed") feedbackSuccess();
+    },
+    // A move that needs the completion gate is handed to the same handler, which opens the gate.
+    onGate: (next) => onStatusChange?.(id, next),
+    actionFor: stageRule,
+    disabled: !onStatusChange,
+  });
+
   return (
+    <div className="relative">
+      {swipe.target && (
+        <div
+          aria-hidden
+          className={cn(
+            "absolute inset-0 flex items-center rounded-lg border border-border/50 bg-secondary/60 px-4 text-xs font-medium text-muted-foreground",
+            swipe.offset > 0 ? "justify-start" : "justify-end"
+          )}
+        >
+          {STAGE_LABELS[swipe.target]}
+        </div>
+      )}
     <div
+      {...swipe.handlers}
+      style={swipe.style}
       className={cn(
-        "flex items-center gap-2 p-3 rounded-lg border border-border/50 transition-all duration-200 sm:gap-4 sm:p-4",
+        "relative flex items-center gap-2 p-3 rounded-lg border border-border/50 bg-background transition-colors duration-200 sm:gap-4 sm:p-4",
         "hover:border-primary/40 hover:shadow-[0_0_20px_hsl(250_76%_63%/0.15)]",
         isCompleted && "opacity-60"
       )}
     >
+      {swipeable && (
+        <span
+          aria-hidden
+          title="Swipe left or right to change stage"
+          className="-ml-1 flex-shrink-0 text-muted-foreground/60"
+        >
+          <Grip className="h-4 w-4" />
+        </span>
+      )}
+      {menuStages.length > 1 ? (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex-shrink-0 hover:scale-110 transition-transform">
-            {getStatusIcon()}
+          <button
+            aria-label={`Change stage (now ${getStatusLabel()})`}
+            title={`${getStatusLabel()} - change stage`}
+            className="flex-shrink-0 hover:scale-110 transition-transform"
+          >
+            {/* Colour still hints at the stage: grey planning, purple in progress, green completed */}
+            <ChevronDown
+              className={cn(
+                "h-5 w-5",
+                status === "completed" ? "text-green-500" : status === "in-progress" ? "text-primary" : "text-muted-foreground"
+              )}
+            />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
+          {menuStages.includes("planning") && (
           <DropdownMenuItem onClick={() => onStatusChange?.(id, "planning")}>
             <Circle className="h-4 w-4 mr-2 text-muted-foreground" />
             Planning
           </DropdownMenuItem>
+          )}
+          {menuStages.includes("in-progress") && (
           <DropdownMenuItem onClick={() => onStatusChange?.(id, "in-progress")}>
             <PlayCircle className="h-4 w-4 mr-2 text-primary" />
             In Progress
           </DropdownMenuItem>
+          )}
+          {menuStages.includes("completed") && (
           <DropdownMenuItem onClick={() => onStatusChange?.(id, "completed")}>
             <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
             Completed
           </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
+      ) : (
+        <span className="flex-shrink-0">{getStatusIcon()}</span>
+      )}
 
-      <div className="flex-1 min-w-0" onClick={onClick}>
+      <div className="flex-1 min-w-0" onClick={() => { if (!swipe.wasDragged()) onClick?.(); }}>
         <p className={cn(
           "font-medium text-foreground truncate",
           isCompleted && "line-through"
@@ -151,6 +221,7 @@ export function TaskCard({
       >
         {projectName}
       </Badge>
+    </div>
     </div>
   );
 }

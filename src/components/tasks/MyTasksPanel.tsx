@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, CheckSquare, Plus } from "lucide-react";
+import { Loader2, CheckSquare, Plus, Hourglass } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,11 +13,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { queueStatusChange, applyPendingStatuses, onSyncResult } from "@/lib/syncQueue";
+import { success as feedbackSuccess, swipe as feedbackSwipe, error as feedbackError } from "@/lib/feedback";
 import { TaskCard } from "@/components/talent/TaskCard";
 import { PersonalTaskDialog, type PersonalTask } from "@/components/tasks/PersonalTaskDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProjects, type Task } from "@/contexts/ProjectContext";
 import { secureFetch } from "@/api/apiClient";
+import { readCache, writeCache } from "@/lib/cache";
+import { stageAction } from "@/lib/taskStages";
+
+const CACHE_TTL_MS = 30 * 60 * 1000;
 import { toast } from "sonner";
 
 interface MyTask extends Task {
@@ -37,45 +43,94 @@ interface MyTasksPanelProps {
  */
 export function MyTasksPanel({ variant }: MyTasksPanelProps) {
   const { user } = useAuth();
-  const { projects, updateTask } = useProjects();
+  const { projects } = useProjects();
   const navigate = useNavigate();
   const isCreator = (variant ?? user?.role) === "creator";
 
-  const [tasks, setTasks] = useState<MyTask[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Last-seen copy from this browser, so the panel is filled instantly (and offline) while the
+  // server answers. Keyed by user so accounts on a shared browser never see each other's tasks.
+  const cacheKey = `my-tasks:${user?.id ?? "anon"}`;
+  const cached = useRef(
+    readCache<{ tasks: MyTask[]; personal: PersonalTask[]; canAdd: boolean; projects: { id: string; name: string }[] }>(cacheKey)
+  ).current;
+
+  const [tasks, setTasks] = useState<MyTask[]>(() => (cached ? applyPendingStatuses("task", cached.tasks) : []));
+  const [isLoading, setIsLoading] = useState(!cached);
   const [activeTab, setActiveTab] = useState("todo");
   const [gateTaskId, setGateTaskId] = useState<string | null>(null);
-  const [personalTasks, setPersonalTasks] = useState<PersonalTask[]>([]);
-  const [canAddPersonal, setCanAddPersonal] = useState(false);
-  const [linkableProjects, setLinkableProjects] = useState<{ id: string; name: string }[]>([]);
+  const [personalTasks, setPersonalTasks] = useState<PersonalTask[]>(() =>
+    cached ? applyPendingStatuses("personal", cached.personal) : []
+  );
+  const [canAddPersonal, setCanAddPersonal] = useState(!!cached?.canAdd);
+  const [linkableProjects, setLinkableProjects] = useState<{ id: string; name: string }[]>(cached?.projects ?? []);
   const [personalDialogOpen, setPersonalDialogOpen] = useState(false);
   const [editingPersonal, setEditingPersonal] = useState<PersonalTask | null>(null);
+
+  // Latest state for fetchTasks, which outlives the render it was created in.
+  const tasksRef = useRef(tasks);
+  const personalRef = useRef(personalTasks);
+  const canAddRef = useRef(canAddPersonal);
+  const projectsRef = useRef(linkableProjects);
+  tasksRef.current = tasks;
+  personalRef.current = personalTasks;
+  canAddRef.current = canAddPersonal;
+  projectsRef.current = linkableProjects;
 
   useEffect(() => {
     fetchTasks();
   }, []);
 
-  const fetchTasks = async () => {
+  // `silent` refreshes without the spinner. Status changes the server hasn't confirmed yet stay
+  // visible, so a refresh can't bounce a card back.
+  const fetchTasks = async (silent = false) => {
     try {
-      setIsLoading(true);
+      // With a browser copy on screen there is nothing to wait for, so no spinner.
+      if (silent !== true && !cached) setIsLoading(true);
       const [res, personalRes, eligibilityRes] = await Promise.all([
         secureFetch("/api/v2/my-tasks/"),
         secureFetch("/api/v2/personal-tasks/"),
         secureFetch("/api/v2/personal-tasks/eligibility/"),
       ]);
-      if (res.ok) setTasks(await res.json());
-      if (personalRes.ok) setPersonalTasks(await personalRes.json());
+      // Anything the server didn't answer keeps the value already on screen.
+      const next = {
+        tasks: res.ok ? ((await res.json()) as MyTask[]) : tasksRef.current,
+        personal: personalRes.ok ? ((await personalRes.json()) as PersonalTask[]) : personalRef.current,
+        canAdd: canAddRef.current,
+        projects: projectsRef.current,
+      };
       if (eligibilityRes.ok) {
         const eligibility = await eligibilityRes.json();
-        setCanAddPersonal(!!eligibility.allowed);
-        setLinkableProjects(eligibility.projects ?? []);
+        next.canAdd = !!eligibility.allowed;
+        next.projects = eligibility.projects ?? [];
+        setCanAddPersonal(next.canAdd);
+        setLinkableProjects(next.projects);
       }
+      if (res.ok) setTasks(applyPendingStatuses("task", next.tasks));
+      if (personalRes.ok) setPersonalTasks(applyPendingStatuses("personal", next.personal));
+      if (res.ok || personalRes.ok || eligibilityRes.ok) writeCache(cacheKey, next, CACHE_TTL_MS);
     } catch (error) {
       console.error("Error fetching tasks:", error);
     } finally {
-      setIsLoading(false);
+      if (silent !== true) setIsLoading(false);
     }
   };
+
+  // When the server answers a queued change: quietly refresh on success; on rejection say so.
+  const syncRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return onSyncResult((result) => {
+      if (!result.ok) {
+        feedbackError();
+        toast.error(
+          result.httpStatus === 403
+            ? "You don't have permission to change that task."
+            : "Couldn't save that change, so it was undone."
+        );
+      }
+      if (syncRefreshTimer.current) clearTimeout(syncRefreshTimer.current);
+      syncRefreshTimer.current = setTimeout(() => void fetchTasks(true), 400);
+    });
+  }, []);
 
   const openAddPersonal = () => {
     setEditingPersonal(null);
@@ -95,20 +150,14 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
     );
 
   // Personal tasks skip the deliverable gate: the owner just sets the status.
-  const handlePersonalStatusChange = async (
+  // Instant: the card moves now, the change is stored on this device and sent in the background.
+  const handlePersonalStatusChange = (
     taskId: string,
     newStatus: "planning" | "in-progress" | "completed",
   ) => {
-    try {
-      const res = await secureFetch(`/api/v2/personal-tasks/${taskId}/`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!res.ok) throw new Error("update failed");
-      handlePersonalSaved(await res.json());
-    } catch {
-      toast.error("Couldn't update the task. Please try again.");
-    }
+    setPersonalTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
+    (newStatus === "completed" ? feedbackSuccess : feedbackSwipe)();
+    queueStatusChange("personal", taskId, newStatus);
   };
 
   const personalLabel = (task: PersonalTask) =>
@@ -122,24 +171,25 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
     task.project_name || projects.find((p) => p.id === task.project)?.name || "Project";
 
   // "completed" opens the deliverable gate; other transitions pass straight through.
-  const handleStatusChange = async (
+  const handleStatusChange = (
     taskId: string,
     newStatus: "planning" | "in-progress" | "completed",
   ) => {
+    // Talents can start/pause their own task; completed tasks and ones awaiting approval are locked.
+    const current = tasks.find((t) => t.id === taskId);
+    if (
+      current &&
+      stageAction(isCreator ? "creator" : "talent", current.status, newStatus, current.awaiting_approval) === "locked"
+    ) {
+      return;
+    }
     if (newStatus === "completed") {
       setGateTaskId(taskId);
       return;
     }
-    try {
-      await updateTask(taskId, { status: newStatus });
-      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
-      toast.success("Task status updated!");
-    } catch {
-      toast.info(
-        "Task stages are controlled by your project creator. Submit a deliverable to show your progress on this task.",
-        { duration: 4000 },
-      );
-    }
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
+    feedbackSwipe();
+    queueStatusChange("task", taskId, newStatus);
   };
 
   // "Yes, I have a deliverable" → go add it (creator approval will complete the task).
@@ -157,13 +207,9 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
     setGateTaskId(null);
 
     if (isCreator) {
-      try {
-        await updateTask(id, { status: "completed" });
-        setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: "completed" } : t)));
-        toast.success("Task completed");
-      } catch {
-        toast.error("Failed to complete task");
-      }
+      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: "completed" } : t)));
+      feedbackSuccess();
+      queueStatusChange("task", id, "completed");
       return;
     }
 
@@ -187,6 +233,28 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
     activeTab === "todo" ? status !== "completed" : status === "completed";
   const filteredTasks = tasks.filter((t) => inActiveTab(t.status));
   const filteredPersonal = personalTasks.filter((t) => inActiveTab(t.status));
+
+  // Tasks a talent has sent to their creator for approval sit in their own group: the ball is with
+  // the creator, so they're locked and set apart from the work still on the talent's plate.
+  const waitingTasks = !isCreator && activeTab === "todo" ? filteredTasks.filter((t) => t.awaiting_approval) : [];
+  const activeTasks = filteredTasks.filter((t) => !waitingTasks.includes(t));
+
+  const renderProjectTask = (task: MyTask) => (
+    <TaskCard
+      key={task.id}
+      id={task.id}
+      name={task.name}
+      description={task.description}
+      deadline={task.deadline}
+      projectName={getProjectName(task)}
+      status={task.status}
+      awaitingApproval={task.awaiting_approval}
+      assignedToMe={isCreator}
+      onStatusChange={handleStatusChange}
+      stageRule={(to) => stageAction(isCreator ? "creator" : "talent", task.status, to, task.awaiting_approval)}
+      onClick={() => navigate(`/projects/${task.project}?task=${task.id}`)}
+    />
+  );
 
   return (
     <section className="glass-card p-5 sm:p-6 md:p-7">
@@ -235,21 +303,16 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
                   onClick={() => openEditPersonal(task)}
                 />
               ))}
-              {filteredTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  id={task.id}
-                  name={task.name}
-                  description={task.description}
-                  deadline={task.deadline}
-                  projectName={getProjectName(task)}
-                  status={task.status}
-                  awaitingApproval={task.awaiting_approval}
-                  assignedToMe={isCreator}
-                  onStatusChange={handleStatusChange}
-                  onClick={() => navigate(`/projects/${task.project}?task=${task.id}`)}
-                />
-              ))}
+              {activeTasks.map(renderProjectTask)}
+              {waitingTasks.length > 0 && (
+                <div className="space-y-2 rounded-lg border border-dashed border-amber-400/50 bg-amber-500/5 p-2">
+                  <p className="flex items-center gap-1.5 px-1 text-xs font-medium text-amber-600">
+                    <Hourglass className="h-3.5 w-3.5" />
+                    Waiting on your creator ({waitingTasks.length})
+                  </p>
+                  {waitingTasks.map(renderProjectTask)}
+                </div>
+              )}
             </>
           ) : (
             <div className="text-center py-8">
