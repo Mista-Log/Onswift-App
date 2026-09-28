@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { secureFetch } from "@/api/apiClient";
+import { readCache, writeCache } from "@/lib/cache";
+
+const SETTINGS_CACHE_KEY = "reminder-settings";
+const SETTINGS_TTL_MS = 30 * 60 * 1000;
 
 export type ReminderFrequency = "daily" | "weekly" | "weekends";
 
@@ -34,15 +38,22 @@ export function describeReminder(s: ReminderSettings): string {
 }
 
 export function useReminderSettings() {
-  const [settings, setSettings] = useState<ReminderSettings | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // The saved copy lets the Deadlines toggle render its state immediately, even offline.
+  const [settings, setSettings] = useState<ReminderSettings | null>(() =>
+    readCache<ReminderSettings>(SETTINGS_CACHE_KEY)
+  );
+  const [isLoading, setIsLoading] = useState(() => !readCache(SETTINGS_CACHE_KEY));
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await secureFetch("/api/v1/settings/");
-        if (res.ok && !cancelled) setSettings(await res.json());
+        if (res.ok && !cancelled) {
+          const fresh: ReminderSettings = await res.json();
+          setSettings(fresh);
+          writeCache(SETTINGS_CACHE_KEY, fresh, SETTINGS_TTL_MS);
+        }
       } catch (error) {
         console.error("Error loading reminder settings:", error);
       } finally {
@@ -60,7 +71,9 @@ export function useReminderSettings() {
         body: JSON.stringify(patch),
       });
       if (!res.ok) return false;
-      setSettings(await res.json());
+      const saved: ReminderSettings = await res.json();
+      setSettings(saved);
+      writeCache(SETTINGS_CACHE_KEY, saved, SETTINGS_TTL_MS);
       return true;
     } catch {
       return false;
