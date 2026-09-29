@@ -5,6 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { googleAuth } from "@/services/googleAuth";
 import { useAuth } from "@/contexts/AuthContext";
+import { secureFetch } from "@/api/apiClient";
+import { useToast } from "@/hooks/use-toast";
 
 
 interface Props {
@@ -20,6 +22,7 @@ export default function GoogleSignInButton({
 }: Props) {
   const navigate = useNavigate();
   const { getUser } = useAuth();
+  const { toast } = useToast();
 
   return (
     <div className="w-full relative">
@@ -58,20 +61,31 @@ export default function GoogleSignInButton({
 
                 await getUser();
 
-                if (mode === "login") {
-                  navigate("/dashboard", { replace: true });
-                  return;
+                // Same invite acceptance the email/password login and signup forms do.
+                // Google sign-in used to skip this entirely, leaving an invited talent
+                // signed in but never added to the creator's team, with no way back.
+                const inviteToken = localStorage.getItem("invite_token");
+                if (inviteToken) {
+                  try {
+                    const res = await secureFetch(`/api/v3/invites/accept/${inviteToken}/`, {
+                      method: "POST",
+                    });
+                    if (!res.ok) {
+                      const body = await res.json().catch(() => ({}));
+                      toast({
+                        title: "Couldn't join the team",
+                        description: body?.error || "That invite link is no longer valid.",
+                        variant: "destructive",
+                      });
+                    }
+                  } finally {
+                    localStorage.removeItem("invite_token");
+                  }
                 }
 
-                navigate("/signup", {
-                  state: {
-                    fromSignup: true,
-                    prefilledEmail: data.user.email,
-                    prefilledName: data.user.full_name,
-                  },
-                  replace: true,
-                });
-
+                // The account already exists with its role by this point (this is what
+                // creates it, for signup) — go straight to the dashboard either way.
+                navigate("/dashboard", { replace: true });
               } catch (error) {
                 console.error("Google login failed:", error);
               }

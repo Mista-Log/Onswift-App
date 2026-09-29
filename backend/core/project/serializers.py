@@ -269,6 +269,9 @@ class TaskCommentSerializer(serializers.ModelSerializer):
 class TaskAttachmentSerializer(serializers.ModelSerializer):
     uploaded_by_name = serializers.CharField(source="uploaded_by.full_name", read_only=True)
     file_url = serializers.SerializerMethodField()
+    # No blank=True on the model field, so DRF would otherwise require a client-supplied name —
+    # perform_create() fills one in from the filename/URL when none is given.
+    name = serializers.CharField(max_length=255, required=False, allow_blank=True)
     url = serializers.CharField(max_length=2048, allow_null=True, allow_blank=True, required=False)
 
     class Meta:
