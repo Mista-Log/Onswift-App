@@ -113,7 +113,7 @@ describe("feedback()", () => {
   it("vibrates and plays a tone when both are on", async () => {
     const { feedback } = await load();
     feedback("tap");
-    expect(vibrate).toHaveBeenCalledWith(8);
+    expect(vibrate).toHaveBeenCalledWith(20);
     expect(oscillators.length).toBe(1);
   });
 
