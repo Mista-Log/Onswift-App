@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { secureFetch } from "@/api/apiClient";
-import { Loader2, UserPlus } from "lucide-react";
+import { publicFetch } from "@/api/apiClient";
+import { Loader2, UserPlus, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -13,6 +13,9 @@ export default function InvitePage() {
 
   const [loading, setLoading] = useState(true);
   const [invite, setInvite] = useState<any>(null);
+  // Set instead of navigating away — there's no dedicated route for a bad invite,
+  // and the server already tells us why (expired, used, or not found).
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     validateInvite();
@@ -20,20 +23,17 @@ export default function InvitePage() {
 
   const validateInvite = async () => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/v3/invites/validate/${token}/`
-      );
-
+      const response = await publicFetch(`/api/v3/invites/validate/${token}/`);
       const data = await response.json();
 
       if (!response.ok) {
-        navigate("/invalid-invite");
+        setError(data?.error || "This invite link is invalid.");
         return;
       }
 
       setInvite(data);
-    } catch (error) {
-      navigate("/invalid-invite");
+    } catch {
+      setError("Couldn't check this invite link. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -44,6 +44,26 @@ export default function InvitePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div className="w-full max-w-md">
+          <div className="glass-card p-8 text-center animate-fade-in">
+            <div className="w-14 h-14 mx-auto mb-4 flex items-center justify-center rounded-full bg-destructive/10">
+              <AlertTriangle className="h-6 w-6 text-destructive" />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">Invite not available</h1>
+            <p className="mt-2 text-muted-foreground text-sm">{error}</p>
+            <div className="my-6 h-px bg-border" />
+            <Button size="lg" className="w-full" onClick={() => navigate("/")}>
+              Go to OnSwift
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
