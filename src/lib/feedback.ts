@@ -58,14 +58,16 @@ export function useFeedbackPrefs(): [FeedbackPrefs, (patch: Partial<FeedbackPref
   return [current, setFeedbackPrefs];
 }
 
+// Durations long enough for a real Android vibration motor to render — much shorter than this
+// and the OS can clip the pulse to nothing, which is why vibration could look "non-existent."
 const HAPTICS: Record<FeedbackKind, number | number[]> = {
-  tap: 8,
-  swipe: 12,
-  success: [10, 40, 18],
-  error: [30, 50, 30],
-  send: 10,
-  notify: [20, 60, 20],
-  message: 15,
+  tap: 20,
+  swipe: 25,
+  success: [15, 50, 20],
+  error: [35, 60, 35],
+  send: 20,
+  notify: [25, 70, 25],
+  message: 25,
 };
 
 interface Tone {
@@ -99,7 +101,8 @@ const TONES: Record<FeedbackKind, Tone[]> = {
   ],
 };
 
-const TONE_GAIN = 0.04; // deliberately quiet
+const UI_GAIN = 0.12; // taps/swipes/success/error — a soft click, not a chime
+const ALERT_GAIN = 0.24; // notify/message/send — meant to be noticed, so twice as loud
 const TAP_MIN_GAP_MS = 40;
 
 let audioContext: AudioContext | null = null;
@@ -123,6 +126,7 @@ function playTones(kind: FeedbackKind) {
   const ctx = getAudioContext();
   if (!ctx) return;
   const start = ctx.currentTime;
+  const peakGain = ALERT_KINDS.includes(kind) ? ALERT_GAIN : UI_GAIN;
   for (const tone of TONES[kind]) {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -130,7 +134,7 @@ function playTones(kind: FeedbackKind) {
     osc.type = tone.type ?? "sine";
     osc.frequency.value = tone.freq;
     gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(TONE_GAIN, t0 + 0.008);
+    gain.gain.exponentialRampToValueAtTime(peakGain, t0 + 0.008);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + tone.duration);
     osc.connect(gain).connect(ctx.destination);
     osc.start(t0);

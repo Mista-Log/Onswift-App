@@ -331,7 +331,7 @@ export default function Settings() {
                   <div>
                     <p className="text-foreground">Vibration</p>
                     <p className="text-sm text-muted-foreground">
-                      Short haptic taps. Not available on iPhone, where browsers don't allow vibration.
+                      Short haptic taps on Android phones. Not available on iPhone, or on a computer without a vibration motor.
                     </p>
                   </div>
                   <Switch
