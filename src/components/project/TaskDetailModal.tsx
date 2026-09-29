@@ -1739,7 +1739,7 @@ export function TaskDetailModal({
 
               <AttachmentsSection
                 title="Reference files & links"
-                hint="Not a submission. Anyone on this task can add them; use Attachments above to submit work for approval."
+                hint="For reference only, not a submission. Anyone on this task can add a file or link here; to submit work for approval, use Attachments above."
                 attachments={task.attachments ?? []}
                 onAddLink={addReferenceLink}
                 onAddFile={addReferenceFile}
