@@ -6,10 +6,10 @@ type DayPart = "morning" | "afternoon" | "evening" | "night";
 
 // "{name}" is the first name. Keep every line short: it has to fit on a phone.
 const LINES: Record<DayPart, string[]> = {
-  morning: ["Rise and shine, {name}", "Coffee first, {name}?", "Fresh day, {name}. Let's go", "Morning, {name}. Ready?"],
+  morning: ["Rise and Shine, {name}", "Coffee first, {name}?", "Fresh Day, {name}. Let's go", "Good Morning, {name}. Ready?"],
   afternoon: ["Still going strong, {name}", "Midday momentum, {name}", "What's on your mind, {name}?", "Halfway there, {name}"],
-  evening: ["Golden hour, {name}", "Finish strong, {name}", "Winding down, {name}?", "One more push, {name}?"],
-  night: ["Welcome, night owl", "Burning the midnight oil, {name}?", "Still up, {name}?", "Night shift, {name}?"],
+  evening: ["Golden hour, {name}", "Finish Strong, {name}", "Winding down, {name}?", "One more push, {name}?"],
+  night: ["Welcome, Night Owl!", "Burning the midnight oil, {name}?", "Still up, {name}?", "Night shift, {name}?"],
 };
 
 const PART_OFFSET: Record<DayPart, number> = { morning: 0, afternoon: 1, evening: 2, night: 3 };
