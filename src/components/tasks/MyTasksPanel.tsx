@@ -24,6 +24,7 @@ import { readCache, writeCache } from "@/lib/cache";
 import { stageAction } from "@/lib/taskStages";
 
 const CACHE_TTL_MS = 30 * 60 * 1000;
+const TASK_DISPLAY_LIMIT = 5;
 import { toast } from "sonner";
 
 interface MyTask extends Task {
@@ -65,6 +66,7 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
   const [linkableProjects, setLinkableProjects] = useState<{ id: string; name: string }[]>(cached?.projects ?? []);
   const [personalDialogOpen, setPersonalDialogOpen] = useState(false);
   const [editingPersonal, setEditingPersonal] = useState<PersonalTask | null>(null);
+  const [showAllTasks, setShowAllTasks] = useState(false);
 
   // Latest state for fetchTasks, which outlives the render it was created in.
   const tasksRef = useRef(tasks);
@@ -239,6 +241,12 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
   const waitingTasks = !isCreator && activeTab === "todo" ? filteredTasks.filter((t) => t.awaiting_approval) : [];
   const activeTasks = filteredTasks.filter((t) => !waitingTasks.includes(t));
 
+  const totalVisibleCount = filteredPersonal.length + activeTasks.length;
+  const personalLimit = showAllTasks ? filteredPersonal.length : Math.min(filteredPersonal.length, TASK_DISPLAY_LIMIT);
+  const projectLimit = showAllTasks ? activeTasks.length : Math.max(0, TASK_DISPLAY_LIMIT - personalLimit);
+  const visiblePersonal = filteredPersonal.slice(0, personalLimit);
+  const visibleActiveTasks = activeTasks.slice(0, projectLimit);
+
   const renderProjectTask = (task: MyTask) => (
     <TaskCard
       key={task.id}
@@ -290,7 +298,7 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
             </div>
           ) : filteredPersonal.length + filteredTasks.length > 0 ? (
             <>
-              {filteredPersonal.map((task) => (
+              {visiblePersonal.map((task) => (
                 <TaskCard
                   key={`personal-${task.id}`}
                   id={task.id}
@@ -303,7 +311,7 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
                   onClick={() => openEditPersonal(task)}
                 />
               ))}
-              {activeTasks.map(renderProjectTask)}
+              {visibleActiveTasks.map(renderProjectTask)}
               {waitingTasks.length > 0 && (
                 <div className="space-y-2 rounded-lg border border-dashed border-amber-400/50 bg-amber-500/5 p-2">
                   <p className="flex items-center gap-1.5 px-1 text-xs font-medium text-amber-600">
@@ -312,6 +320,15 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
                   </p>
                   {waitingTasks.map(renderProjectTask)}
                 </div>
+              )}
+              {totalVisibleCount > TASK_DISPLAY_LIMIT && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllTasks((v) => !v)}
+                  className="block w-full border-t border-border/50 p-3 text-center text-sm font-medium text-primary hover:bg-secondary/30 transition-colors"
+                >
+                  {showAllTasks ? "Show less" : `View all (${totalVisibleCount})`}
+                </button>
               )}
             </>
           ) : (

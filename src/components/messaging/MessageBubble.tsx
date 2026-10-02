@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +43,9 @@ export function MessageBubble({
   onLongPress,
   onToggleSelected,
 }: MessageBubbleProps) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = !msg.is_deleted && msg.content.length > 300;
+
   const gesture = useMessageGesture({
     isOwn,
     disabled: msg.is_deleted || !isMobile,
@@ -163,7 +167,29 @@ export function MessageBubble({
                   </p>
                 </div>
               )}
-              <p className="text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.content}</p>
+              <p
+                className={cn(
+                  "text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]",
+                  isLong && !expanded && "line-clamp-6"
+                )}
+              >
+                {msg.content}
+              </p>
+              {isLong && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpanded((v) => !v);
+                  }}
+                  className={cn(
+                    "mt-0.5 text-xs font-medium underline",
+                    isOwn ? "text-primary-foreground/80" : "text-primary"
+                  )}
+                >
+                  {expanded ? "Show less" : "Read more"}
+                </button>
+              )}
             </>
           )}
 

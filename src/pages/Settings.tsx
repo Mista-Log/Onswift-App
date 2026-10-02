@@ -23,7 +23,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 
 interface AccountStats {
@@ -201,17 +200,6 @@ export default function Settings() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">Settings</h1>
-            <button
-              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-              className="ml-2 flex h-8 w-8 items-center justify-center rounded-full bg-muted/20 hover:bg-muted/30 transition-colors"
-              aria-label="Toggle theme"
-            >
-              {theme === "light" ? (
-                <Sun className="h-4 w-4 text-yellow-400" />
-              ) : (
-                <Moon className="h-4 w-4 text-muted-foreground" />
-              )}
-            </button>
           </div>
 
         </div>
@@ -315,6 +303,26 @@ export default function Settings() {
                     onCheckedChange={(checked) => 
                       setNotifications(prev => ({ ...prev, message_alerts: checked }))
                     }
+                  />
+                </div>
+              </div>
+
+              <Separator className="my-6 bg-border/50" />
+
+              {/* Appearance */}
+              <h3 className="mb-1 font-semibold text-foreground">Appearance</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-foreground">Dark Mode</p>
+                    <p className="text-sm text-muted-foreground">Switch between light and dark themes.</p>
+                  </div>
+                  <Switch
+                    checked={theme === "dark"}
+                    onCheckedChange={(checked) => {
+                      setTheme(checked ? "dark" : "light");
+                      feedback("success");
+                    }}
                   />
                 </div>
               </div>

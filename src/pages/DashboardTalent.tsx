@@ -121,7 +121,7 @@ export default function DashboardTalent() {
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">
             {greeting(user?.full_name)}
           </h1>
-          <p className="text-muted-foreground mt-1">Here's what's happening with your projects today</p>
+          <p className="text-muted-foreground mt-1">Here's what's happening with your projects today.</p>
         </div>
 
         {/* Profile Completion Banner */}

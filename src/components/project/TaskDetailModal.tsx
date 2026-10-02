@@ -1268,14 +1268,14 @@ export function TaskDetailModal({
 
               {/* Pending-approval banner — shown to both roles; creator gets Approve / Request revision. */}
               {task.awaiting_approval && (
-                <div className="rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 px-4 py-3">
+                <div className="rounded-xl bg-purple-50 dark:bg-gray-800/50 border border-purple-200 dark:border-gray-700 px-4 py-3">
                   <div className="flex items-start gap-3">
-                    <Clock className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
+                    <Clock className="h-4 w-4 text-purple-600 dark:text-gray-400 shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-purple-800 dark:text-purple-300">
+                      <p className="text-sm font-medium text-purple-800 dark:text-gray-300">
                         {isCreator ? "Pending your approval" : "Pending creator approval"}
                       </p>
-                      <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">
+                      <p className="text-xs text-purple-600 dark:text-gray-400 mt-0.5">
                         {isCreator
                           ? "The assignee marked this task as ready. Approve it, or request a revision."
                           : "You've marked this task as ready. Awaiting your creator's approval..."}
@@ -1297,7 +1297,7 @@ export function TaskDetailModal({
                           variant="outline"
                           onClick={() => setShowRevisionInput((v) => !v)}
                           disabled={isApproving || isRequestingRevision}
-                          className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-100 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-900/40"
+                          className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/40"
                         >
                           <RotateCcw className="h-3.5 w-3.5" />
                           Request revision
@@ -1327,7 +1327,7 @@ export function TaskDetailModal({
                           size="sm"
                           onClick={handleRequestRevision}
                           disabled={isRequestingRevision}
-                          className="gap-1.5 bg-purple-600 text-white hover:bg-purple-700"
+                          className="gap-1.5 bg-purple-600 text-white hover:bg-purple-700 dark:bg-gray-700 dark:hover:bg-gray-600"
                         >
                           {isRequestingRevision ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
                           Send request
@@ -1360,13 +1360,13 @@ export function TaskDetailModal({
                     })()
                   : null;
                 return (
-                  <div className="flex items-start gap-3 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 px-4 py-3">
-                    <Repeat className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-3 rounded-xl bg-purple-50 dark:bg-gray-800/50 border border-purple-200 dark:border-gray-700 px-4 py-3">
+                    <Repeat className="h-4 w-4 text-purple-600 dark:text-gray-400 shrink-0 mt-0.5" />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-purple-800 dark:text-purple-300">
+                      <p className="text-sm font-medium text-purple-800 dark:text-gray-300">
                         Recurring task resets {labels[task.recurrence_type]}
                       </p>
-                      <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">
+                      <p className="text-xs text-purple-600 dark:text-gray-400 mt-0.5">
                         {task.status === "completed"
                           ? "This task has been completed. A new occurrence has been scheduled."
                           : nextLabel

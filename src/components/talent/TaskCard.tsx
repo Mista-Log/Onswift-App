@@ -121,7 +121,7 @@ export function TaskCard({
       style={swipe.style}
       className={cn(
         "relative flex items-center gap-2 p-3 rounded-lg border border-border/50 bg-background transition-colors duration-200 sm:gap-4 sm:p-4",
-        "hover:border-primary/40 hover:shadow-[0_0_20px_hsl(250_76%_63%/0.15)]",
+        "hover:border-primary/40 hover:shadow-[0_0_20px_hsl(250_76%_63%/0.15)] dark:hover:shadow-[0_0_20px_hsl(0_0%_100%/0.08)]",
         isCompleted && "opacity-60"
       )}
     >
@@ -202,7 +202,7 @@ export function TaskCard({
             {getStatusLabel()}
           </Badge>
           {awaitingApproval && (
-            <Badge variant="outline" className="text-xs border-yellow-400/50 bg-yellow-500/10 text-yellow-600">
+            <Badge variant="outline" className="text-xs border-yellow-400/50 bg-yellow-500/10 text-yellow-600 dark:border-yellow-400/40 dark:bg-yellow-500/15 dark:text-yellow-400">
               Pending approval
             </Badge>
           )}

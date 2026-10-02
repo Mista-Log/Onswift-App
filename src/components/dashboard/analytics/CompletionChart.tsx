@@ -11,7 +11,7 @@ import type { CompletionPoint } from "@/hooks/useCreatorAnalytics";
 const config = {
   approved: {
     label: "Approved",
-    theme: { light: "#6B5CE7", dark: "#8B7FF0" },
+    theme: { light: "#6B5CE7", dark: "#9CA3AF" },
   },
 } satisfies ChartConfig;
 

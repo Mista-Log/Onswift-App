@@ -50,7 +50,7 @@ const talentNavItems = [
   { label: "My Projects", icon: FolderKanban, route: "/projects" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "My Files", icon: FileArchive, route: "/library" },
-  { label: "CRM", icon: Wrench, route: "/library/crm" },
+  //{ label: "CRM", icon: Wrench, route: "/library/crm" },
   { label: "Deadlines", icon: Clock, route: "/calendar" },
   // { label: "Notifications", icon: Bell, route: "/notifications" },
 ];

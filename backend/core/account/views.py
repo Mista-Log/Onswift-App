@@ -116,6 +116,10 @@ class UpdateProfileView(APIView):
                     "skills": talent_profile.skills,
                     "primary_skill": talent_profile.primary_skill,
                     "hourly_rate": str(talent_profile.hourly_rate) if talent_profile.hourly_rate else None,
+                    "bio": talent_profile.bio,
+                    "availability": talent_profile.availability,
+                    "portfolio_links": talent_profile.portfolio_links,
+                    "social_links": talent_profile.social_links,
                 })
 
         if user.role == "creator":

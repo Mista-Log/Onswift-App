@@ -47,6 +47,11 @@ export default function TalentProfileEdit() {
   });
 
   const [portfolioLinks, setPortfolioLinks] = useState<string[]>([formData.portfolioLink].filter(Boolean));
+  const [socialLinks, setSocialLinks] = useState({
+    linkedin: user?.social_links?.linkedin || "",
+    twitter: user?.social_links?.twitter || "",
+    github: user?.social_links?.github || "",
+  });
   const [newSkill, setNewSkill] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -107,10 +112,13 @@ const handleSubmit = async (e: React.FormEvent) => {
       formPayload.append("skills", skill);
     });
 
-    // Portfolio link (only first for now)
-    if (portfolioLinks.length > 0) {
-      formPayload.append("portfolioLink", portfolioLinks[0]);
-    }
+    // Portfolio links
+    portfolioLinks.forEach((link) => {
+      if (link) formPayload.append("portfolio_links", link);
+    });
+
+    // Social links (JSONField)
+    formPayload.append("social_links", JSON.stringify(socialLinks));
 
     // Call your existing AuthContext function
     const result = await updateTalentProfile(formPayload);
@@ -355,21 +363,36 @@ const handleSubmit = async (e: React.FormEvent) => {
                 <Label>LinkedIn</Label>
                 <div className="relative">
                   <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="https://linkedin.com/in/yourname" className="pl-10" />
+                  <Input
+                    value={socialLinks.linkedin}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, linkedin: e.target.value }))}
+                    placeholder="https://linkedin.com/in/yourname"
+                    className="pl-10"
+                  />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Twitter/X</Label>
                 <div className="relative">
                   <Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="https://twitter.com/yourhandle" className="pl-10" />
+                  <Input
+                    value={socialLinks.twitter}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, twitter: e.target.value }))}
+                    placeholder="https://twitter.com/yourhandle"
+                    className="pl-10"
+                  />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>GitHub</Label>
                 <div className="relative">
                   <Github className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="https://github.com/yourname" className="pl-10" />
+                  <Input
+                    value={socialLinks.github}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, github: e.target.value }))}
+                    placeholder="https://github.com/yourname"
+                    className="pl-10"
+                  />
                 </div>
               </div>
             </div>

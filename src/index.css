@@ -73,6 +73,7 @@
 
     /* Custom design tokens */
     --glow-primary: 250 76% 63%;
+    --glow-color: 250 76% 63%;
     --gradient-start: 0 0% 100%;
     --gradient-end: 0 0% 100%;
     --card-glow: 0 0 40px hsl(250 76% 63% / 0.06);
@@ -80,27 +81,27 @@
     --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
   }
 
-  /* Dark mode restores previous dark palette */
+  /* Dark mode: black background, grey buttons, white text — no purple tint */
   .dark {
-    --background: 270 50% 5%;
-    --foreground: 0 0% 100%;
+    --background: 0 0% 0%;
+    --foreground: 0 0% 92%;
 
-    --card: 270 40% 10%;
-    --card-foreground: 0 0% 100%;
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 92%;
 
-    --popover: 270 40% 12%;
-    --popover-foreground: 0 0% 100%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 92%;
 
-    --primary: 250 76% 63%;
+    --primary: 0 0% 30%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 270 35% 15%;
+    --secondary: 0 0% 16%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 270 30% 20%;
-    --muted-foreground: 250 30% 70%;
+    --muted: 0 0% 18%;
+    --muted-foreground: 0 0% 65%;
 
-    --accent: 250 100% 75%;
+    --accent: 0 0% 40%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -110,22 +111,25 @@
     --success-foreground: 0 0% 100%;
 
     --warning: 45 100% 60%;
-    --warning-foreground: 270 50% 10%;
+    --warning-foreground: 0 0% 10%;
 
-    --border: 270 30% 20%;
-    --input: 270 30% 15%;
-    --ring: 250 76% 63%;
+    --border: 0 0% 18%;
+    --input: 0 0% 14%;
+    --ring: 0 0% 45%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 270 45% 8%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 250 76% 63%;
+    --sidebar-background: 0 0% 4%;
+    --sidebar-foreground: 0 0% 92%;
+    --sidebar-primary: 0 0% 30%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 270 40% 15%;
+    --sidebar-accent: 0 0% 12%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 270 30% 18%;
-    --sidebar-ring: 250 76% 63%;
+    --sidebar-border: 0 0% 16%;
+    --sidebar-ring: 0 0% 45%;
+
+    --glow-color: 0 0% 100%;
+    --card-glow: 0 0 40px hsl(0 0% 100% / 0.04);
   }
 }
 
@@ -145,7 +149,7 @@
     min-height: 100vh;
   }
   .dark body {
-    background: linear-gradient(135deg, hsl(270 50% 5%) 0%, hsl(260 45% 10%) 50%, hsl(270 50% 5%) 100%);
+    background: linear-gradient(135deg, hsl(0 0% 0%) 0%, hsl(0 0% 3%) 50%, hsl(0 0% 0%) 100%);
   }
 }
 
@@ -170,6 +174,11 @@
   .glass-card-hover:hover {
     box-shadow: 0 0 60px hsl(250 76% 63% / 0.25);
     border-color: hsl(250 76% 63% / 0.4);
+  }
+
+  .dark .glass-card-hover:hover {
+    box-shadow: 0 0 60px hsl(0 0% 100% / 0.10);
+    border-color: hsl(0 0% 100% / 0.25);
   }
 
   /* Landing page specific components */
@@ -254,6 +263,11 @@
   .bg-gradient-radial {
     background: radial-gradient(ellipse at top left, hsl(250 76% 63% / 0.15) 0%, transparent 50%),
                 radial-gradient(ellipse at bottom right, hsl(270 60% 50% / 0.1) 0%, transparent 50%);
+  }
+
+  .dark .bg-gradient-radial {
+    background: radial-gradient(ellipse at top left, hsl(0 0% 100% / 0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at bottom right, hsl(0 0% 100% / 0.03) 0%, transparent 50%);
   }
 
   .animate-fade-in {
@@ -650,6 +664,6 @@ span[data-type="mention"] {
   white-space: nowrap;
 }
 .dark span[data-type="mention"] {
-  color: hsl(262 80% 75%);
-  background: hsl(262 68% 60% / 0.15);
+  color: hsl(0 0% 85%);
+  background: hsl(0 0% 100% / 0.12);
 }

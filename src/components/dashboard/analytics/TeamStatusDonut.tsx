@@ -9,7 +9,7 @@ import type { TalentRow } from "@/hooks/useCreatorAnalytics";
 
 // Two-slice status split; colours validated (light + dark) via the dataviz palette validator.
 const config = {
-  approved: { label: "Approved", theme: { light: "#6B5CE7", dark: "#8B7FF0" } },
+  approved: { label: "Approved", theme: { light: "#6B5CE7", dark: "#9CA3AF" } },
   pending: { label: "Pending", theme: { light: "#F59E0B", dark: "#FBBF24" } },
 } satisfies ChartConfig;
 
