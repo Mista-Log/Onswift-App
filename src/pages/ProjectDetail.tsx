@@ -1005,7 +1005,7 @@ export default function ProjectDetail() {
                           </div>
                         )}
 
-                        <p className="text-xs text-purple-600 bg-purple-50 dark:bg-purple-950/30 dark:text-purple-400 rounded-md px-3 py-2">
+                        <p className="text-xs text-purple-600 bg-purple-50 dark:bg-gray-800/50 dark:text-gray-400 rounded-md px-3 py-2">
                           When completed, the next occurrence drops back into Planning automatically at {taskFormData.task_time}.
                         </p>
                       </div>

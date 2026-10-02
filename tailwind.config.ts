@@ -141,9 +141,9 @@ export default {
         "slide-left": "slide-left 50s linear infinite",
       },
       boxShadow: {
-        glow: "0 0 40px hsl(250 76% 63% / 0.2)",
-        "glow-lg": "0 0 60px hsl(250 76% 63% / 0.3)",
-        "glow-button": "0 0 20px hsl(250 76% 63% / 0.4)",
+        glow: "0 0 40px hsl(var(--glow-color) / 0.2)",
+        "glow-lg": "0 0 60px hsl(var(--glow-color) / 0.3)",
+        "glow-button": "0 0 20px hsl(var(--glow-color) / 0.4)",
       },
     },
   },
