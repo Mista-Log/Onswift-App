@@ -153,6 +153,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     skills = serializers.ListField(child=serializers.CharField(), required=False)
     primary_skill = serializers.CharField(required=False)
     hourly_rate = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    availability = serializers.CharField(required=False)
+    portfolio_links = serializers.ListField(child=serializers.CharField(), required=False)
 
     company_name = serializers.CharField(required=False)
     bio = serializers.CharField(required=False)
@@ -170,6 +172,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             "skills",
             "primary_skill",
             "hourly_rate",
+            "availability",
+            "portfolio_links",
             "company_name",
             "bio",
             "website",
@@ -190,7 +194,10 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         # Talent profile
         if user.role == "talent":
             profile, _ = TalentProfile.objects.get_or_create(user=user)
-            for field in ["professional_title", "skills", "primary_skill", "hourly_rate", "bio"]:
+            for field in [
+                "professional_title", "skills", "primary_skill", "hourly_rate", "bio",
+                "availability", "portfolio_links", "social_links",
+            ]:
                 if field in validated_data:
                     setattr(profile, field, validated_data[field])
             profile.save()
@@ -231,6 +238,10 @@ class UserDetailSerializer(serializers.ModelSerializer):
                     "skills": talent_profile.skills,
                     "primary_skill": talent_profile.primary_skill,
                     "hourly_rate": str(talent_profile.hourly_rate) if talent_profile.hourly_rate else None,
+                    "bio": talent_profile.bio,
+                    "availability": talent_profile.availability,
+                    "portfolio_links": talent_profile.portfolio_links,
+                    "social_links": talent_profile.social_links,
                     "profile_picture": (
                         obj.profile_picture.url
                         if obj.profile_picture
