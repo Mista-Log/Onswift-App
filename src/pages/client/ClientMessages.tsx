@@ -39,6 +39,7 @@ export default function ClientMessages() {
   const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadMessages();
@@ -223,6 +224,8 @@ export default function ClientMessages() {
             ) : (
               messages.map((msg) => {
                 const isMine = msg.sender === user?.id;
+                const isLong = !!msg.content && msg.content.length > 300;
+                const isExpanded = expandedIds.has(msg.id);
                 return (
                   <div key={msg.id} className={cn("flex gap-2", isMine ? "flex-row-reverse" : "flex-row")}>
                     {!isMine && (
@@ -244,7 +247,35 @@ export default function ClientMessages() {
                             : "bg-muted rounded-bl-md"
                         )}
                       >
-                        {msg.content && <p className="text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.content}</p>}
+                        {msg.content && (
+                          <p
+                            className={cn(
+                              "text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]",
+                              isLong && !isExpanded && "line-clamp-6"
+                            )}
+                          >
+                            {msg.content}
+                          </p>
+                        )}
+                        {isLong && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(msg.id)) next.delete(msg.id);
+                                else next.add(msg.id);
+                                return next;
+                              })
+                            }
+                            className={cn(
+                              "mt-0.5 text-xs font-medium underline",
+                              isMine ? "text-primary-foreground/80" : "text-primary"
+                            )}
+                          >
+                            {isExpanded ? "Show less" : "Read more"}
+                          </button>
+                        )}
                         {msg.file && (
                           <a
                             href={msg.file}
