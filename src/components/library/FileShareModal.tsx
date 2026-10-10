@@ -85,9 +85,9 @@ export function FileShareModal({ fileId, fileName, open, onClose }: FileShareMod
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="truncate">Share "{fileName}"</DialogTitle>
+      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md">
+        <DialogHeader className="min-w-0 pr-6">
+          <DialogTitle className="block w-full min-w-0 truncate">Share "{fileName}"</DialogTitle>
           <DialogDescription>Create a link anyone can use to view or edit this file for 7 days.</DialogDescription>
         </DialogHeader>
 

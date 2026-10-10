@@ -221,7 +221,7 @@ function ItemCard({
       className="group relative flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all"
       onClick={() => onOpen(item)}
     >
-      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute top-3 right-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -398,7 +398,7 @@ export default function DocumentLibrary() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [searchOpen, setSearchOpen] = useState(false);
   const [tab, setTab] = useState<"all" | "files" | "docs" | "crm">("all");
   const [query, setQuery] = useState("");
@@ -824,7 +824,7 @@ export default function DocumentLibrary() {
                         </BreadcrumbPage>
                       ) : (
                         <BreadcrumbLink asChild>
-                          <button type="button" className="truncate max-w-[8rem] sm:max-w-none" onClick={() => navigateToFolder(entry.id)}>
+                          <button type="button" className="truncate max-w-[8rem] sm:max-w-none font-semibold" onClick={() => navigateToFolder(entry.id)}>
                             {entry.name}
                           </button>
                         </BreadcrumbLink>
@@ -863,7 +863,14 @@ export default function DocumentLibrary() {
                 </Button>
               </div>
 
-              <div className="md:hidden flex-shrink-0">
+              <div className="md:hidden flex items-center gap-2 flex-shrink-0">
+                <button
+                  aria-label="Search"
+                  className="h-9 w-9 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground flex-shrink-0"
+                  onClick={() => setSearchOpen(true)}
+                >
+                  <Search size={16} />
+                </button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground">
@@ -883,6 +890,23 @@ export default function DocumentLibrary() {
                     )}
                     <DropdownMenuItem onClick={() => setNewFileModalOpen(true)}>
                       <Plus size={14} className="mr-2" /> Create
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setFavoritesOnly((v) => !v)}>
+                      <Star size={14} className={favoritesOnly ? "mr-2 fill-current" : "mr-2"} /> Favorites
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setTab("all")}>
+                      <Clock size={14} className="mr-2" /> All ({allItems.length})
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTab("files")}>
+                      <File size={14} className="mr-2" /> Files ({filteredFiles.length})
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTab("docs")}>
+                      <NotebookPen size={14} className="mr-2" /> Docs ({filteredDocs.length})
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTab("crm")}>
+                      <Wrench size={14} className="mr-2" /> CRM ({filteredCRM.length})
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -939,8 +963,8 @@ export default function DocumentLibrary() {
                 )}
               </div>
 
-              {/* Mobile: just a lens that opens the search box, kept open while a query is active */}
-              {searchOpen || query ? (
+              {/* Mobile: expands in place once the header row's search icon (see above) is tapped */}
+              {(searchOpen || query) && (
                 <div className="relative w-full sm:hidden">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -958,20 +982,12 @@ export default function DocumentLibrary() {
                     <X size={14} className="text-muted-foreground" />
                   </button>
                 </div>
-              ) : (
-                <button
-                  aria-label="Search"
-                  className="sm:hidden h-9 w-9 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground flex-shrink-0"
-                  onClick={() => setSearchOpen(true)}
-                >
-                  <Search size={16} />
-                </button>
               )}
 
               <Button
                 variant={favoritesOnly ? "default" : "outline"}
                 size="sm"
-                className="gap-1.5 flex-shrink-0"
+                className="hidden sm:inline-flex gap-1.5 flex-shrink-0"
                 onClick={() => setFavoritesOnly((v) => !v)}
               >
                 <Star size={14} className={favoritesOnly ? "fill-current" : ""} />
@@ -994,7 +1010,7 @@ export default function DocumentLibrary() {
 
             {/* Tabs */}
             <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-              <TabsList className="bg-muted/50 h-9 gap-1">
+              <TabsList className="hidden sm:flex bg-muted/50 h-9 gap-1 max-w-full overflow-x-auto">
                 <TabsTrigger value="all" className="text-xs gap-1.5">
                   <Clock size={12} />
                   All
@@ -1165,7 +1181,7 @@ export default function DocumentLibrary() {
               <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
                 <Table2 size={22} className="text-green-500" />
               </div>
-              <span className="text-sm font-medium">Spreadsheet</span>
+              <span className="text-sm font-medium">CRM</span>
             </button>
           </div>
         </DialogContent>

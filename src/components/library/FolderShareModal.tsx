@@ -106,9 +106,9 @@ export function FolderShareModal({ folder, open, onClose }: FolderShareModalProp
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="truncate">
+      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md">
+        <DialogHeader className="min-w-0 pr-6">
+          <DialogTitle className="block w-full min-w-0 truncate">
             Share &ldquo;{folder.name}&rdquo;
           </DialogTitle>
           <DialogDescription>

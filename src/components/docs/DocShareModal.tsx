@@ -108,9 +108,9 @@ export function DocShareModal({ doc, open, onClose }: DocShareModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="truncate">
+      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md">
+        <DialogHeader className="min-w-0 pr-6">
+          <DialogTitle className="block w-full min-w-0 truncate">
             Share &ldquo;{doc.title || "Untitled"}&rdquo;
           </DialogTitle>
           <DialogDescription>
