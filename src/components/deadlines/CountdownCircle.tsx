@@ -87,7 +87,7 @@ export function CountdownCircle({ target, taskName }: CountdownCircleProps) {
       {urgent && (
         <p className="mt-3 max-w-[13rem] text-xs font-semibold text-destructive">
           {overdue
-            ? "Overdue! Wrap up this task as soon as you can."
+            ? "Overdue!!!"
             : "URGENT: Due in less than 24 hours!"}
         </p>
       )}
