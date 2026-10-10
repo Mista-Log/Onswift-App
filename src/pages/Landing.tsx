@@ -143,7 +143,7 @@ const Navigation = () => {
 
         <button
           className="hidden min-h-[40px] rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-[#5b3fc4] md:block"
-          onClick={() => navigate('/login')}
+          onClick={() => navigate('/get-started')}
           type="button"
         >
           Get Started
@@ -152,7 +152,7 @@ const Navigation = () => {
         <div className="flex items-center gap-2 md:hidden">
           <button
             className="rounded-full bg-black px-4 py-2 text-xs font-semibold text-white transition-all hover:bg-[#5b3fc4]"
-            onClick={() => navigate('/login')}
+            onClick={() => navigate('/get-started')}
             type="button"
           >
             Get Started
@@ -202,7 +202,7 @@ const Navigation = () => {
             )}
             <button
               className="mt-2 rounded-full bg-black py-2.5 text-sm font-semibold text-white"
-              onClick={() => { navigate('/login'); setIsOpen(false); }}
+              onClick={() => { navigate('/get-started'); setIsOpen(false); }}
               type="button"
             >
               Get Started
@@ -280,7 +280,7 @@ const HeroSection = () => {
         >
           <button
             className="group inline-flex items-center gap-2 rounded-full bg-white px-7 py-3 text-sm font-medium text-black transition-all hover:bg-white/90 hover:shadow-lg"
-            onClick={() => navigate('/login')}
+            onClick={() => navigate('/get-started')}
             type="button"
           >
             Get Started, It&apos;s Free!
@@ -786,7 +786,7 @@ const FinalCTA = () => {
           </p>
           <button
             className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-base font-semibold text-gray-900 transition-all hover:bg-white/90"
-            onClick={() => navigate('/login')}
+            onClick={() => navigate('/get-started')}
             type="button"
           >
             Get Started, It&apos;s Free!

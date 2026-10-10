@@ -7,7 +7,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { AuthImagePanel } from '@/components/auth/AuthImagePanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import { secureFetch } from '@/api/apiClient';
 
 
@@ -110,7 +109,14 @@ export default function SignUpCreator() {
         },
       });
     } else {
-      toast({ title: 'Error', description: result.error, variant: 'destructive' });
+      const isDuplicateEmail = result.error?.toLowerCase().includes('already exists');
+      toast({
+        title: isDuplicateEmail ? 'You already have an account' : 'Error',
+        description: isDuplicateEmail
+          ? 'This email is already registered — sign in below instead.'
+          : result.error,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -273,20 +279,6 @@ export default function SignUpCreator() {
                 'Create Creator Account'
               )}
             </Button>
-
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
-              </div>
-            </div>
-
-            <GoogleSignInButton
-              from={from}
-              role="creator"
-            />
 
           </form>
 

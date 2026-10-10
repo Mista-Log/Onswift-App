@@ -23,6 +23,8 @@ from google.oauth2 import id_token
 from .serializers import GoogleAuthSerializer
 from .models import TalentProfile, CreatorProfile
 from core.exceptions import storage_error_guard
+from django.utils import timezone
+from .otp import generate_and_send_otp
 
 
 class SignupView(APIView):
@@ -47,6 +49,8 @@ class SignupView(APIView):
                     "email": user.email,
                     "full_name": user.full_name,
                     "role": user.role,
+                    "email_verified": user.email_verified,
+                    "onboarding_completed": user.onboarding_completed,
                 },
             },
             status=status.HTTP_201_CREATED,
@@ -75,6 +79,8 @@ class LoginView(APIView):
                     "email": user.email,
                     "full_name": user.full_name,
                     "role": user.role,
+                    "email_verified": user.email_verified,
+                    "onboarding_completed": user.onboarding_completed,
                 },
             },
             status=status.HTTP_200_OK,
@@ -361,17 +367,26 @@ class GoogleAuthView(APIView):
 
         email = serializer.validated_data["email"]
         full_name = serializer.validated_data["full_name"]
-        role = serializer.validated_data.get("role", "talent")
+        role = serializer.validated_data.get("role")
 
-        user, created = User.objects.get_or_create(
-            email=email,
-            defaults={
-                "full_name": full_name,
-                "role": role,
-            }
-        )
+        try:
+            user = User.objects.get(email=email)
+            created = False
+        except User.DoesNotExist:
+            if not role:
+                # Brand-new Google identity, no role chosen yet — don't create an
+                # account. The frontend asks for a role and re-POSTs with it.
+                return Response({"new_user": True, "email": email, "full_name": full_name})
 
-        if created:
+            user = User.objects.create(
+                email=email,
+                full_name=full_name,
+                role=role,
+                email_verified=True,
+                onboarding_completed=False,
+            )
+            created = True
+
             if role == "talent":
                 TalentProfile.objects.create(
                     user=user
@@ -401,5 +416,49 @@ class GoogleAuthView(APIView):
                 "email": user.email,
                 "full_name": user.full_name,
                 "role": user.role,
+                "email_verified": user.email_verified,
+                "onboarding_completed": user.onboarding_completed,
             }
         }, status=status.HTTP_200_OK)
+
+
+class VerifyOtpView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        code = request.data.get("code")
+        user = request.user
+
+        if not user.otp_code or not user.otp_expires_at:
+            return Response({"error": "No verification code pending. Request a new one."}, status=400)
+
+        if timezone.now() > user.otp_expires_at:
+            return Response({"error": "Code expired. Request a new one."}, status=400)
+
+        if code != user.otp_code:
+            return Response({"error": "Incorrect code."}, status=400)
+
+        user.email_verified = True
+        user.otp_code = None
+        user.otp_expires_at = None
+        user.save(update_fields=["email_verified", "otp_code", "otp_expires_at"])
+
+        return Response({"message": "Email verified"}, status=status.HTTP_200_OK)
+
+
+class ResendOtpView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        generate_and_send_otp(request.user)
+        return Response({"message": "Verification code sent"}, status=status.HTTP_200_OK)
+
+
+class CompleteOnboardingView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        user.onboarding_completed = True
+        user.save(update_fields=["onboarding_completed"])
+        return Response({"message": "Onboarding complete"}, status=status.HTTP_200_OK)
