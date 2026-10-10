@@ -13,12 +13,16 @@ interface Props {
   from?: string;
   role?: string;
   mode?: "login" | "signup";
+  /** Fired instead of a normal login when the Google identity has no account yet and no
+   * role was supplied — the caller should ask for a role and call googleAuth again with it. */
+  onNewUser?: (info: { email: string; full_name: string; credential: string }) => void;
 }
 
 export default function GoogleSignInButton({
   from,
   role,
-  mode
+  mode,
+  onNewUser
 }: Props) {
   const navigate = useNavigate();
   const { getUser } = useAuth();
@@ -43,6 +47,15 @@ export default function GoogleSignInButton({
                   credentialResponse.credential,
                   role
                 );
+
+                if ("new_user" in data && data.new_user) {
+                  onNewUser?.({
+                    email: data.email,
+                    full_name: data.full_name,
+                    credential: credentialResponse.credential,
+                  });
+                  return;
+                }
 
                 localStorage.setItem(
                   "onswift_access",

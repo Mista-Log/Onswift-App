@@ -3,9 +3,9 @@
  * Changes covered:
  *  - Header button now reads "New Files" (was "New page")
  *  - Clicking the button opens a modal
- *  - Modal shows "Docs" and "Spreadsheet" options
+ *  - Modal shows "Docs" and "CRM" options
  *  - "Docs" calls the create-doc API and navigates to /docs/:id
- *  - "Spreadsheet" navigates to /library/crm
+ *  - "CRM" navigates to /library/crm
  *  - Empty-state button also reads "New Files" for canUpload users
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -95,17 +95,18 @@ describe("DocumentLibrary — New Files button", () => {
     expect(screen.getByText(/Create new file/i)).toBeInTheDocument();
   });
 
-  it("picker modal shows both Docs and Spreadsheet options", async () => {
+  it("picker modal shows both Docs and CRM options", async () => {
     const user = userEvent.setup();
     renderLibrary();
 
     const btn = await getHeaderButton();
     await user.click(btn);
 
-    // Scoped by role: the library also has a "Docs" filter tab (role="tab"),
-    // so a plain text query is ambiguous — the modal option is a role="button".
+    // Scoped by role: the library also has "Docs" and "CRM" filter tabs
+    // (role="tab"), so a plain text query is ambiguous — the modal options
+    // are role="button".
     expect(screen.getByRole("button", { name: "Docs" })).toBeInTheDocument();
-    expect(screen.getByText("Spreadsheet")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "CRM" })).toBeInTheDocument();
   });
 
   it("choosing Docs calls POST /api/v8/docs/ and navigates to /docs/:id", async () => {
@@ -125,13 +126,13 @@ describe("DocumentLibrary — New Files button", () => {
     });
   });
 
-  it("choosing Spreadsheet navigates to /library/crm", async () => {
+  it("choosing CRM navigates to /library/crm", async () => {
     const user = userEvent.setup();
     renderLibrary();
 
     const btn = await getHeaderButton();
     await user.click(btn);
-    await user.click(screen.getByText("Spreadsheet"));
+    await user.click(screen.getByRole("button", { name: "CRM" }));
 
     expect(mockNavigate).toHaveBeenCalledWith("/library/crm");
     expect(secureFetch).not.toHaveBeenCalledWith(
@@ -153,13 +154,13 @@ describe("DocumentLibrary — New Files button", () => {
     );
   });
 
-  it("modal dismisses after choosing Spreadsheet", async () => {
+  it("modal dismisses after choosing CRM", async () => {
     const user = userEvent.setup();
     renderLibrary();
 
     const btn = await getHeaderButton();
     await user.click(btn);
-    await user.click(screen.getByText("Spreadsheet"));
+    await user.click(screen.getByRole("button", { name: "CRM" }));
 
     await waitFor(() =>
       expect(screen.queryByText(/Create new file/i)).toBeNull()

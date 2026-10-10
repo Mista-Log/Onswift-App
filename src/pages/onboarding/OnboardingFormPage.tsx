@@ -69,7 +69,7 @@ export default function OnboardingTemplates() {
         <div className="flex items-center justify-between mb-6">
           <div>
             
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">Onboarding</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">Client Onboarding</h1>
             <p className="text-muted-foreground">
               Build onboarding forms and manage client intake links.
             </p>

@@ -1599,14 +1599,14 @@ export default function CRMBuilder() {
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">Spreadsheet</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">CRM</h1>
             <p className="mt-1 text-muted-foreground">
-              Manage your spreadsheets and shared sheets.
+              Manage your CRM sheets and shared sheets.
             </p>
           </div>
           <Button className="gap-2 w-full sm:w-auto" onClick={() => setIsSetupOpen(true)}>
             <Plus className="h-4 w-4" />
-            New Spreadsheet
+            New CRM Sheet
           </Button>
         </div>
 

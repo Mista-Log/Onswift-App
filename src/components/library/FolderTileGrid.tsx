@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Folder as FolderIcon, Loader2, MoreVertical, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { Folder as FolderIcon, FolderPlus, Loader2, MoreVertical, Pencil, Trash2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LibraryFolder } from "@/types/library";
 
@@ -55,7 +55,7 @@ export function FolderTileGrid({
         <div
           key={folder.id}
           className={cn(
-            "group relative flex items-center gap-3 rounded-2xl border border-border bg-card p-4 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all",
+            "group relative flex flex-col items-start gap-2 rounded-2xl border border-border bg-card p-4 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all",
             dragOverId === folder.id && "ring-2 ring-primary/50 bg-primary/5"
           )}
           onClick={() => onOpen(folder)}
@@ -84,7 +84,7 @@ export function FolderTileGrid({
             <FolderIcon size={20} className="text-amber-500" />
           </div>
 
-          <div className="flex-1 min-w-0">
+          <div className="w-full min-w-0">
             <p className="text-sm font-medium text-foreground truncate">{folder.name}</p>
             <p className="text-[11px] text-muted-foreground">
               {folder.subfolder_count > 0 ? `${folder.subfolder_count} folder${folder.subfolder_count === 1 ? "" : "s"}, ` : ""}
@@ -92,7 +92,7 @@ export function FolderTileGrid({
             </p>
           </div>
 
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          <div className="absolute top-2 right-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -147,7 +147,7 @@ export function FolderTileGrid({
             disabled={creatingFolder}
             onClick={() => (adding ? submitNew() : setAdding(true))}
           >
-            {creatingFolder ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+            {creatingFolder ? <Loader2 size={18} className="animate-spin" /> : <FolderPlus size={18} />}
           </Button>
         </div>
       )}

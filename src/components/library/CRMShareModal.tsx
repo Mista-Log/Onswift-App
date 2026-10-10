@@ -71,9 +71,9 @@ export function CRMShareModal({ sheetId, sheetName, open, onClose }: CRMShareMod
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="truncate">Share "{sheetName}"</DialogTitle>
+      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md">
+        <DialogHeader className="min-w-0 pr-6">
+          <DialogTitle className="block w-full min-w-0 truncate">Share "{sheetName}"</DialogTitle>
           <DialogDescription>Share with your team members and manage their access level.</DialogDescription>
         </DialogHeader>
 

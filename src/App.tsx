@@ -15,10 +15,12 @@ import { useAuth } from "@/contexts/AuthContext";
 // Public pages
 import Landing from "./pages/Landing";
 import Login from "./pages/auth/Login";
+import GetStarted from "./pages/GetStarted";
 import SignUp from "./pages/auth/SignUp";
 import SignUpCreator from "./pages/auth/SignUpCreator";
 import SignUpTalent from "./pages/auth/SignUpTalent";
 import ForgotPassword from "./pages/auth/ForgotPassword";
+import VerifyEmail from "./pages/auth/VerifyEmail";
 
 // Protected pages
 import Dashboard from "./pages/Dashboard";
@@ -175,10 +177,12 @@ const App = () => (
                     {/* Public routes */}
                     <Route path="/" element={<RootRoute />} />
                     <Route path="/login" element={<Login />} />
+                    <Route path="/get-started" element={<GetStarted />} />
                     <Route path="/signup" element={<SignUp />} />
                     <Route path="/signup/creator" element={<SignUpCreator />} />
                     <Route path="/signup/talent" element={<SignUpTalent />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/verify-email" element={<VerifyEmail />} />
                     <Route path="/invite/:token" element={<InvitePage />} />
 
                     {/* Protected routes — unified shell, role-filtered nav */}

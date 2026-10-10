@@ -6,7 +6,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -19,6 +19,20 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!isAuthenticated) {
     return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  if (user?.email_verified === false) {
+    return <Navigate to="/verify-email" replace />;
+  }
+
+  if (user?.onboarding_completed === false) {
+    return (
+      <Navigate
+        to="/signup"
+        state={{ fromSignup: true, prefilledEmail: user.email, prefilledName: user.full_name }}
+        replace
+      />
+    );
   }
 
   return <>{children}</>;

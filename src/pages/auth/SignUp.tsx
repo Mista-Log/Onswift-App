@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Crown, Lightbulb, ChevronLeft, Check, UserRound } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import { secureFetch } from '@/api/apiClient';
 
 // Add styles for animations
 const animationStyles = `
@@ -258,6 +259,18 @@ export default function SignUp() {
     }
   };
 
+  // Skips the personalization questions entirely — same completion logic the final
+  // "Enter your workspace" button runs, just invoked immediately.
+  const handleSkip = () => {
+    track('onboarding_skipped');
+    if (locationState?.fromSignup) {
+      secureFetch('/api/v1/auth/complete-onboarding/', { method: 'POST' }).catch(() => {});
+      navigate('/dashboard');
+    } else {
+      setCurrentScreenIndex(SCREENS.length);
+    }
+  };
+
   const handleRoleSelect = (role: 'creator' | 'talent') => {
     track('role_selected', { role });
 
@@ -369,7 +382,7 @@ export default function SignUp() {
 
             {/* Welcome Screen */}
             {currentScreen?.type === 'welcome' && (
-              <WelcomeScreen screen={currentScreen} onContinue={handleContinue} />
+              <WelcomeScreen screen={currentScreen} onContinue={handleContinue} onSkip={handleSkip} />
             )}
 
             {/* Single Select */}
@@ -411,6 +424,7 @@ export default function SignUp() {
                 onContinue={() => {
                   track('onboarding_completed', { data });
                   if (locationState?.fromSignup) {
+                    secureFetch('/api/v1/auth/complete-onboarding/', { method: 'POST' }).catch(() => {});
                     if (data.email) {
                       import('@/lib/firebase').then(({ saveOnboardingData, sanitizeEmailForDoc }) => {
                         saveOnboardingData(sanitizeEmailForDoc(data.email!), {
@@ -454,10 +468,12 @@ export default function SignUp() {
 // Welcome Screen Component
 function WelcomeScreen({
   screen,
-  onContinue
+  onContinue,
+  onSkip
 }: {
   screen: Screen;
   onContinue: () => void;
+  onSkip: () => void;
 }) {
   return (
     <div className="text-center space-y-6">
@@ -469,6 +485,12 @@ function WelcomeScreen({
         className="w-full px-6 py-3 bg-[#6B5CE7] text-white font-semibold rounded-[100px] hover:bg-[#5A4BD1] transition-colors animate-fade-in-delay-2"
       >
         {screen.cta}
+      </button>
+      <button
+        onClick={onSkip}
+        className="block w-full text-sm text-slate-500 hover:text-slate-700 transition-colors animate-fade-in-delay-2"
+      >
+        Skip
       </button>
     </div>
   );

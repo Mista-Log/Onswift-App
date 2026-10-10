@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -59,6 +58,24 @@ export default function Projects() {
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [projectToRename, setProjectToRename] = useState<{ id: string; name: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
+
+  // Mobile "New Project" FAB: contracts to an icon-only button while the page is actively
+  // scrolling, then expands back once scrolling settles.
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollIdleTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolling(true);
+      if (scrollIdleTimeout.current) clearTimeout(scrollIdleTimeout.current);
+      scrollIdleTimeout.current = setTimeout(() => setIsScrolling(false), 400);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (scrollIdleTimeout.current) clearTimeout(scrollIdleTimeout.current);
+    };
+  }, []);
 
   const handleDeleteProject = async () => {
     if (!projectToDelete) return;
@@ -170,13 +187,39 @@ export default function Projects() {
           </div>
 
           {!isTalent && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2 w-full sm:w-auto">
-                  <Plus className="h-4 w-4" />
+            <>
+              <Button
+                className="hidden gap-2 sm:inline-flex sm:w-auto"
+                onClick={() => setIsDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                New Project
+              </Button>
+
+              {/* Mobile: floating action button pinned above the bottom edge instead of
+                  stacking inline under the header — cleared to sit above QuickStartLauncher's
+                  collapsed bar (creator-only, also bottom-anchored). Anchored by its right edge;
+                  while scrolling it contracts to an icon-only pill, so it visibly slides right
+                  as its left edge retreats. */}
+              <Button
+                className={cn(
+                  "fixed bottom-20 right-4 z-40 h-14 justify-center overflow-hidden rounded-2xl shadow-lg transition-all duration-300 sm:hidden",
+                  isScrolling ? "w-14 gap-0 px-0" : "w-[calc(100vw-2rem)] gap-2 px-5"
+                )}
+                onClick={() => setIsDialogOpen(true)}
+              >
+                <Plus className="h-5 w-5 flex-shrink-0" />
+                <span
+                  className={cn(
+                    "overflow-hidden whitespace-nowrap transition-all duration-300",
+                    isScrolling ? "max-w-0 opacity-0" : "max-w-[160px] opacity-100"
+                  )}
+                >
                   New Project
-                </Button>
-              </DialogTrigger>
+                </span>
+              </Button>
+
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogContent className="glass-card border-border/50 sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Create New Project</DialogTitle>
@@ -236,7 +279,8 @@ export default function Projects() {
                   <Button onClick={handleCreateProject}>Create Project</Button>
                 </div>
               </DialogContent>
-            </Dialog>
+              </Dialog>
+            </>
           )}
         </div>
 

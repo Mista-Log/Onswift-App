@@ -12,6 +12,9 @@ from .views import (
     PasswordResetConfirmView,
     TalentProfileListView,
     GoogleAuthView,
+    VerifyOtpView,
+    ResendOtpView,
+    CompleteOnboardingView,
 )
 
 
@@ -24,6 +27,9 @@ urlpatterns = [
     path("user/talentprofile/", TalentProfileListView.as_view(), name="talent-profiles"),
 
     path("auth/google/", GoogleAuthView.as_view(), name="google-auth"),
+    path("auth/verify-otp/", VerifyOtpView.as_view(), name="verify-otp"),
+    path("auth/resend-otp/", ResendOtpView.as_view(), name="resend-otp"),
+    path("auth/complete-onboarding/", CompleteOnboardingView.as_view(), name="complete-onboarding"),
 
     # Settings endpoints
     path("settings/", UserSettingsView.as_view(), name="user-settings"),

@@ -46,6 +46,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     full_name = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    email_verified = models.BooleanField(default=True)
+    onboarding_completed = models.BooleanField(default=True)
+    otp_code = models.CharField(max_length=6, null=True, blank=True)
+    otp_expires_at = models.DateTimeField(null=True, blank=True)
 
 
     date_joined = models.DateTimeField(default=timezone.now)

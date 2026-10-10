@@ -10,6 +10,8 @@ export interface User {
   full_name: string;
   email: string;
   role: UserRole;
+  email_verified?: boolean;
+  onboarding_completed?: boolean;
   company_name?: string;
   professional_title?: string;
   skills?: string[];
@@ -111,6 +113,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         full_name: data.full_name,
         email: data.email,
         role: data.role,
+        email_verified: data.email_verified,
+        onboarding_completed: data.onboarding_completed,
 
         // 🔥 normalize profile fields
         professional_title: data.profile?.professional_title,
@@ -193,7 +197,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data?.detail || "Signup failed");
+      if (!response.ok) {
+        // DRF field-level validation errors (e.g. a duplicate email) come back as
+        // {"email": ["user with this email already exists."]}, not `detail` — surface
+        // that instead of a generic message so the real reason doesn't get hidden.
+        const fieldError = Object.values(data || {}).find(
+          (v): v is string[] => Array.isArray(v) && typeof v[0] === "string"
+        )?.[0];
+        throw new Error(data?.detail || fieldError || "Signup failed");
+      }
 
       localStorage.setItem("onswift_access", data.access);
       localStorage.setItem("onswift_refresh", data.refresh);

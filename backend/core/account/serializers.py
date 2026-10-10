@@ -77,6 +77,8 @@ class SignupSerializer(serializers.ModelSerializer):
 
         user = User.objects.create_user(
             password=password,
+            email_verified=False,
+            onboarding_completed=False,
             **validated_data
         )
 
@@ -121,6 +123,9 @@ class SignupSerializer(serializers.ModelSerializer):
 
         from assistant.services import send_signup_welcome
         send_signup_welcome(user)
+
+        from .otp import generate_and_send_otp
+        generate_and_send_otp(user)
 
         return user
 
@@ -225,6 +230,8 @@ class UserDetailSerializer(serializers.ModelSerializer):
             "full_name",
             "email",
             "role",
+            "email_verified",
+            "onboarding_completed",
             "profile",
         ]
 
