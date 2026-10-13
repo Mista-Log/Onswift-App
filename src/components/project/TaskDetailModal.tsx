@@ -895,7 +895,7 @@ export function TaskDetailModal({
               <SelectTrigger className="h-8 w-auto min-w-[9.5rem] text-xs font-medium rounded-lg px-3 border hover:border-purple-400 hover:text-purple-700 transition-colors">
                 <SelectValue placeholder="Set recurrence">
                   <div className="flex items-center gap-1.5">
-                    <Repeat className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                    <Repeat className="h-3.5 w-3.5 text-green-500 shrink-0" />
                     {task.recurrence_type
                       ? { daily: "Daily", weekly: "Weekly", monthly: "Monthly", custom: "Custom interval" }[task.recurrence_type]
                       : "Set recurrence"}
@@ -1268,14 +1268,14 @@ export function TaskDetailModal({
 
               {/* Pending-approval banner — shown to both roles; creator gets Approve / Request revision. */}
               {task.awaiting_approval && (
-                <div className="rounded-xl bg-purple-50 dark:bg-gray-800/50 border border-purple-200 dark:border-gray-700 px-4 py-3">
+                <div className="rounded-xl bg-white-100 dark:bg-gray-800/50 border border-purple-200 dark:border-gray-700 px-4 py-3">
                   <div className="flex items-start gap-3">
-                    <Clock className="h-4 w-4 text-purple-600 dark:text-gray-400 shrink-0 mt-0.5" />
+                    {/* <Clock className="h-4 w-4 text-purple-600 dark:text-gray-400 shrink-0 mt-0.5" /> */}
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-purple-800 dark:text-gray-300">
+                      <p className="text-sm font-medium text-black-800 dark:text-gray-300">
                         {isCreator ? "Pending your approval" : "Pending creator approval"}
                       </p>
-                      <p className="text-xs text-purple-600 dark:text-gray-400 mt-0.5">
+                        <p className="text-xs text-black-600 dark:text-gray-400 mt-0.5">
                         {isCreator
                           ? "The assignee marked this task as ready. Approve it, or request a revision."
                           : "You've marked this task as ready. Awaiting your creator's approval..."}
@@ -1287,7 +1287,7 @@ export function TaskDetailModal({
                           size="sm"
                           onClick={handleApprove}
                           disabled={isApproving || isRequestingRevision}
-                          className="gap-1.5 bg-green-600 text-white hover:bg-green-700"
+                          className="gap-1.5 bg-purple-600 text-white hover:bg-green-600"
                         >
                           {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckSquare className="h-3.5 w-3.5" />}
                           Approve
@@ -1297,7 +1297,7 @@ export function TaskDetailModal({
                           variant="outline"
                           onClick={() => setShowRevisionInput((v) => !v)}
                           disabled={isApproving || isRequestingRevision}
-                          className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800/40"
+                          className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-100 dark:border-gray-600 dark:text-red-300 dark:hover:bg-grey-800/40"
                         >
                           <RotateCcw className="h-3.5 w-3.5" />
                           Request revision
@@ -1360,17 +1360,17 @@ export function TaskDetailModal({
                     })()
                   : null;
                 return (
-                  <div className="flex items-start gap-3 rounded-xl bg-purple-50 dark:bg-gray-800/50 border border-purple-200 dark:border-gray-700 px-4 py-3">
-                    <Repeat className="h-4 w-4 text-purple-600 dark:text-gray-400 shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-3 rounded-xl bg-white-100 dark:bg-gray-800/50 border border-green-200 dark:border-gray-700 px-4 py-3">
+                    <Repeat className="h-4 w-4 text-green-600 dark:text-gray-400 shrink-0 mt-0.5" />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-purple-800 dark:text-gray-300">
-                        Recurring task resets {labels[task.recurrence_type]}
+                      <p className="text-sm font-medium text-black-800 dark:text-gray-300">
+                        This task repeats {labels[task.recurrence_type]}
                       </p>
-                      <p className="text-xs text-purple-600 dark:text-gray-400 mt-0.5">
+                      <p className="text-xs text-black-600 dark:text-gray-400 mt-0.5">
                         {task.status === "completed"
                           ? "This task has been completed. A new occurrence has been scheduled."
                           : nextLabel
-                            ? `When completed, the next occurrence will appear on ${nextLabel}${task.task_time ? ` at ${task.task_time.slice(0, 5)}` : ""}.`
+                            ? `Finish it, and it’ll reappear on ${nextLabel}${task.task_time ? ` at ${task.task_time.slice(0, 5)}` : ""}.`
                             : "When completed, the next occurrence will automatically appear in Planning."}
                       </p>
                     </div>
@@ -1380,7 +1380,8 @@ export function TaskDetailModal({
 
               {/* Description */}
               <div className="space-y-3">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Description</p>
+                
+                <p className="text-sm text-foreground font-bold uppercase tracking-wide">Description</p>
                 <div className="md:hidden rounded-xl border border-border/50 p-3">{descriptionControl}</div>
                 <div className="hidden md:block">{descriptionControl}</div>
               </div>
@@ -1429,7 +1430,8 @@ export function TaskDetailModal({
               {/* Deliverables & Files — the single canonical list of submitted work */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Attachments</p>
+                  <p className="text-1xl text-foreground font-bold uppercase tracking-wide">Attachments</p>
+                  
                   <Button
                     size="sm"
                     variant="ghost"
@@ -1536,7 +1538,7 @@ export function TaskDetailModal({
                                       onClick={(e) => { e.stopPropagation(); setDeliverableToDelete(del); }}
                                     >
                                       <Trash2 className="h-4 w-4 mr-2" />
-                                      Delete Deliverable
+                                      Delete Attachment
                                     </DropdownMenuItem>
                                   </>
                                 )}
@@ -1622,7 +1624,7 @@ export function TaskDetailModal({
                               autoFocus
                               value={editDeliverableTitleDraft}
                               onChange={(e) => setEditDeliverableTitleDraft(e.target.value)}
-                              placeholder="Deliverable title"
+                              placeholder="Attachment title"
                               className="h-8 text-sm"
                             />
                             <Textarea
@@ -1659,10 +1661,10 @@ export function TaskDetailModal({
 
                 {showDeliverableInput && (
                   <div className="space-y-2 rounded-lg border border-border/50 bg-secondary/10 p-3">
-                    <p className="text-xs font-semibold text-muted-foreground">New deliverable</p>
+                    <p className="text-xs font-semibold text-muted-foreground">New attachment</p>
                     <Input
                       autoFocus
-                      placeholder="Deliverable title"
+                      placeholder="Attachment title"
                       value={newDeliverableTitle}
                       onChange={(e) => setNewDeliverableTitle(e.target.value)}
                       className="h-8 text-sm"

@@ -72,6 +72,7 @@ export interface Message {
   sender_avatar: string | null;
   recipient: string;
   content: string;
+  link?: string | null;
   is_read: boolean;
   reply_to: ReplyPreview | null;
   is_edited: boolean;
@@ -87,6 +88,7 @@ export interface GroupMessage {
   sender_name: string;
   sender_avatar: string | null;
   content: string;
+  link?: string | null;
   is_mine: boolean;
   reply_to: ReplyPreview | null;
   is_edited: boolean;
@@ -1504,7 +1506,7 @@ export default function Messages() {
                     {!editingMessageId && replyingTo && (
                       <div className="mb-2 flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-2">
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-primary">Replying to {replyingTo.sender_name}</p>
+                          <p className="text-xs font-medium text-black">Replying to {replyingTo.sender_name}</p>
                           <p className="truncate text-xs text-muted-foreground">{replyingTo.content}</p>
                         </div>
                         <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCancelReply}>

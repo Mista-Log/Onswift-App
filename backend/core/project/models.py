@@ -270,6 +270,7 @@ class Message(models.Model):
         related_name="received_messages"
     )
     content = models.TextField()
+    link = models.CharField(max_length=512, null=True, blank=True)
     is_read = models.BooleanField(default=False)
     reply_to = models.ForeignKey(
         "self",

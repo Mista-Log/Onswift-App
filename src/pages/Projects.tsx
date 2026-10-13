@@ -197,8 +197,7 @@ export default function Projects() {
               </Button>
 
               {/* Mobile: floating action button pinned above the bottom edge instead of
-                  stacking inline under the header — cleared to sit above QuickStartLauncher's
-                  collapsed bar (creator-only, also bottom-anchored). Anchored by its right edge;
+                  stacking inline under the header. Anchored by its right edge;
                   while scrolling it contracts to an icon-only pill, so it visibly slides right
                   as its left edge retreats. */}
               <Button

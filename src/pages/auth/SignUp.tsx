@@ -213,7 +213,7 @@ const COMPLETION_SCREEN: Screen = {
 };
 
 export default function SignUp() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, getUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { track } = useAnalytics();
@@ -261,10 +261,16 @@ export default function SignUp() {
 
   // Skips the personalization questions entirely — same completion logic the final
   // "Enter your workspace" button runs, just invoked immediately.
-  const handleSkip = () => {
+  const handleSkip = async () => {
     track('onboarding_skipped');
     if (locationState?.fromSignup) {
-      secureFetch('/api/v1/auth/complete-onboarding/', { method: 'POST' }).catch(() => {});
+      try {
+        await secureFetch('/api/v1/auth/complete-onboarding/', { method: 'POST' });
+        await getUser();
+      } catch {
+        // swallow — if completion genuinely failed, ProtectedRoute correctly
+        // keeps the user on the survey instead of bouncing them silently.
+      }
       navigate('/dashboard');
     } else {
       setCurrentScreenIndex(SCREENS.length);
@@ -421,10 +427,9 @@ export default function SignUp() {
             {currentScreenIndex === SCREENS.length && (
               <CompletionScreen
                 screen={COMPLETION_SCREEN}
-                onContinue={() => {
+                onContinue={async () => {
                   track('onboarding_completed', { data });
                   if (locationState?.fromSignup) {
-                    secureFetch('/api/v1/auth/complete-onboarding/', { method: 'POST' }).catch(() => {});
                     if (data.email) {
                       import('@/lib/firebase').then(({ saveOnboardingData, sanitizeEmailForDoc }) => {
                         saveOnboardingData(sanitizeEmailForDoc(data.email!), {
@@ -436,6 +441,13 @@ export default function SignUp() {
                           step5: data.step5,
                         }).catch(console.error);
                       }).catch(console.warn);
+                    }
+                    try {
+                      await secureFetch('/api/v1/auth/complete-onboarding/', { method: 'POST' });
+                      await getUser();
+                    } catch {
+                      // swallow — if completion genuinely failed, ProtectedRoute correctly
+                      // keeps the user on the survey instead of bouncing them silently.
                     }
                     navigate('/dashboard');
                   } else {

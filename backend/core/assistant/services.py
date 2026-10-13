@@ -54,7 +54,7 @@ def send_assistant_message(recipient, content, *, link=None, notify=False):
     from project.models import Conversation, Message
 
     assistant = get_assistant_user()
-    message = Message.objects.create(sender=assistant, recipient=recipient, content=content)
+    message = Message.objects.create(sender=assistant, recipient=recipient, content=content, link=link)
 
     conversation = (
         Conversation.objects.filter(participants=assistant)
