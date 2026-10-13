@@ -20,10 +20,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   if (!isAuthenticated) {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
-
-  if (user?.email_verified === false) {
-    return <Navigate to="/verify-email" replace />;
-  }
+  // We are taking this feature down for noe, pending when zoho mail is fully integrated and we can send emails from our app.
+  // if (user?.email_verified === false) {
+  //   return <Navigate to="/verify-email" replace />;
+  // }
 
   if (user?.onboarding_completed === false) {
     return (
