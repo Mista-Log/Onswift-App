@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -47,6 +48,7 @@ export function DeliverablesPanel({
   hideStats,
 }: DeliverablesPanelProps) {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -79,6 +81,23 @@ export function DeliverablesPanel({
   useEffect(() => {
     fetchDeliverables();
   }, []);
+
+  // Deep link: ?open=<id> (e.g. from an "Open deliverable" link in OnSwift AI chat)
+  // opens that specific deliverable's detail modal once it's loaded.
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (!openId || deliverables.length === 0) return;
+    const match = deliverables.find((d) => d.id === openId);
+    if (match) setSelectedDeliverable(match);
+    // Strip the param so back/refresh doesn't re-trigger it.
+    setSearchParams(
+      (prev) => {
+        prev.delete("open");
+        return prev;
+      },
+      { replace: true },
+    );
+  }, [searchParams, deliverables]);
 
   // Celebrate a talent the first time they see one of their deliverables approved
   // (approval also auto-completes the task, so this covers that milestone too).

@@ -524,6 +524,7 @@ class DeliverableCreateSerializer(serializers.ModelSerializer):
             title="New Deliverable Submitted",
             message=f"{user.full_name} submitted '{deliverable.title}' for task '{deliverable.task.name}'.",
             notification_type="system",
+            link=f"/deliverables?open={deliverable.id}",
             priority=1,
         )
 
@@ -577,6 +578,7 @@ class DeliverableReviewSerializer(serializers.ModelSerializer):
             title=title,
             message=message,
             notification_type="system",
+            link=f"/deliverables?open={instance.id}",
             priority=1,
         )
 
@@ -591,7 +593,7 @@ class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
         fields = [
-            "id", "sender", "sender_name", "sender_avatar", "recipient", "content",
+            "id", "sender", "sender_name", "sender_avatar", "recipient", "content", "link",
             "is_read", "reply_to", "is_edited", "edited_at", "is_deleted", "created_at"
         ]
         read_only_fields = ["sender", "is_read", "is_edited", "edited_at", "is_deleted", "created_at"]

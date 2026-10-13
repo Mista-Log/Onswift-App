@@ -31,16 +31,16 @@ export function CreatorUpsellBar() {
   return (
     <div className="relative w-full bg-primary text-white px-10 py-2 text-center text-sm">
       <span>
-        Unlock the full Creator features on OnSwift.
+        Unlock the full OnSwift experience, get a Creator account!
       </span>{" "}
-      <a
+      {/* <a
         href="/signup/creator"
         target="_blank"
         rel="noopener noreferrer"
         className="font-semibold underline underline-offset-2 whitespace-nowrap"
       >
         Get Started
-      </a>
+      </a> */}
       <button
         type="button"
         aria-label="Dismiss"

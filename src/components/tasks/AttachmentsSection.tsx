@@ -63,7 +63,7 @@ export function AttachmentsSection({
   return (
     <div className="space-y-2">
       <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+        <p className="text-1xl text-foreground font-bold uppercase tracking-wide">{title}</p>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </div>
 
@@ -104,7 +104,7 @@ export function AttachmentsSection({
           })}
         </ul>
       ) : (
-        <p className="text-sm italic text-muted-foreground">Nothing attached yet.</p>
+        <p className="text-sm italic text-foreground">Nothing attached yet.</p>
       )}
 
       <div className="flex gap-2">

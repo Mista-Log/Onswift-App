@@ -1,8 +1,6 @@
 import { ReactNode, useState, useEffect, useRef } from "react";
 import { PanelLeft } from "lucide-react";
 import { AppSidebar, TopBar } from "./AppSidebar";
-import { useAuth } from "@/contexts/AuthContext";
-import { QuickStartLauncher } from "@/components/quickstart/QuickStartLauncher";
 import { CreatorUpsellBar } from "./CreatorUpsellBar";
 import { DailyReportDialog } from "@/components/reminders/DailyReportDialog";
 
@@ -24,7 +22,6 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ children, hideTopBarOnMobile = false }: MainLayoutProps) {
-  const { user } = useAuth();
   // true = pinned collapsed (the slim rail, now the default resting state — hovering it
   // temporarily peeks it open, see AppSidebar). false = pinned open.
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -116,9 +113,6 @@ export function MainLayout({ children, hideTopBarOnMobile = false }: MainLayoutP
           {typeof children === "function" ? children({ toggleMobileSidebar }) : children}
         </main>
       </div>
-
-      {/* Creator-only guided onboarding launcher (fixed, bottom-right) */}
-      {user?.role === "creator" && <QuickStartLauncher />}
 
       {/* Daily deadline report, shown once on the first open of a scheduled day */}
       <DailyReportDialog />

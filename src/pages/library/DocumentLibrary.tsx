@@ -809,33 +809,35 @@ export default function DocumentLibrary() {
       >
         {/* Header: breadcrumb heading + actions */}
         <div className="flex items-center justify-between gap-3">
-          <Breadcrumb className="min-w-0 flex-1 overflow-hidden">
-            <BreadcrumbList className="flex-nowrap">
-              {browser.breadcrumb.map((entry, i) => {
-                const isLast = i === browser.breadcrumb.length - 1;
-                const isParent = i === browser.breadcrumb.length - 2;
-                const hiddenOnMobile = !isLast && !isParent;
-                return (
-                  <span key={entry.id ?? "home"} className={hiddenOnMobile ? "hidden sm:contents" : "contents"}>
-                    <BreadcrumbItem>
-                      {isLast ? (
-                        <BreadcrumbPage className="truncate max-w-[12rem] sm:max-w-none text-base font-semibold text-foreground">
-                          {entry.name}
-                        </BreadcrumbPage>
-                      ) : (
-                        <BreadcrumbLink asChild>
-                          <button type="button" className="truncate max-w-[8rem] sm:max-w-none font-semibold" onClick={() => navigateToFolder(entry.id)}>
+          <h1 className="min-w-0 flex-1 overflow-hidden text-2xl sm:text-3xl font-bold text-foreground leading-tight">
+            <Breadcrumb className="min-w-0 flex-1 overflow-hidden">
+              <BreadcrumbList className="flex-nowrap">
+                {browser.breadcrumb.map((entry, i) => {
+                  const isLast = i === browser.breadcrumb.length - 1;
+                  const isParent = i === browser.breadcrumb.length - 2;
+                  const hiddenOnMobile = !isLast && !isParent;
+                  return (
+                    <span key={entry.id ?? "home"} className={hiddenOnMobile ? "hidden sm:contents" : "contents"}>
+                      <BreadcrumbItem>
+                        {isLast ? (
+                          <BreadcrumbPage className="truncate max-w-[12rem] sm:max-w-none text-2xl sm:text-3xl font-bold text-foreground leading-tight">
                             {entry.name}
-                          </button>
-                        </BreadcrumbLink>
-                      )}
-                    </BreadcrumbItem>
-                    {!isLast && <BreadcrumbSeparator className={isParent ? "" : "hidden sm:list-item"} />}
-                  </span>
-                );
-              })}
-            </BreadcrumbList>
-          </Breadcrumb>
+                          </BreadcrumbPage>
+                        ) : (
+                          <BreadcrumbLink asChild>
+                            <button type="button" className="truncate max-w-[8rem] sm:max-w-none font-semibold" onClick={() => navigateToFolder(entry.id)}>
+                              {entry.name}
+                            </button>
+                          </BreadcrumbLink>
+                        )}
+                      </BreadcrumbItem>
+                      {!isLast && <BreadcrumbSeparator className={isParent ? "" : "hidden sm:list-item"} />}
+                    </span>
+                  );
+                })}
+              </BreadcrumbList>
+            </Breadcrumb>
+          </h1>
 
           {showTrash ? (
             <Button variant="outline" size="sm" onClick={() => setShowTrash(false)} className="flex-shrink-0">

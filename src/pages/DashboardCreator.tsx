@@ -62,6 +62,8 @@ export default function DashboardCreator() {
           <h1 className="text-3xl font-bold text-foreground">
             {greeting(user?.full_name)}
           </h1>
+          <p className="text-muted-foreground mt-1">Here's what's happening with your projects today.</p>
+
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

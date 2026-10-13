@@ -241,7 +241,7 @@ export default function ProjectBoard() {
             <p className="font-medium text-foreground truncate">{task.name}</p>
             {task.recurrence && (
               <span title={`Repeats ${RECURRENCE_LABELS[task.recurrence.type]}`} className="shrink-0">
-                <Repeat className="h-3 w-3 text-purple-500" />
+                <Repeat className="h-3 w-3 text-green-500" />
               </span>
             )}
           </div>
@@ -448,7 +448,7 @@ export default function ProjectBoard() {
                 <div className="rounded-lg border border-border/50 bg-secondary/10 p-4 space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Repeat className="h-4 w-4 text-purple-500" />
+                      <Repeat className="h-4 w-4 text-green-500" />
                       <div>
                         <p className="text-sm font-medium text-foreground">Recurring task</p>
                         <p className="text-xs text-muted-foreground">Auto-respawns when completed</p>

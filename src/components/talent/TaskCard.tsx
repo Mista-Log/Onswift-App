@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Check, ChevronDown, Circle, Clock, Grip, PlayCircle, CheckCircle2 } from "lucide-react";
+import { Check, ChevronDown, Circle, Clock, Grip, PlayCircle, CheckCircle2, Pencil } from "lucide-react";
 import { useSwipeStatus } from "@/hooks/use-swipe-status";
 import { success as feedbackSuccess } from "@/lib/feedback";
 import type { Stage, StageAction } from "@/lib/taskStages";
@@ -154,7 +154,7 @@ export function TaskCard({
         <DropdownMenuContent align="start">
           {menuStages.includes("planning") && (
           <DropdownMenuItem onClick={() => onStatusChange?.(id, "planning")}>
-            <Circle className="h-4 w-4 mr-2 text-muted-foreground" />
+            <Pencil className="h-4 w-4 mr-2 text-white-foreground" />
             Planning
           </DropdownMenuItem>
           )}

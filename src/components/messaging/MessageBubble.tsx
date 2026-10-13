@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowUp, Check, Reply, Pencil, Trash2 } from "lucide-react";
+import { ArrowUp, Check, ExternalLink, Reply, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMessageGesture } from "@/hooks/use-message-gesture";
 import type { Message, GroupMessage } from "@/pages/Messages";
@@ -43,6 +44,7 @@ export function MessageBubble({
   onLongPress,
   onToggleSelected,
 }: MessageBubbleProps) {
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const isLong = !msg.is_deleted && msg.content.length > 300;
 
@@ -175,6 +177,28 @@ export function MessageBubble({
               >
                 {msg.content}
               </p>
+              {msg.link && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(msg.link!);
+                  }}
+                  className={cn(
+                    "mt-2 flex items-center gap-1.5 rounded border-l-4 p-2 text-left text-xs font-medium transition-colors",
+                    isOwn
+                      ? "border-primary-foreground/40 bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20"
+                      : "border-primary/50 bg-secondary/30 text-primary hover:bg-secondary/50"
+                  )}
+                >
+                  <ExternalLink size={12} className="flex-shrink-0" />
+                  {msg.link.startsWith("/deliverables")
+                    ? "Open deliverable"
+                    : msg.link.startsWith("/projects")
+                    ? "Open task"
+                    : "Open"}
+                </button>
+              )}
               {isLong && (
                 <button
                   type="button"
