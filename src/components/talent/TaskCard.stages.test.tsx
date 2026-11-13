@@ -58,3 +58,27 @@ describe("TaskCard swipe hint follows the role's rule", () => {
     expect(screen.getByTitle(HINT)).toBeInTheDocument();
   });
 });
+
+describe("TaskCard revision badge", () => {
+  const withFlags = (props: Partial<Parameters<typeof TaskCard>[0]>) =>
+    render(<TaskCard id="t1" name="Design" projectName="Alpha" status="in-progress" {...props} />);
+
+  it("says so when the creator sent the task back", () => {
+    withFlags({ revisionRequested: true });
+    expect(screen.getByText("Revision requested")).toBeInTheDocument();
+  });
+
+  it("is absent on an ordinary task", () => {
+    withFlags({});
+    expect(screen.queryByText("Revision requested")).not.toBeInTheDocument();
+  });
+
+  it("gives way to 'Pending approval' once the task is handed in again, and to completion", () => {
+    const { unmount } = withFlags({ revisionRequested: true, awaitingApproval: true });
+    expect(screen.queryByText("Revision requested")).not.toBeInTheDocument();
+    expect(screen.getByText("Pending approval")).toBeInTheDocument();
+    unmount();
+    withFlags({ revisionRequested: true, status: "completed" });
+    expect(screen.queryByText("Revision requested")).not.toBeInTheDocument();
+  });
+});

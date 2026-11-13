@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { Bell, Check, Loader2, Search, Trash2, X } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { ListSkeleton } from "@/components/ui/skeletons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -124,9 +125,7 @@ export default function NotificationsPage() {
 
           <TabsContent value={tab} className="mt-4">
             {isLoading ? (
-              <div className="flex items-center justify-center py-24">
-                <Loader2 size={28} className="animate-spin text-muted-foreground" />
-              </div>
+              <ListSkeleton count={6} label="Loading notifications" />
             ) : displayed.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary mb-3">

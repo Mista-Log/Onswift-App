@@ -19,6 +19,8 @@ import { sanitize } from "isomorphic-dompurify";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle, Clock, CheckCircle2, ChevronLeft, Check, Loader2 } from "lucide-react";
 import type { OnboardingPublicData, FormBlock, BlockResponse } from "@/types/onboarding";
+import { CreatorProfileCard } from "@/components/profile/CreatorProfileCard";
+import type { ProfileData } from "@/components/profile/ProfileView";
 
 // Survey animation keyframes (self-contained copy, styled after SignUp.tsx).
 const animationStyles = `
@@ -324,6 +326,7 @@ export default function ClientOnboard() {
               title={formData.title}
               creatorName={formData.creator_name}
               creatorCompany={formData.creator_company}
+              creatorProfile={formData.creator_profile}
               onContinue={goNext}
             />
           )}
@@ -364,11 +367,13 @@ function IntroScreen({
   title,
   creatorName,
   creatorCompany,
+  creatorProfile,
   onContinue,
 }: {
   title: string;
   creatorName: string;
   creatorCompany: string | null;
+  creatorProfile?: ProfileData | null;
   onContinue: () => void;
 }) {
   return (
@@ -381,6 +386,12 @@ function IntroScreen({
         <br />
         Let's get you onboarded, it only takes a minute.
       </p>
+      {/* Only when the creator chose to show their profile on this form. */}
+      {creatorProfile && (
+        <div className="flex justify-center onboard-fade-in-delay-2">
+          <CreatorProfileCard profile={creatorProfile} />
+        </div>
+      )}
       <button
         onClick={onContinue}
         className="w-full px-6 py-3 bg-[#6B5CE7] text-white font-semibold rounded-[100px] hover:bg-[#5A4BD1] transition-colors onboard-fade-in-delay-2"

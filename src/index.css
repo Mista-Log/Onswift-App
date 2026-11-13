@@ -81,7 +81,7 @@
     --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
   }
 
-  /* Dark mode: black background, grey buttons, white text — no purple tint */
+  /* Dark mode: black background and neutral surfaces, with the brand purple for buttons, rings, hovers and icons */
   .dark {
     --background: 0 0% 0%;
     --foreground: 0 0% 92%;
@@ -92,16 +92,16 @@
     --popover: 0 0% 9%;
     --popover-foreground: 0 0% 92%;
 
-    --primary: 0 0% 30%;
+    --primary: 250 76% 63%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 16%;
+    --secondary: 250 22% 16%;
     --secondary-foreground: 0 0% 100%;
 
     --muted: 0 0% 18%;
     --muted-foreground: 0 0% 65%;
 
-    --accent: 0 0% 40%;
+    --accent: 250 45% 26%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -115,21 +115,21 @@
 
     --border: 0 0% 18%;
     --input: 0 0% 14%;
-    --ring: 0 0% 45%;
+    --ring: 250 76% 63%;
 
     --radius: 0.75rem;
 
     --sidebar-background: 0 0% 4%;
     --sidebar-foreground: 0 0% 92%;
-    --sidebar-primary: 0 0% 30%;
+    --sidebar-primary: 250 76% 63%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent: 250 22% 14%;
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 0 0% 16%;
-    --sidebar-ring: 0 0% 45%;
+    --sidebar-ring: 250 76% 63%;
 
-    --glow-color: 0 0% 100%;
-    --card-glow: 0 0 40px hsl(0 0% 100% / 0.04);
+    --glow-color: 250 76% 63%;
+    --card-glow: 0 0 40px hsl(250 76% 63% / 0.08);
   }
 }
 
@@ -162,6 +162,39 @@
     box-shadow: var(--card-glow);
   }
 
+  /* The Agent's proposal card: frosted glass over the page's lavender backdrop. */
+  .agent-glass {
+    border-radius: 0.75rem;
+    background-color: hsl(0 0% 100% / 0.55);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    border: 1px solid hsl(0 0% 100% / 0.7);
+    box-shadow: 0 8px 32px hsl(250 76% 63% / 0.14), inset 0 1px 0 hsl(0 0% 100% / 0.7);
+  }
+
+  .dark .agent-glass {
+    background-color: hsl(0 0% 100% / 0.06);
+    border-color: hsl(0 0% 100% / 0.12);
+    box-shadow: 0 8px 32px hsl(250 76% 63% / 0.18), inset 0 1px 0 hsl(0 0% 100% / 0.08);
+  }
+
+  .agent-glass[data-status="executed"] { border-color: hsl(152 60% 42% / 0.55); }
+  .agent-glass[data-status="failed"] { border-color: hsl(0 84% 60% / 0.55); }
+  .agent-glass[data-status="rejected"],
+  .agent-glass[data-status="expired"] { opacity: 0.8; }
+
+  /* No blur support, or the user asked for less transparency: a solid card keeps the text readable. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .agent-glass { background-color: hsl(var(--card)); }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .agent-glass, .dark .agent-glass {
+      background-color: hsl(var(--card));
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
   .glass-card-hover {
     background-color: hsl(var(--card) / 0.8);
     backdrop-filter: blur(24px);
@@ -177,8 +210,8 @@
   }
 
   .dark .glass-card-hover:hover {
-    box-shadow: 0 0 60px hsl(0 0% 100% / 0.10);
-    border-color: hsl(0 0% 100% / 0.25);
+    box-shadow: 0 0 60px hsl(250 76% 63% / 0.20);
+    border-color: hsl(250 76% 63% / 0.45);
   }
 
   /* Landing page specific components */
@@ -284,66 +317,6 @@
     animation: revealRise 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
-  .page-shell {
-    opacity: 0;
-    transition: opacity 300ms ease;
-  }
-
-  .page-shell--visible {
-    opacity: 1;
-  }
-
-  .loader-screen {
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #ffffff 0%, #f5f3fb 50%, #ffffff 100%);
-    opacity: 1;
-    transition: opacity 300ms ease;
-    pointer-events: auto;
-  }
-
-  .loader-screen.is-fading {
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .loader-center {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: clamp(140px, 30vw, 220px);
-    height: clamp(140px, 30vw, 220px);
-  }
-
-  .loader-logo {
-    width: clamp(90px, 18vw, 140px);
-    height: auto;
-  }
-
-  .loader-ring {
-    position: absolute;
-    inset: -12px;
-    border-radius: 9999px;
-    border: 2px solid rgba(148, 85, 255, 0.25);
-    border-top-color: rgba(196, 134, 255, 0.95);
-    border-right-color: rgba(124, 92, 232, 0.6);
-    box-shadow: 0 0 26px rgba(148, 85, 255, 0.6), inset 0 0 18px rgba(148, 85, 255, 0.35);
-    animation: loader-spin 2.6s linear infinite;
-  }
-
-  .loader-ring--b {
-    inset: 10px;
-    opacity: 0.7;
-    border-top-color: rgba(170, 120, 255, 0.9);
-    border-left-color: rgba(124, 92, 232, 0.55);
-    animation: loader-spin-reverse 3.4s linear infinite;
-  }
-
   .animate-slide-up {
     animation: slideUp 0.5s ease-out forwards;
   }
@@ -395,24 +368,6 @@
   }
   50% {
     box-shadow: 0 0 40px hsl(250 76% 63% / 0.4);
-  }
-}
-
-@keyframes loader-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes loader-spin-reverse {
-  from {
-    transform: rotate(360deg);
-  }
-  to {
-    transform: rotate(0deg);
   }
 }
 
@@ -470,6 +425,9 @@
 /* Utility: minimal light-purple scrollbar (theme-token based, correct in both light/dark) */
 .scrollbar-thin-purple {
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.scrollbar-thin-purple[data-scrolling] {
   scrollbar-color: hsl(var(--primary) / 0.35) transparent;
 }
 .scrollbar-thin-purple::-webkit-scrollbar {
@@ -480,30 +438,46 @@
   background: transparent;
 }
 .scrollbar-thin-purple::-webkit-scrollbar-thumb {
-  background: hsl(var(--primary) / 0.35);
+  background: transparent;
   border-radius: 9999px;
+}
+.scrollbar-thin-purple[data-scrolling]::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.35);
 }
 .scrollbar-thin-purple::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--primary) / 0.55);
 }
 
-/* Scrollbar styling */
+/* Scrollbars: invisible until the element scrolls (src/lib/scrollbars.ts sets data-scrolling),
+   in both light and dark mode. Content still scrolls; only the bar is hidden. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+[data-scrolling] {
+  scrollbar-color: hsl(var(--foreground) / 0.3) transparent;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(270 40% 10%);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(270 30% 25%);
-  border-radius: 4px;
+  background: transparent;
+  border-radius: 9999px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(250 76% 63% / 0.5);
+[data-scrolling]::-webkit-scrollbar-thumb {
+  background: hsl(var(--foreground) / 0.3);
+}
+
+[data-scrolling]::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--foreground) / 0.5);
 }
 
 @keyframes confetti-fall {
@@ -532,18 +506,6 @@
   }
 
   .reveal.is-visible {
-    animation: none;
-  }
-
-  .page-shell {
-    transition: none;
-  }
-
-  .loader-screen {
-    transition: none;
-  }
-
-  .loader-ring {
     animation: none;
   }
 }

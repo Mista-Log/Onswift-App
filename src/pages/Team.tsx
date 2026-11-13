@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CelebrationModal } from "@/components/CelebrationModal";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { CardGridSkeleton } from "@/components/ui/skeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -31,7 +32,8 @@ import {
   Search,
   Plus,
   Loader2,
-  Mail
+  Mail,
+  User
 } from "lucide-react";
 import { toast } from "sonner";
 import { InviteMemberModal } from "@/components/dashboard/InviteMemberModal";
@@ -148,9 +150,7 @@ export default function Team() {
 
         {/* Team Members Grid */}
         {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
+          <CardGridSkeleton count={6} label="Loading your team" className="gap-4" />
         ) : filteredMembers.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredMembers.map((member) => (
@@ -171,7 +171,7 @@ export default function Team() {
                     </Avatar>
                     <div>
                       <p className="font-medium text-foreground">{member.name}</p>
-                      <p className="text-sm text-muted-foreground">{member.role || "Talent"}</p>
+                      <p className="text-sm text-muted-foreground">{member.role || "Team"}</p>
                     </div>
                   </div>
 
@@ -226,12 +226,19 @@ export default function Team() {
 
                 <div className="flex gap-2 mt-4 pt-4 border-t border-border/50">
                   <Button
+                    size="sm"
+                    className="flex-1 gap-2"
+                    onClick={() => navigate(`/profile/${member.user_id}`)}
+                  >
+                    View Profile
+                  </Button>
+                  <Button
                     variant="outline"
                     size="sm"
                     className="flex-1 gap-2"
                     onClick={() => handleStartConversation(member.user_id)}
                   >
-                    <MessageSquare className="h-4 w-4" />
+                    
                     Message
                   </Button>
                 </div>
@@ -247,7 +254,7 @@ export default function Team() {
             <p className="text-muted-foreground mb-6">
               {searchQuery
                 ? "Try adjusting your search"
-                : "Invite talents to join your team and start collaborating"}
+                : "Invite your staff to join your team and start collaborating"}
             </p>
             {!searchQuery && (
               <Button onClick={() => setShowInviteModal(true)} className="gap-2">
@@ -293,8 +300,8 @@ export default function Team() {
           open={showInviteCelebration}
           onClose={() => setShowInviteCelebration(false)}
           emoji="🎉"
-          title="Your first invite is out!"
-          description="Your team is growing! While your talent gets set up, create your first project, then create a task and assign it to them to kick things off."
+          title="First invite sent, Horray!"
+          description="While your team gets set up, create your first project, then create a task and assign it to them to kick things off."
           cta={{ label: "Create My First Project", href: "/projects" }}
           secondaryLabel="I'll explore on my own"
         />

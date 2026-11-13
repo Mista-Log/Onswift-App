@@ -32,7 +32,7 @@ export default function Login() {
     localStorage.setItem("invite_token", inviteToken);
   }
 
-  const from = (location.state as any)?.from?.pathname || '/dashboard';
+  const from = (location.state as any)?.from?.pathname || '/home';
 
   if (isAuthenticated) {
     return <Navigate to={from} replace />;

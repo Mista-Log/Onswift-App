@@ -3,13 +3,16 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import type { ReactNode } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { TeamProvider } from "@/contexts/TeamContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
+import { AgentProvider } from "@/contexts/AgentContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { HomeRedirect } from "@/components/auth/HomeRedirect";
 import { useAuth } from "@/contexts/AuthContext";
 
 // Public pages
@@ -23,6 +26,7 @@ import ForgotPassword from "./pages/auth/ForgotPassword";
 import VerifyEmail from "./pages/auth/VerifyEmail";
 
 // Protected pages
+import Chat from "./pages/Chat";
 import Dashboard from "./pages/Dashboard";
 import TalentMarketplace from "./pages/TalentMarketplace";
 import Team from "./pages/Team";
@@ -33,6 +37,8 @@ import Calendar from "./pages/Calendar";
 import AnalyticsPage from "./pages/Analytics";
 import { RouteErrorBoundary } from "./components/ErrorBoundary";
 import TalentProfileEdit from "./pages/TalentProfileEdit";
+import ProfilePage from "./pages/ProfilePage";
+import PublicProfile from "./pages/PublicProfile";
 import CreatorProfileEdit from "./pages/CreatorProfileEdit";
 // import TalentPublicProfile from "./pages/TalentPublicProfile";
 import Messages from "./pages/Messages";
@@ -90,7 +96,7 @@ import { PageTracker } from "./components/analytics/PageTracker";
 function RootRoute() {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return null;
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated) return <Navigate to="/home" replace />;
   return <Landing />;
 }
 
@@ -129,6 +135,19 @@ function PortalMessagesRedirect() {
 
 const queryClient = new QueryClient();
 
+// The sign-in and sign-up pages are always light, whatever theme the main app is using. Forcing the
+// theme here leaves the saved preference alone, so the app is still dark when the user gets back in.
+const AUTH_PATHS = /^\/(login|get-started|signup|forgot-password|verify-email|reset-password|auth)(\/|$)/;
+
+function RouteAwareThemeProvider({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  return (
+    <ThemeProvider attribute="class" defaultTheme="light" forcedTheme={AUTH_PATHS.test(pathname) ? "light" : undefined}>
+      {children}
+    </ThemeProvider>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -136,12 +155,13 @@ const App = () => (
         <ProjectProvider>
           <TeamProvider>
             <NotificationProvider>
-              <ThemeProvider attribute="class" defaultTheme="light">
+              <BrowserRouter>
+                <RouteAwareThemeProvider>
                 <Toaster />
                 <Sonner />
                 <Analytics />
-                <BrowserRouter>
                   <PageTracker />
+                  <AgentProvider>
                   <RouteErrorBoundary>
                   <Routes>
                     {/* Admin CMS — all admin routes wrapped in AdminAuthProvider */}
@@ -186,6 +206,10 @@ const App = () => (
                     <Route path="/invite/:token" element={<InvitePage />} />
 
                     {/* Protected routes — unified shell, role-filtered nav */}
+                    {/* Default landing after sign-in: creators → /chat, everyone else → /dashboard */}
+                    <Route path="/home" element={<ProtectedRoute><HomeRedirect /></ProtectedRoute>} />
+                    {/* Agent — creators only (Chat redirects other roles; the API enforces it too) */}
+                    <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
                     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                     <Route path="/talent" element={<ProtectedRoute><TalentMarketplace /></ProtectedRoute>} />
                     <Route path="/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
@@ -198,6 +222,7 @@ const App = () => (
                     <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                     <Route path="/profile/edit" element={<ProtectedRoute><TalentProfileEdit /></ProtectedRoute>} />
                     <Route path="/profile/creator/edit" element={<ProtectedRoute><CreatorProfileEdit /></ProtectedRoute>} />
+                    <Route path="/profile/:userId" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                     <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
                     <Route path="/deliverables" element={<ProtectedRoute><Deliverables /></ProtectedRoute>} />
                     {/* <Route path="/talent/:userId" element={<ProtectedRoute><TalentPublicProfile /></ProtectedRoute>} /> */}
@@ -242,12 +267,18 @@ const App = () => (
                     <Route path="/docs" element={<ProtectedRoute><DocsPage /></ProtectedRoute>} />
                     <Route path="/docs/:docId" element={<ProtectedRoute><DocsPage /></ProtectedRoute>} />
 
+                    {/* Public creator profile: onswift.org/<handle>. Every fixed page above wins over this,
+                        and handles can't be named after one (the server refuses them). Unknown handles
+                        show the same "not found" as the catch-all. */}
+                    <Route path="/:handle" element={<PublicProfile />} />
+
                     {/* Catch-all */}
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                   </RouteErrorBoundary>
-                </BrowserRouter>
-              </ThemeProvider>
+                  </AgentProvider>
+                </RouteAwareThemeProvider>
+              </BrowserRouter>
             </NotificationProvider>
           </TeamProvider>
         </ProjectProvider>

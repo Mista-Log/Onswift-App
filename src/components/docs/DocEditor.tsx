@@ -17,7 +17,9 @@ import {
   FileText,
   Printer,
   FileType,
-  PanelLeft,
+  ChevronLeft,
+  ChevronRight,
+  ArrowLeft,
   Eye,
 } from "lucide-react";
 import {
@@ -33,11 +35,15 @@ interface DocEditorProps {
   doc: DocDetail;
   onTitleChange?: (title: string) => void;
   onToggleSidebar?: () => void;
+  /** Whether the mobile pages drawer is open, so the toggle can point the right way. */
+  sidebarOpen?: boolean;
+  /** Goes back to the page the user came from. */
+  onBack?: () => void;
 }
 
 type SaveState = "idle" | "saving" | "saved";
 
-export function DocEditor({ doc, onTitleChange, onToggleSidebar }: DocEditorProps) {
+export function DocEditor({ doc, onTitleChange, onToggleSidebar, sidebarOpen = false, onBack }: DocEditorProps) {
   const { resolvedTheme } = useTheme();
   const [title, setTitle] = useState(doc.title || "Untitled");
   const [icon, setIcon] = useState(doc.icon || "");
@@ -145,13 +151,24 @@ export function DocEditor({ doc, onTitleChange, onToggleSidebar }: DocEditorProp
 
         {/* Left — mobile sidebar toggle + icon picker */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Sidebar toggle — mobile only */}
+          {/* Back to the previous page */}
+          {onBack && (
+            <button
+              onClick={onBack}
+              aria-label="Go back"
+              className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft size={16} />
+            </button>
+          )}
+          {/* Pages drawer toggle — mobile only. Chevron points the way the drawer will move. */}
           <button
             onClick={onToggleSidebar}
+            aria-label={sidebarOpen ? "Close pages" : "Open pages"}
+            aria-expanded={sidebarOpen}
             className="md:hidden h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-            title="Toggle pages"
           >
-            <PanelLeft size={16} />
+            {sidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
           </button>
 
           {/* Icon picker */}

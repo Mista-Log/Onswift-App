@@ -19,7 +19,7 @@ class OnboardingTemplateSerializer(serializers.ModelSerializer):
         model = OnboardingTemplate
         fields = [
             "id", "creator", "title", "blocks",
-            "project", "project_name",
+            "project", "project_name", "show_creator_profile",
             "created_at", "updated_at",
         ]
         read_only_fields = ["id", "creator", "created_at", "updated_at"]
@@ -100,6 +100,8 @@ class OnboardingPublicSerializer(serializers.Serializer):
     blocks = serializers.JSONField()
     creator_name = serializers.CharField()
     creator_company = serializers.CharField(required=False, allow_null=True)
+    # The creator's profile, only when they turned "show my profile" on for this form.
+    creator_profile = serializers.JSONField(required=False, allow_null=True)
     is_expired = serializers.BooleanField()
     status = serializers.CharField()
 
@@ -197,7 +199,7 @@ class StandaloneFormSerializer(serializers.ModelSerializer):
     class Meta:
         model = StandaloneForm
         fields = [
-            "id", "creator", "title", "blocks", "slug", "url", "is_open",
+            "id", "creator", "title", "blocks", "slug", "url", "is_open", "show_creator_profile",
             "response_count", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "creator", "slug", "created_at", "updated_at"]
@@ -229,6 +231,8 @@ class StandaloneFormPublicSerializer(serializers.Serializer):
     title = serializers.CharField()
     blocks = serializers.JSONField()
     creator_name = serializers.CharField()
+    # The creator's profile, only when they turned "show my profile" on for this form.
+    creator_profile = serializers.JSONField(required=False, allow_null=True)
     is_open = serializers.BooleanField()
 
 

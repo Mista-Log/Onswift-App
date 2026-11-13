@@ -12,6 +12,7 @@ from django.db import transaction
 from rest_framework.parsers import MultiPartParser, FormParser
 
 from core.exceptions import storage_error_guard
+from account.profiles import shared_profile
 
 from .models import (
     OnboardingTemplate, OnboardingInstance, OnboardingUpload,
@@ -223,6 +224,7 @@ class OnboardingPublicView(APIView):
             "blocks": instance.template.blocks,
             "creator_name": creator.full_name or creator.email,
             "creator_company": getattr(creator_profile, "company_name", None) if creator_profile else None,
+            "creator_profile": shared_profile(creator) if instance.template.show_creator_profile else None,
             "is_expired": instance.is_expired,
             "status": instance.status,
         }).data
@@ -540,6 +542,7 @@ class StandaloneFormPublicView(APIView):
             "title": form.title,
             "blocks": form.blocks,
             "creator_name": form.creator.full_name or form.creator.email,
+            "creator_profile": shared_profile(form.creator) if form.show_creator_profile else None,
             "is_open": form.is_open,
         }).data
 

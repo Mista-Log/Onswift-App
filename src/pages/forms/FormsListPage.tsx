@@ -7,6 +7,7 @@ import { secureFetch } from "@/api/apiClient";
 import { toast } from "sonner";
 
 import { MainLayout } from "@/components/layout/MainLayout";
+import { ListSkeleton } from "@/components/ui/skeletons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -72,9 +73,7 @@ export default function FormsListPage() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          </div>
+          <ListSkeleton count={4} label="Loading your forms" />
         ) : forms.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">

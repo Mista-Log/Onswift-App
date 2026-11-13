@@ -42,14 +42,19 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True,
         null=True
     )
+    # Wide cover image across the top of the profile. Best at 1584 x 396 (LinkedIn banner size).
+    banner = CloudinaryField("profile_banner", blank=True, null=True)
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=True)
     onboarding_completed = models.BooleanField(default=True)
-    otp_code = models.CharField(max_length=6, null=True, blank=True)
+    # HMAC of the emailed code (never the plaintext) — see account/otp.py.
+    otp_code = models.CharField(max_length=64, null=True, blank=True)
     otp_expires_at = models.DateTimeField(null=True, blank=True)
+    otp_attempts = models.PositiveSmallIntegerField(default=0)
+    otp_sent_at = models.DateTimeField(null=True, blank=True)
 
 
     date_joined = models.DateTimeField(default=timezone.now)
@@ -78,6 +83,24 @@ class TalentProfile(models.Model):
     def __str__(self):
         return f"Talent: {self.user.full_name or self.user.email}"
 
+class FeaturedWork(models.Model):
+    """One image in a person's "Featured" section (talents and creators alike), optionally linking out."""
+    MAX_PER_USER = 8
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="featured_works")
+    image = CloudinaryField("featured_work")
+    title = models.CharField(max_length=120, blank=True)
+    link = models.URLField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Featured: {self.title or self.id} ({self.user_id})"
+
+
 class CreatorProfile(models.Model):
     user = models.OneToOneField(
         User, 
@@ -85,12 +108,18 @@ class CreatorProfile(models.Model):
     )
 
     social_links = models.JSONField(default=dict, blank=True)
+    portfolio_links = models.JSONField(default=list, blank=True)
     company_name = models.CharField(max_length=255, blank=True)
     bio = models.TextField(blank=True)
     website = models.URLField(blank=True)
     industry = models.CharField(max_length=150, blank=True)
     location = models.CharField(max_length=255, blank=True)
     verified = models.BooleanField(default=False)
+
+    # Public share link: onswift.org/<handle>. The page only exists while is_public is on, which the
+    # creator turns on themselves; nobody's profile is public by default. Stored lowercase.
+    handle = models.CharField(max_length=30, unique=True, null=True, blank=True)
+    is_public = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -104,6 +133,10 @@ class UserSettings(models.Model):
     email_notifications = models.BooleanField(default=True)
     push_notifications = models.BooleanField(default=True)
     message_alerts = models.BooleanField(default=True)
+
+    # Creators: lets team members who already work on one of my projects add their own tasks
+    # to it. Applies to all of my projects; creator-only approval of deliverables is unaffected.
+    allow_team_task_creation = models.BooleanField(default=True)
 
     # Daily/weekly "what's left" report (Deadlines page toggle).
     REMINDER_FREQUENCY_CHOICES = [
@@ -120,6 +153,12 @@ class UserSettings(models.Model):
     reminder_timezone = models.CharField(max_length=64, default="UTC")
     reminder_email = models.BooleanField(default=True)
     last_reminder_sent_on = models.DateField(null=True, blank=True)
+    # The day (in the user's reminder timezone) the in-app "report for today" was last shown, so it
+    # appears once a day however many times the app is reloaded, on any browser or device.
+    report_seen_on = models.DateField(null=True, blank=True)
+
+    # Deadlines page: whether the countdown timer is shown. Kept here so the choice follows the account.
+    show_deadline_timer = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

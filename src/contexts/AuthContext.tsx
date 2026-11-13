@@ -16,8 +16,10 @@ export interface User {
   professional_title?: string;
   skills?: string[];
   profilePicture?: string;
+  banner?: string;
   bio?: string;
   portfolioLink?: string;
+  portfolioLinks?: string[];
   hourlyRate?: number;
   availability?: string;
   social_links?: {
@@ -121,6 +123,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bio: data.profile?.bio,
         skills: data.profile?.skills,
         availability: data.profile?.availability,
+        company_name: data.profile?.company_name,
+        banner: data.profile?.banner || "",
+        // The server stores a list; the first link is what the completion ring looks at.
+        portfolioLinks: data.profile?.portfolio_links ?? [],
+        portfolioLink: data.profile?.portfolio_links?.[0] ?? "",
 
         // rename fields properly
         hourlyRate: data.profile?.hourly_rate,

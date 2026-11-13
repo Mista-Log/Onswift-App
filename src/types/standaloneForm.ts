@@ -12,6 +12,8 @@ export interface StandaloneForm {
   slug: string;
   url: string;
   is_open: boolean;
+  /** People filling the form can open the creator's profile from it. */
+  show_creator_profile?: boolean;
   response_count: number;
   created_at: string;
   updated_at: string;
@@ -34,6 +36,8 @@ export interface StandaloneFormPublicData {
   title: string;
   blocks: FormBlock[];
   creator_name: string;
+  /** The creator's profile, present only when they switched it on for this form. */
+  creator_profile?: import("@/components/profile/ProfileView").ProfileData | null;
   is_open: boolean;
 }
 

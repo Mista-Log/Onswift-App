@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, CheckSquare, Plus, Hourglass } from "lucide-react";
+import { Loader2, CheckSquare, Plus, Hourglass, RotateCcw } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +30,7 @@ import { toast } from "sonner";
 interface MyTask extends Task {
   project_name?: string;
   awaiting_approval?: boolean;
+  revision_requested?: boolean;
 }
 
 interface MyTasksPanelProps {
@@ -218,7 +219,7 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
     try {
       const res = await secureFetch(`/api/v2/tasks/${id}/request-completion/`, { method: "POST" });
       if (!res.ok) throw new Error("request failed");
-      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, awaiting_approval: true } : t)));
+      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, awaiting_approval: true, revision_requested: false } : t)));
       toast.success("Sent. Awaiting your creator's approval");
     } catch { 
       toast.error("Couldn't send for approval. Please try again.");
@@ -239,7 +240,13 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
   // Tasks a talent has sent to their creator for approval sit in their own group: the ball is with
   // the creator, so they're locked and set apart from the work still on the talent's plate.
   const waitingTasks = !isCreator && activeTab === "todo" ? filteredTasks.filter((t) => t.awaiting_approval) : [];
-  const activeTasks = filteredTasks.filter((t) => !waitingTasks.includes(t));
+  // The opposite case: the creator sent the task back. The ball is with the talent again, so these
+  // sit in their own group at the top, where they can't be mistaken for ordinary work.
+  const revisionTasks =
+    !isCreator && activeTab === "todo"
+      ? filteredTasks.filter((t) => t.revision_requested && !t.awaiting_approval)
+      : [];
+  const activeTasks = filteredTasks.filter((t) => !waitingTasks.includes(t) && !revisionTasks.includes(t));
 
   const totalVisibleCount = filteredPersonal.length + activeTasks.length;
   const personalLimit = showAllTasks ? filteredPersonal.length : Math.min(filteredPersonal.length, TASK_DISPLAY_LIMIT);
@@ -257,6 +264,7 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
       projectName={getProjectName(task)}
       status={task.status}
       awaitingApproval={task.awaiting_approval}
+      revisionRequested={task.revision_requested}
       assignedToMe={isCreator}
       onStatusChange={handleStatusChange}
       stageRule={(to) => stageAction(isCreator ? "creator" : "talent", task.status, to, task.awaiting_approval)}
@@ -298,6 +306,15 @@ export function MyTasksPanel({ variant }: MyTasksPanelProps) {
             </div>
           ) : filteredPersonal.length + filteredTasks.length > 0 ? (
             <>
+              {revisionTasks.length > 0 && (
+                <div className="space-y-2 rounded-lg border border-dashed border-amber-400/60 bg-amber-500/10 p-2">
+                  <p className="flex items-center gap-1.5 px-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Revision requested by your creator ({revisionTasks.length})
+                  </p>
+                  {revisionTasks.map(renderProjectTask)}
+                </div>
+              )}
               {visiblePersonal.map((task) => (
                 <TaskCard
                   key={`personal-${task.id}`}

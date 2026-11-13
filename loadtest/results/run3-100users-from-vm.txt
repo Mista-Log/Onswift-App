@@ -1,0 +1,66 @@
+
+
+  █ THRESHOLDS 
+
+    http_req_duration{name:me}
+    ✓ 'p(95)>=0' p(95)=212.61ms
+
+    http_req_duration{name:my-tasks}
+    ✓ 'p(95)>=0' p(95)=208.73ms
+
+    http_req_duration{name:notifications}
+    ✓ 'p(95)>=0' p(95)=207.18ms
+
+    http_req_duration{name:projects}
+    ✓ 'p(95)>=0' p(95)=449.25ms
+
+    http_req_duration{name:settings}
+    ✓ 'p(95)>=0' p(95)=223.62ms
+
+    http_req_duration{name:team}
+    ✓ 'p(95)>=0' p(95)=220.14ms
+
+    server_errors
+    ✓ 'rate<0.25' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 27460   30.222087/s
+    checks_succeeded...: 100.00% 27460 out of 27460
+    checks_failed......: 0.00%   0 out of 27460
+
+    ✓ me is 200
+    ✓ settings is 200
+    ✓ notifications is 200
+    ✓ projects is 200
+    ✓ team is 200
+    ✓ my-tasks is 200
+
+    CUSTOM
+    server_errors..................: 0.00%  0 out of 27460
+
+    HTTP
+    http_req_duration..............: avg=131.22ms min=70.15ms med=82.83ms  p(90)=349.3ms  p(95)=376.63ms p(99)=470.55ms max=1.77s   
+      { expected_response:true }...: avg=131.22ms min=70.15ms med=82.83ms  p(90)=349.3ms  p(95)=376.63ms p(99)=470.55ms max=1.77s   
+      { name:me }..................: avg=102.92ms min=71.1ms  med=81.65ms  p(90)=158.26ms p(95)=212.61ms p(99)=369.01ms max=930.13ms
+      { name:my-tasks }............: avg=101.9ms  min=70.6ms  med=81.27ms  p(90)=155.17ms p(95)=208.73ms p(99)=359.77ms max=562.54ms
+      { name:notifications }.......: avg=103.07ms min=70.59ms med=82.37ms  p(90)=156.8ms  p(95)=207.18ms p(99)=379.62ms max=708.14ms
+      { name:projects }............: avg=243.6ms  min=70.29ms med=317.51ms p(90)=401.84ms p(95)=449.25ms p(99)=614.23ms max=1.08s   
+      { name:settings }............: avg=103.61ms min=70.15ms med=81.45ms  p(90)=165.18ms p(95)=223.62ms p(99)=377.6ms  max=573.13ms
+      { name:team }................: avg=103.17ms min=70.7ms  med=81.38ms  p(90)=161.88ms p(95)=220.14ms p(99)=366.21ms max=576.04ms
+    http_req_failed................: 0.00%  0 out of 27462
+    http_reqs......................: 27462  30.224289/s
+
+    EXECUTION
+    iteration_duration.............: avg=7.64s    min=4.52s   med=7.64s    p(90)=8.79s    p(95)=9.12s    p(99)=9.65s    max=10.61s  
+    iterations.....................: 5492   6.044417/s
+    vus............................: 1      min=0          max=100
+    vus_max........................: 100    min=100        max=100
+
+    NETWORK
+    data_received..................: 26 MB  29 kB/s
+    data_sent......................: 2.3 MB 2.6 kB/s
+
+
+

@@ -33,7 +33,7 @@ export default function SignUpCreator() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/home" replace />;
   }
 
   const inviteToken = new URLSearchParams(location.search).get("invite");
@@ -150,7 +150,7 @@ export default function SignUpCreator() {
             </div>
             
             <h2 className="text-2xl font-semibold text-foreground">Create Agency/Creator Account</h2>
-            <p className="text-muted-foreground mt-2">Set up your account to start hiring talent</p>
+            <p className="text-muted-foreground mt-2">Set up your account to start hiring your team</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">

@@ -23,6 +23,7 @@ from .serializers import (
     duplicate_project,
 )
 from .permissions import IsCreator
+from .ownership import is_owner, shared_with_creator, creator_can_view, visible_to_talent
 from rest_framework import permissions
 from django.db.models import Q
 from . import google_calendar
@@ -39,13 +40,24 @@ class ProjectListCreateView(generics.ListCreateAPIView):
             # Creators see their own projects
             return Project.objects.filter(creator=user)
         else:
-            # Talents see projects where they are assigned to tasks
-            return Project.objects.filter(tasks__assignees=user).distinct()
+            # Talents see their own projects and the ones they are assigned work in
+            return visible_to_talent(user)
 
     def perform_create(self, serializer):
         # Automatically assign creator
         serializer.save(creator=self.request.user)
 
+
+class SharedProjectsListView(generics.ListAPIView):
+    """GET /api/v2/projects/shared/ - projects the creator's team members chose to share. Read-only."""
+    serializer_class = ProjectSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role != "creator":
+            return Project.objects.none()
+        return shared_with_creator(user).order_by("-created_at")
 
 
 class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -54,19 +66,25 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        reading = self.request.method in permissions.SAFE_METHODS
         if user.role == "creator":
-            return Project.objects.filter(creator=user)
+            if not reading:
+                return Project.objects.filter(creator=user)
+            # A creator may also look at (never change) a project their team member shared.
+            return Project.objects.filter(
+                Q(creator=user) | Q(pk__in=shared_with_creator(user).values("pk"))
+            )
         else:
-            # Talents can view projects where they have assigned tasks
-            return Project.objects.filter(tasks__assignees=user).distinct()
+            # Talents: their own projects, and the ones they have assigned tasks in
+            return visible_to_talent(user)
 
-    def check_permissions(self, request):
-        super().check_permissions(request)
-        # Only creators can update/delete
-        if request.method in ['PUT', 'PATCH', 'DELETE']:
-            if request.user.role != "creator":
-                from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("Only creators can modify projects.")
+    def get_object(self):
+        project = super().get_object()
+        # Only the owner can update or delete. For a talent that means a project they made themselves.
+        if self.request.method in ('PUT', 'PATCH', 'DELETE') and not is_owner(self.request.user, project):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only creators can modify projects.")
+        return project
 
 
 class ProjectCompleteView(APIView):
@@ -220,9 +238,14 @@ class TaskListCreateView(generics.ListCreateAPIView):
                 project = Project.objects.get(id=project_id, creator=user)
                 return project.tasks.all()
             except Project.DoesNotExist:
-                return Task.objects.none()
+                # Not theirs: allowed to look only if a team member shared it with them.
+                shared = shared_with_creator(user).filter(id=project_id).first()
+                return shared.tasks.all() if shared else Task.objects.none()
         else:
-            # Talents see only tasks assigned to them in this project
+            if user.role == "talent" and Project.objects.filter(id=project_id, creator=user).exists():
+                # A talent's own project: they see every task in it
+                return Task.objects.filter(project_id=project_id)
+            # Otherwise only the tasks assigned to them in this project
             return Task.objects.filter(
                 project_id=project_id,
                 assignees=user
@@ -230,6 +253,13 @@ class TaskListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user
+
+        if user.role == "talent":
+            own = Project.objects.filter(id=self.kwargs["project_id"], creator=user).first()
+            if own:
+                # A talent's own project: no creator to ask. Tasks are theirs, so always self-assigned.
+                serializer.save(project=own, assignees=[user])
+                return
 
         if user.role == "creator":
             try:
@@ -252,7 +282,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
             raise NotFound("Project not found.")
 
         already_assigned = Task.objects.filter(project=project, assignees=user).exists()
-        if not (project.allow_talent_task_creation and already_assigned):
+        if not (project.team_can_add_tasks() and already_assigned):
             raise PermissionDenied("Only creators can create tasks in this project.")
 
         # Force self-assignment server-side, regardless of what the client sent.
@@ -280,13 +310,18 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         user = self.request.user
         deliverable_prefetch = ['deliverables__links', 'deliverables__files', 'deliverables__submitted_by']
         if user.role == "creator":
-            return Task.objects.filter(project__creator=user).select_related("project__creator").prefetch_related(*deliverable_prefetch)
+            visible = Q(project__creator=user)
+            if self.request.method in permissions.SAFE_METHODS:
+                # Read-only look at tasks in projects a team member shared
+                visible |= Q(project__in=shared_with_creator(user).values("pk"))
+            return Task.objects.filter(visible).select_related("project__creator").prefetch_related(*deliverable_prefetch)
         elif user.role == "client":
             return Task.objects.filter(
                 project__client_memberships__client=user
             ).select_related("project__creator").prefetch_related(*deliverable_prefetch)
         else:
-            return Task.objects.filter(assignees=user).select_related("project__creator").prefetch_related(*deliverable_prefetch)
+            # Assigned to them, or in a project they made themselves
+            return Task.objects.filter(Q(assignees=user) | Q(project__creator=user)).distinct().select_related("project__creator").prefetch_related(*deliverable_prefetch)
 
     # A talent may start or pause their own task (planning <-> in-progress) and nothing else:
     # completing stays with the creator (via deliverable approval or request-completion).
@@ -299,7 +334,12 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         return set(data.keys()) == {"status"} and data.get("status") in self.TALENT_STAGES
 
     def perform_update(self, serializer):
-        if self.request.user.role != "creator":
+        user = self.request.user
+        if user.role == "talent" and is_owner(user, serializer.instance.project):
+            # Their own project: nobody to approve anything, and tasks stay assigned to them.
+            serializer.save(assignees=[user])
+            return
+        if user.role != "creator":
             task = serializer.instance
             if task.status == "completed":
                 from rest_framework.exceptions import PermissionDenied
@@ -312,9 +352,23 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
     def check_permissions(self, request):
         super().check_permissions(request)
         if request.method in ("PUT", "PATCH", "DELETE"):
-            if request.user.role != "creator" and not self._is_talent_stage_change(request):
+            # Talents are decided per task in get_object (a project they own is fully theirs).
+            if request.user.role not in ("creator", "talent"):
                 from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied("Only creators can modify tasks.")
+
+    def get_object(self):
+        task = super().get_object()
+        user = self.request.user
+        if (
+            self.request.method in ("PUT", "PATCH", "DELETE")
+            and user.role == "talent"
+            and not is_owner(user, task.project)
+            and not self._is_talent_stage_change(self.request)
+        ):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only creators can modify tasks.")
+        return task
 
 
 def _get_task_for_user(user, task_id):
@@ -326,7 +380,7 @@ def _get_task_for_user(user, task_id):
         raise Http404
     if user.role == "creator" and task.project.creator == user:
         return task
-    if user.role == "talent" and task.assignees.filter(id=user.id).exists():
+    if user.role == "talent" and (task.assignees.filter(id=user.id).exists() or task.project.creator_id == user.id):
         return task
     if user.role == "client":
         if ProjectClientMembership.objects.filter(project=task.project, client=user).exists():
@@ -364,7 +418,9 @@ class TaskRequestCompletionView(APIView):
             return Response({"status": "ok", "awaiting_approval": True})
 
         task.awaiting_approval = True
-        task.save(update_fields=["awaiting_approval"])
+        # Handing it back in answers any revision the creator asked for.
+        task.revision_requested = False
+        task.save(update_fields=["awaiting_approval", "revision_requested"])
 
         from notification.services import create_notification
         create_notification(
@@ -403,8 +459,9 @@ class TaskRequestRevisionView(APIView):
 
         feedback = (request.data.get("feedback") or "").strip()
 
-        task.awaiting_approval = False
-        task.save(update_fields=["awaiting_approval"])
+        # Marks the task as sent back and posts the feedback in its comments.
+        from .serializers import record_revision_request
+        comment = record_revision_request(task, request.user, feedback)
 
         from notification.services import create_notification
         for assignee in task.assignees.all():
@@ -417,7 +474,12 @@ class TaskRequestRevisionView(APIView):
                 priority=1,
             )
 
-        return Response({"status": "ok", "awaiting_approval": False})
+        return Response({
+            "status": "ok",
+            "awaiting_approval": False,
+            "revision_requested": True,
+            "comment": TaskCommentSerializer(comment).data,
+        })
 
 
 class TaskCommentListCreateView(generics.ListCreateAPIView):

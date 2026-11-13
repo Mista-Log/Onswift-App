@@ -71,11 +71,11 @@ class TalentCreatorsListView(generics.ListAPIView):
         creators = []
         for hire_request in queryset:
             creator = hire_request.creator
+            # The photo lives on the user (CreatorProfile has no avatar field); Cloudinary URLs are absolute.
             avatar = None
             try:
-                if creator.creatorprofile.avatar:
-                    avatar = request.build_absolute_uri(creator.creatorprofile.avatar.url)
-            except AttributeError:
+                avatar = creator.profile_picture.url if creator.profile_picture else None
+            except Exception:
                 pass
 
             company = None

@@ -15,7 +15,7 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-ASSISTANT_FULL_NAME = "OnSwift AI"
+ASSISTANT_FULL_NAME = "OnSwift (Bot)"
 
 SWEEP_CACHE_KEY = "assistant:deadline_sweep"
 SWEEP_INTERVAL_SECONDS = 300

@@ -111,7 +111,6 @@ def duplicate_project(project, creator):
         name=f"{project.name} (Copy)",
         description=project.description,
         status="pending",  # a copy starts un-started; copied tasks below also start in planning
-        allow_talent_task_creation=project.allow_talent_task_creation,
     )
 
     for task in project.tasks.all():
@@ -137,6 +136,20 @@ def duplicate_project(project, creator):
     return new_project
 
 
+def record_revision_request(task, creator, feedback, deliverable=None):
+    """The creator sent work back for changes. Mark the task so every list and the task itself can show
+    it, and post the creator's note in the task's comments so the reason sits with the work, not only
+    in a notification. A note about a deliverable uses the same "Re: <title> : ..." form the comment
+    box uses when a creator comments on a deliverable. Returns the comment."""
+    task.revision_requested = True
+    task.awaiting_approval = False
+    task.save(update_fields=["revision_requested", "awaiting_approval"])
+    note = (feedback or "").strip()
+    body = f"Revision requested: {note}" if note else "Revision requested."
+    content = f"Re: {deliverable.title} : {body}" if deliverable is not None else body
+    return TaskComment.objects.create(task=task, author=creator, content=content)
+
+
 class TaskSerializer(serializers.ModelSerializer):
     assignees = serializers.PrimaryKeyRelatedField(
         many=True,
@@ -151,10 +164,10 @@ class TaskSerializer(serializers.ModelSerializer):
             "id", "project", "name", "description", "assignees", "assignee_names",
             "status", "priority", "deadline", "task_time",
             "recurrence_type", "recurrence_days",
-            "awaiting_approval",
+            "awaiting_approval", "revision_requested",
             "created_at",
         ]
-        read_only_fields = ["project", "awaiting_approval", "created_at"]
+        read_only_fields = ["project", "awaiting_approval", "revision_requested", "created_at"]
 
     def get_assignee_names(self, obj):
         return [u.full_name for u in obj.assignees.all()]
@@ -188,10 +201,11 @@ class TaskSerializer(serializers.ModelSerializer):
         if old_status != "completed" and task.status == "completed" and task.recurrence_type:
             spawn_recurring_task(task)
 
-        # A creator completing the task resolves any pending "awaiting approval" request.
-        if task.status == "completed" and task.awaiting_approval:
+        # A creator completing the task resolves any pending "awaiting approval" or revision request.
+        if task.status == "completed" and (task.awaiting_approval or task.revision_requested):
             task.awaiting_approval = False
-            task.save(update_fields=["awaiting_approval"])
+            task.revision_requested = False
+            task.save(update_fields=["awaiting_approval", "revision_requested"])
 
         return task
 
@@ -373,6 +387,9 @@ class ProjectSerializer(serializers.ModelSerializer):
     in_progress_tasks = serializers.SerializerMethodField()
     progress = serializers.SerializerMethodField()
     has_clients = serializers.SerializerMethodField()
+    # Read-only: this follows the creator's account-wide Settings option, not a per-project switch.
+    allow_talent_task_creation = serializers.SerializerMethodField()
+    owner_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -390,8 +407,23 @@ class ProjectSerializer(serializers.ModelSerializer):
             "progress",
             "has_clients",
             "allow_talent_task_creation",
+            "shared_with_creators",
+            "owner_name",
             "created_at",
         )
+
+    def get_allow_talent_task_creation(self, obj):
+        return obj.team_can_add_tasks()
+
+    def get_owner_name(self, obj):
+        return obj.creator.full_name
+
+    def validate_shared_with_creators(self, value):
+        # Sharing is a talent's choice about their own project; it means nothing for anyone else.
+        request = self.context.get("request")
+        if value and not (request and request.user.role == "talent"):
+            return False
+        return value
 
     def get_has_clients(self, obj):
         from portal.models import ClientInvite
@@ -517,6 +549,11 @@ class DeliverableCreateSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         deliverable = Deliverable.objects.create(submitted_by=user, **validated_data)
 
+        # Handing in new work answers any revision the creator asked for.
+        if deliverable.task.revision_requested:
+            deliverable.task.revision_requested = False
+            deliverable.task.save(update_fields=["revision_requested"])
+
         # Notify the project creator
         from notification.services import create_notification
         create_notification(
@@ -550,9 +587,15 @@ class DeliverableReviewSerializer(serializers.ModelSerializer):
             task = instance.task
             task.status = "completed"
             task.awaiting_approval = False
-            task.save(update_fields=["status", "awaiting_approval"])
+            task.revision_requested = False
+            task.save(update_fields=["status", "awaiting_approval", "revision_requested"])
             if task.recurrence_type:
                 spawn_recurring_task(task)
+        elif new_status == "revision" and "status" in validated_data:
+            # Flag the task and put the feedback in its comments, tied to this deliverable.
+            request = self.context.get("request")
+            author = request.user if request else instance.task.project.creator
+            record_revision_request(instance.task, author, instance.feedback, deliverable=instance)
         elif new_status == "pending" and old_status == "approved":
             task = instance.task
             if task.status == "completed":

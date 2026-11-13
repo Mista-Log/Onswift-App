@@ -3,6 +3,9 @@ import { PanelLeft } from "lucide-react";
 import { AppSidebar, TopBar } from "./AppSidebar";
 import { CreatorUpsellBar } from "./CreatorUpsellBar";
 import { DailyReportDialog } from "@/components/reminders/DailyReportDialog";
+import { AgentPanel } from "@/components/agent/AgentPanel";
+import { useOptionalAgent } from "@/contexts/AgentContext";
+import { useLocation } from "react-router-dom";
 
 export interface MainLayoutRenderProps {
   toggleMobileSidebar: () => void;
@@ -22,6 +25,8 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ children, hideTopBarOnMobile = false }: MainLayoutProps) {
+  const agent = useOptionalAgent();
+  const location = useLocation();
   // true = pinned collapsed (the slim rail, now the default resting state — hovering it
   // temporarily peeks it open, see AppSidebar). false = pinned open.
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -113,6 +118,9 @@ export function MainLayout({ children, hideTopBarOnMobile = false }: MainLayoutP
           {typeof children === "function" ? children({ toggleMobileSidebar }) : children}
         </main>
       </div>
+
+      {/* Agent panel — creators only; the full-page /chat already shows the conversation */}
+      {agent?.enabled && location.pathname !== "/chat" && <AgentPanel />}
 
       {/* Daily deadline report, shown once on the first open of a scheduled day */}
       <DailyReportDialog />

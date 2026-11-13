@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Camera, Linkedin, Twitter, Instagram, Youtube } from "lucide-react";
+import { Camera } from "lucide-react";
+import { SocialLinksEditor, toSocialValues, type SocialValues } from "@/components/profile/socials";
 import { uploadErrorMessage } from "@/lib/uploadError";
+import { FeaturedManager, useFeaturedWork } from "@/components/profile/FeaturedManager";
+import { ProfilePreviewButton, useOwnPreviewBase } from "@/components/profile/ProfilePreviewPanel";
+import { BannerField, PortfolioLinksEditor, useBannerField } from "@/components/profile/ProfileFormFields";
+import { ShareProfileButton } from "@/components/profile/ShareProfileButton";
+import type { ProfileData } from "@/components/profile/ProfileView";
 
 export default function CreatorProfileEdit() {
   const { user, updateCreatorProfile, getUser } = useAuth();
@@ -19,12 +25,9 @@ export default function CreatorProfileEdit() {
 
   const [profilePicture, setProfilePicture] = useState<File | null>(null);
 
-  const [socialLinks, setSocialLinks] = useState({
-    linkedin: "",
-    twitter: "",
-    instagram: "",
-    youtube: "",
-  });
+  const [socialLinks, setSocialLinks] = useState<SocialValues>(() => toSocialValues(user?.social_links));
+  const [portfolioLinks, setPortfolioLinks] = useState<string[]>(user?.portfolioLinks ?? []);
+  const banner = useBannerField(user?.banner);
 
   const [formData, setFormData] = useState({
     full_name: user?.full_name || "",
@@ -50,18 +53,33 @@ export default function CreatorProfileEdit() {
       });
 
 
-      setSocialLinks({
-        linkedin: user.social_links?.linkedin || "",
-        twitter: user.social_links?.twitter || "",
-        instagram: user.social_links?.instagram || "",
-        youtube: user.social_links?.youtube || "",
-      });
+      setSocialLinks(toSocialValues(user.social_links));
+      setPortfolioLinks(user.portfolioLinks ?? []);
     }
   }, [user]);
 
 
 
   const [isLoading, setIsLoading] = useState(false);
+
+  // The preview shows what your team will see: the form as it is right now, saved or not.
+  const featured = useFeaturedWork();
+  const base = useOwnPreviewBase(user?.id, featured.items.length);
+  const pictureUrl = useMemo(() => (profilePicture ? URL.createObjectURL(profilePicture) : null), [profilePicture]);
+  const preview: ProfileData = {
+    role: "creator",
+    full_name: formData.full_name,
+    avatar: pictureUrl || user?.profilePicture || null,
+    banner: banner.previewUrl,
+    headline: formData.company_name,
+    bio: formData.bio,
+    skills: [],
+    links: portfolioLinks.filter((l) => l.trim()),
+    social_links: socialLinks,
+    featured: featured.items,
+    stats: base.stats,
+    member_since: base.member_since,
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -93,6 +111,12 @@ export default function CreatorProfileEdit() {
 
       // User
       payload.append("full_name", formData.full_name);
+      banner.appendTo(payload);
+
+      // Portfolio links. A form sends nothing for an empty list, so say when it was emptied.
+      const links = portfolioLinks.map((l) => l.trim()).filter(Boolean);
+      links.forEach((link) => payload.append("portfolio_links", link));
+      if (links.length === 0) payload.append("clear_fields", "portfolio_links");
 
       // Creator profile
       payload.append("company_name", formData.company_name);
@@ -135,14 +159,20 @@ export default function CreatorProfileEdit() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground">My Profile</h1>
-            <p className="text-muted-foreground mt-1">Dashboard &gt; Profile</p>
+            
           </div>
-          <Button variant="glow" onClick={handleSubmit} disabled={isLoading}>
-            {isLoading ? "Saving..." : "Save Changes"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <ProfilePreviewButton profile={preview} audience="your team" />
+            <ShareProfileButton />
+            <Button variant="glow" onClick={handleSubmit} disabled={isLoading}>
+              {isLoading ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
+          <BannerField previewUrl={banner.previewUrl} onPick={banner.pick} onRemove={banner.remove} />
+
           {/* Profile Picture Section */}
           <section className="glass-card p-6">
             <h2 className="text-lg font-semibold text-foreground mb-4">Profile Picture</h2>
@@ -241,68 +271,12 @@ export default function CreatorProfileEdit() {
             </div>
           </section>
 
+          <PortfolioLinksEditor links={portfolioLinks} onChange={setPortfolioLinks} />
+
+          <FeaturedManager items={featured.items} onChange={featured.setItems} />
+
           {/* Social Links */}
-          <section className="glass-card p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Social Links</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>LinkedIn</Label>
-                <div className="relative">
-                  <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                  placeholder="https://linkedin.com/in/yourname"
-                  className="pl-10"
-                  value={socialLinks.linkedin}
-                  onChange={(e) =>
-                    setSocialLinks(prev => ({ ...prev, linkedin: e.target.value }))
-                  }
-                />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Twitter/X</Label>
-                <div className="relative">
-                  <Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                  placeholder="https://twitter.com/in/yourname"
-                  className="pl-10"
-                  value={socialLinks.twitter}
-                  onChange={(e) =>
-                    setSocialLinks(prev => ({ ...prev, twitter: e.target.value }))
-                  }
-                />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Instagram</Label>
-                <div className="relative">
-                  <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                  placeholder="https://instagram.com/in/yourname"
-                  className="pl-10"
-                  value={socialLinks.instagram}
-                  onChange={(e) =>
-                    setSocialLinks(prev => ({ ...prev, instagram: e.target.value }))
-                  }
-                />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>YouTube</Label>
-                <div className="relative">
-                  <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                  placeholder="https://youtube.com/in/yourname"
-                  className="pl-10"
-                  value={socialLinks.youtube}
-                  onChange={(e) =>
-                    setSocialLinks(prev => ({ ...prev, youtube: e.target.value }))
-                  }
-                />
-                </div>
-              </div>
-            </div>
-          </section>
+          <SocialLinksEditor value={socialLinks} onChange={setSocialLinks} />
 
           {/* Action Buttons */}
           <div className="flex gap-4 justify-end">

@@ -24,11 +24,30 @@ from .serializers import GoogleAuthSerializer
 from .models import TalentProfile, CreatorProfile
 from core.exceptions import storage_error_guard
 from django.utils import timezone
-from .otp import generate_and_send_otp
+from .otp import (
+    generate_and_send_otp,
+    is_email_verified,
+    has_live_otp,
+    resend_wait_seconds,
+    verify_otp,
+    OTP_OK,
+    OTP_INVALID,
+    OTP_EXPIRED,
+    OTP_LOCKED,
+)
+from .throttles import LoginEmailThrottle
+from rest_framework.throttling import ScopedRateThrottle
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SignupView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth_signup"
 
     def post(self, request):
         serializer = SignupSerializer(data=request.data)
@@ -49,7 +68,7 @@ class SignupView(APIView):
                     "email": user.email,
                     "full_name": user.full_name,
                     "role": user.role,
-                    "email_verified": user.email_verified,
+                    "email_verified": is_email_verified(user),
                     "onboarding_completed": user.onboarding_completed,
                 },
             },
@@ -60,12 +79,25 @@ class SignupView(APIView):
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle, LoginEmailThrottle]
+    throttle_scope = "auth_login"
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = serializer.validated_data["user"]
+
+        # An unverified user is signed in with a restricted token (the API only
+        # lets them reach the verification endpoints). Make sure they have a
+        # live code waiting rather than relying on them to hit Resend.
+        if (
+            settings.EMAIL_VERIFICATION_REQUIRED
+            and not user.email_verified
+            and not has_live_otp(user)
+            and resend_wait_seconds(user) == 0
+        ):
+            generate_and_send_otp(user)
 
         refresh = RefreshToken.for_user(user)
 
@@ -79,7 +111,7 @@ class LoginView(APIView):
                     "email": user.email,
                     "full_name": user.full_name,
                     "role": user.role,
-                    "email_verified": user.email_verified,
+                    "email_verified": is_email_verified(user),
                     "onboarding_completed": user.onboarding_completed,
                 },
             },
@@ -156,6 +188,8 @@ class UserDetailView(APIView):
 
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "password_reset_request"
 
     def options(self, request, *args, **kwargs):
         """Handle preflight OPTIONS requests for CORS"""
@@ -179,21 +213,28 @@ class PasswordResetRequestView(APIView):
 
         reset_url = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}"
 
-        send_mail(
-            subject="Reset Your Password",
-            message=f"Click the link to reset your password: {reset_url}",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email],
-        )
+        # Same response whether or not the email exists, and whether or not the
+        # send worked, so this endpoint can't be used to probe for accounts.
+        try:
+            send_mail(
+                subject="Reset Your Password",
+                message=f"Click the link to reset your password: {reset_url}",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+            )
+        except Exception:
+            logger.exception("Failed to send password reset email to %s", user.email)
 
         return Response(
-            {"message": "Password reset link sent"},
+            {"message": "If this email exists, a reset link has been sent."},
             status=status.HTTP_200_OK
         )
 
 
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "password_reset_confirm"
 
 
     def post(self, request):
@@ -210,7 +251,19 @@ class PasswordResetConfirmView(APIView):
         if not PasswordResetTokenGenerator().check_token(user, token):
             return Response({"error": "Invalid or expired token"}, status=400)
 
+        if not password:
+            return Response({"error": "Password is required."}, status=400)
+        try:
+            validate_password(password, user)
+        except DjangoValidationError as e:
+            return Response({"error": " ".join(e.messages)}, status=400)
+
         user.set_password(password)
+        # Following the emailed link proves the user controls this address.
+        user.email_verified = True
+        user.otp_code = None
+        user.otp_expires_at = None
+        user.otp_attempts = 0
         user.save()
 
         return Response({"message": "Password reset successful"})
@@ -360,6 +413,8 @@ class TalentProfileListView(APIView):
 
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth_google"
 
     def post(self, request):
         serializer = GoogleAuthSerializer(data=request.data)
@@ -372,6 +427,19 @@ class GoogleAuthView(APIView):
         try:
             user = User.objects.get(email=email)
             created = False
+            if not user.email_verified:
+                # Google just proved ownership of this address. An unverified
+                # password account on it may have been pre-registered by someone
+                # else, so verify it AND drop that password (the owner can set a
+                # new one via password reset).
+                user.email_verified = True
+                user.set_unusable_password()
+                user.otp_code = None
+                user.otp_expires_at = None
+                user.otp_attempts = 0
+                user.save(update_fields=[
+                    "email_verified", "password", "otp_code", "otp_expires_at", "otp_attempts",
+                ])
         except User.DoesNotExist:
             if not role:
                 # Brand-new Google identity, no role chosen yet — don't create an
@@ -416,7 +484,7 @@ class GoogleAuthView(APIView):
                 "email": user.email,
                 "full_name": user.full_name,
                 "role": user.role,
-                "email_verified": user.email_verified,
+                "email_verified": is_email_verified(user),
                 "onboarding_completed": user.onboarding_completed,
             }
         }, status=status.HTTP_200_OK)
@@ -424,33 +492,43 @@ class GoogleAuthView(APIView):
 
 class VerifyOtpView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "otp_verify"
 
     def post(self, request):
-        code = request.data.get("code")
-        user = request.user
+        result = verify_otp(request.user, request.data.get("code"))
 
-        if not user.otp_code or not user.otp_expires_at:
-            return Response({"error": "No verification code pending. Request a new one."}, status=400)
-
-        if timezone.now() > user.otp_expires_at:
+        if result == OTP_OK:
+            return Response({"message": "Email verified"}, status=status.HTTP_200_OK)
+        if result == OTP_LOCKED:
+            return Response(
+                {"error": "Too many incorrect attempts. Request a new code."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        if result == OTP_EXPIRED:
             return Response({"error": "Code expired. Request a new one."}, status=400)
-
-        if code != user.otp_code:
+        if result == OTP_INVALID:
             return Response({"error": "Incorrect code."}, status=400)
-
-        user.email_verified = True
-        user.otp_code = None
-        user.otp_expires_at = None
-        user.save(update_fields=["email_verified", "otp_code", "otp_expires_at"])
-
-        return Response({"message": "Email verified"}, status=status.HTTP_200_OK)
+        return Response({"error": "No verification code pending. Request a new one."}, status=400)
 
 
 class ResendOtpView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "otp_resend"
 
     def post(self, request):
-        generate_and_send_otp(request.user)
+        wait = resend_wait_seconds(request.user)
+        if wait:
+            return Response(
+                {"error": f"Please wait {wait} seconds before requesting another code."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        if not generate_and_send_otp(request.user):
+            return Response(
+                {"error": "We couldn't send the code right now. Please try again shortly."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         return Response({"message": "Verification code sent"}, status=status.HTTP_200_OK)
 
 

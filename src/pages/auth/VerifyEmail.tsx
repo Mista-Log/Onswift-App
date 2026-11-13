@@ -42,7 +42,12 @@ export default function VerifyEmail() {
     setResent(false);
     setIsResending(true);
     try {
-      await secureFetch('/api/v1/auth/resend-otp/', { method: 'POST' });
+      const res = await secureFetch('/api/v1/auth/resend-otp/', { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body?.error || 'Could not resend the code. Please try again.');
+        return;
+      }
       setResent(true);
     } catch {
       setError('Could not resend the code. Please try again.');

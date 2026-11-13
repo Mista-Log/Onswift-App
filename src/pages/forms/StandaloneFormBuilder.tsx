@@ -20,11 +20,14 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FormBlockEditor } from "@/components/onboarding/FormBlockEditor";
 import { BlockRenderer } from "@/components/onboarding/BlockRenderer";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { ArrowLeft, Save, Eye, Link2, History, BarChart3 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ArrowLeft, Save, Eye, Link2, History, BarChart3, EllipsisVertical } from "lucide-react";
 import type { FormBlock } from "@/types/onboarding";
 import type { StandaloneForm } from "@/types/standaloneForm";
+import { onFormUpdated } from "@/lib/agent/formEvents";
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required").max(255),
@@ -48,6 +51,7 @@ export default function StandaloneFormBuilder() {
   const [slug, setSlug] = useState<string>("");
   const [shareUrl, setShareUrl] = useState<string>("");
   const [isOpen, setIsOpen] = useState(true);
+  const [showProfile, setShowProfile] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("editor");
 
@@ -57,10 +61,17 @@ export default function StandaloneFormBuilder() {
   // so an empty initial state never overwrites a real draft.
   const readyRef = useRef(false);
 
-  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormFormData>({
+  const { register, handleSubmit, setValue, getValues, watch, formState: { errors } } = useForm<FormFormData>({
     resolver: zodResolver(formSchema),
   });
   const title = watch("title");
+
+  // What the server last held for this form, so we can tell whether the user has unsaved edits when the
+  // Agent changes the form underneath them.
+  const snapshot = (t: string | undefined, b: FormBlock[]) => JSON.stringify({ title: t ?? "", blocks: b });
+  const savedRef = useRef("");
+  const blocksRef = useRef<FormBlock[]>([]);
+  blocksRef.current = blocks;
 
   const draftKey = `onswift_standalone_form_draft_${id ?? "new"}`;
 
@@ -133,6 +144,22 @@ export default function StandaloneFormBuilder() {
     }
   }, [id]);
 
+  // The Agent changed this form (the user confirmed it). Show the change unless that would throw away
+  // edits that have not been saved, in which case say so instead of overwriting them.
+  useEffect(
+    () =>
+      onFormUpdated((formId) => {
+        if (!id || formId !== id) return;
+        if (snapshot(getValues("title"), blocksRef.current) !== savedRef.current) {
+          toast.info("The Agent changed this form, but you have unsaved edits. Save or discard them, then reload to see its change.");
+        } else {
+          loadForm();
+          toast.success("The Agent updated this form");
+        }
+      }),
+    [id],
+  );
+
   const loadForm = async () => {
     try {
       const response = await secureFetch(`/api/v4/forms/${id}/`);
@@ -142,8 +169,11 @@ export default function StandaloneFormBuilder() {
         setSlug(data.slug);
         setShareUrl(data.url);
         setIsOpen(data.is_open);
+        setShowProfile(!!data.show_creator_profile);
         // Legacy blocks predate stable ids — assign them so @references can target them.
-        setBlocks(data.blocks.map((b) => (b.id ? b : { ...b, id: crypto.randomUUID() })));
+        const loaded = data.blocks.map((b) => (b.id ? b : { ...b, id: crypto.randomUUID() }));
+        setBlocks(loaded);
+        savedRef.current = snapshot(data.title, loaded);
         // Offer a draft only if it's newer than the last saved version.
         const draft = readDraft();
         if (draft && new Date(draft.savedAt) > new Date(data.updated_at)) {
@@ -183,6 +213,7 @@ export default function StandaloneFormBuilder() {
         const result = await response.json();
         localStorage.removeItem(draftKey);
         setLastSavedAt(null);
+        savedRef.current = snapshot(data.title, blocks);
         toast.success(isEditing ? "Form updated" : "Form created");
         if (!isEditing) {
           navigate(`/forms/${result.id}`);
@@ -217,6 +248,26 @@ export default function StandaloneFormBuilder() {
     }
   };
 
+  // Whether people filling the form can open my profile from it. Saved straight away, like "accepting responses".
+  const toggleShowProfile = async (next: boolean) => {
+    setShowProfile(next); // optimistic
+    try {
+      const response = await secureFetch(`/api/v4/forms/${id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ show_creator_profile: next }),
+      });
+      if (response.ok) {
+        toast.success(next ? "Your profile now shows on this form" : "Your profile is hidden on this form");
+      } else {
+        setShowProfile(!next);
+        toast.error("Failed to update form");
+      }
+    } catch {
+      setShowProfile(!next);
+      toast.error("Failed to update form");
+    }
+  };
+
   const copyLink = () => {
     navigator.clipboard.writeText(shareUrl || `${window.location.origin}/f/${slug}`);
     toast.success("Link copied to clipboard!");
@@ -237,26 +288,38 @@ export default function StandaloneFormBuilder() {
             </TabsTrigger>
           </TabsList>
           <div className="flex-1" />
-          {isEditing && (
-            <>
-              <div className="hidden sm:flex items-center gap-2 rounded-md border border-input px-3 h-9">
-                <Label htmlFor="form-open" className="text-xs text-muted-foreground cursor-pointer">
-                  {isOpen ? "Accepting responses" : "Closed"}
-                </Label>
-                <Switch id="form-open" checked={isOpen} onCheckedChange={toggleOpen} />
-              </div>
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={copyLink}>
-                <Link2 className="h-3.5 w-3.5" /> Copy link
-              </Button>
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate(`/forms/${id}/responses`)}>
-                <BarChart3 className="h-3.5 w-3.5" /> Responses
-              </Button>
-            </>
-          )}
-          {lastSavedAt && (
-            <span className="hidden sm:inline text-xs text-muted-foreground">
-              Draft saved {format(lastSavedAt, "h:mm a")}
-            </span>
+          {(isEditing || lastSavedAt) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="shrink-0" aria-label="More options">
+                  <EllipsisVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {isEditing && (
+                  <>
+                    <DropdownMenuCheckboxItem checked={isOpen} onCheckedChange={toggleOpen}>
+                      {isOpen ? "Accepting responses" : "Closed to responses"}
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuCheckboxItem checked={showProfile} onCheckedChange={toggleShowProfile}>
+                      Show my profile on this form
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuItem onSelect={copyLink}>
+                      <Link2 className="mr-2 h-4 w-4" /> Copy link
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => navigate(`/forms/${id}/responses`)}>
+                      <BarChart3 className="mr-2 h-4 w-4" /> Responses
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {isEditing && lastSavedAt && <DropdownMenuSeparator />}
+                {lastSavedAt && (
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                    Draft saved {format(lastSavedAt, "h:mm a")}
+                  </DropdownMenuLabel>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           <Button size="sm" onClick={handleSubmit(onSubmit)} disabled={saving} className="gap-1.5">
             <Save className="h-3.5 w-3.5" />

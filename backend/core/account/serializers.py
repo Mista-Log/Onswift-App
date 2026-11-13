@@ -5,6 +5,8 @@ from .models import User, TalentProfile, CreatorProfile, UserSettings
 from google.auth.transport import requests
 from google.oauth2 import id_token
 from django.conf import settings
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 
 
@@ -49,6 +51,16 @@ class SignupSerializer(serializers.ModelSerializer):
             "industry",
             "location",
         )
+
+    def validate(self, attrs):
+        # Apply the AUTH_PASSWORD_VALIDATORS from settings (common/numeric/
+        # similarity), not just the min_length on the field.
+        candidate = User(email=attrs.get("email"), full_name=attrs.get("full_name"))
+        try:
+            validate_password(attrs["password"], candidate)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError({"password": list(e.messages)})
+        return attrs
 
     def create(self, validated_data):
         from notification.models import InviteToken, HireRequest
@@ -124,8 +136,10 @@ class SignupSerializer(serializers.ModelSerializer):
         from assistant.services import send_signup_welcome
         send_signup_welcome(user)
 
-        from .otp import generate_and_send_otp
-        generate_and_send_otp(user)
+        from django.conf import settings
+        if settings.EMAIL_VERIFICATION_REQUIRED:
+            from .otp import generate_and_send_otp
+            generate_and_send_otp(user)
 
         return user
 
@@ -153,16 +167,18 @@ class LoginSerializer(serializers.Serializer):
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     profile_picture = serializers.FileField(required=False)
+    banner = serializers.FileField(required=False)
 
-    professional_title = serializers.CharField(required=False)
+    # allow_blank / allow_null so a field can be emptied again, not just filled in.
+    professional_title = serializers.CharField(required=False, allow_blank=True)
     skills = serializers.ListField(child=serializers.CharField(), required=False)
     primary_skill = serializers.CharField(required=False)
-    hourly_rate = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
-    availability = serializers.CharField(required=False)
+    hourly_rate = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    availability = serializers.CharField(required=False, allow_blank=True)
     portfolio_links = serializers.ListField(child=serializers.CharField(), required=False)
 
     company_name = serializers.CharField(required=False)
-    bio = serializers.CharField(required=False)
+    bio = serializers.CharField(required=False, allow_blank=True)
     website = serializers.URLField(required=False)
     industry = serializers.CharField(required=False)
     location = serializers.CharField(required=False)
@@ -173,6 +189,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         fields = [
             "full_name",
             "profile_picture",
+            "banner",
             "professional_title",
             "skills",
             "primary_skill",
@@ -187,13 +204,30 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             "social_links",
         ]
 
+    def validate_banner(self, f):
+        if not (getattr(f, "content_type", "") or "").startswith("image/"):
+            raise serializers.ValidationError("The banner must be an image.")
+        if f.size > 8 * 1024 * 1024:
+            raise serializers.ValidationError("Banner images can be up to 8MB.")
+        return f
+
     def update(self, instance, validated_data):
         user = instance
 
+        # A multipart form sends nothing for an empty list or a removed image, so the client names
+        # what it emptied.
+        getlist = getattr(self.initial_data, "getlist", None)
+        cleared = set(getlist("clear_fields") if getlist else [])
+        for field in ("skills", "portfolio_links"):
+            if field in cleared:
+                validated_data[field] = []
+
         # User fields
-        for field in ["full_name", "profile_picture"]:
+        for field in ["full_name", "profile_picture", "banner"]:
             if field in validated_data:
                 setattr(user, field, validated_data[field])
+        if "banner" in cleared and "banner" not in validated_data:
+            user.banner = None
         user.save()
 
         # Talent profile
@@ -210,7 +244,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         # Creator profile
         if user.role == "creator":
             profile, _ = CreatorProfile.objects.get_or_create(user=user)
-            for field in ["company_name", "bio", "website", "industry", "location", "social_links"]:
+            for field in ["company_name", "bio", "website", "industry", "location", "social_links", "portfolio_links"]:
                 if field in validated_data:
                     setattr(profile, field, validated_data[field])
             profile.save()
@@ -222,6 +256,11 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     
 class UserDetailSerializer(serializers.ModelSerializer):
     profile = serializers.SerializerMethodField()
+    email_verified = serializers.SerializerMethodField()
+
+    def get_email_verified(self, obj):
+        from .otp import is_email_verified
+        return is_email_verified(obj)
 
     class Meta:
         model = User
@@ -234,6 +273,15 @@ class UserDetailSerializer(serializers.ModelSerializer):
             "onboarding_completed",
             "profile",
         ]
+
+    @staticmethod
+    def _safe_media_url(media):
+        if not media:
+            return None
+        try:
+            return media.url
+        except ValueError:
+            return str(media)
 
     def get_profile(self, obj):
         request = self.context.get("request")  # ✅ FIX
@@ -250,10 +298,11 @@ class UserDetailSerializer(serializers.ModelSerializer):
                     "portfolio_links": talent_profile.portfolio_links,
                     "social_links": talent_profile.social_links,
                     "profile_picture": (
-                        obj.profile_picture.url
+                        self._safe_media_url(obj.profile_picture)
                         if obj.profile_picture
                         else None
                     ),
+                    "banner": self._safe_media_url(obj.banner),
                 }
         elif obj.role == "creator":
             creator_profile = getattr(obj, "creatorprofile", None)
@@ -265,12 +314,13 @@ class UserDetailSerializer(serializers.ModelSerializer):
                     "industry": creator_profile.industry,
                     "location": creator_profile.location,
                     "social_links": creator_profile.social_links,
+                    "portfolio_links": creator_profile.portfolio_links,
                     "profile_picture": (
-                        obj.profile_picture.url
+                        self._safe_media_url(obj.profile_picture)
                         if obj.profile_picture
                         else None
                     ),
-
+                    "banner": self._safe_media_url(obj.banner),
                 }
         return None
 
@@ -281,9 +331,10 @@ class UserSettingsSerializer(serializers.ModelSerializer):
         model = UserSettings
         fields = [
             'email_notifications', 'push_notifications', 'message_alerts',
+            'allow_team_task_creation',
             'reminder_enabled', 'reminder_frequency', 'reminder_weekday',
             'reminder_time', 'reminder_timezone', 'reminder_email',
-            'last_reminder_sent_on',
+            'last_reminder_sent_on', 'show_deadline_timer',
         ]
         read_only_fields = ['last_reminder_sent_on']
 
@@ -406,6 +457,10 @@ class GoogleAuthSerializer(serializers.Serializer):
 
             if not email:
                 raise serializers.ValidationError("Google account email not available")
+
+            # Only trust the address if Google itself has verified it.
+            if not idinfo.get("email_verified"):
+                raise serializers.ValidationError("Google account email is not verified")
 
             attrs["email"] = email
             attrs["full_name"] = full_name
