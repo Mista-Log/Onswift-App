@@ -21,12 +21,21 @@ class Project(models.Model):
     due_date = models.DateField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     created_at = models.DateTimeField(auto_now_add=True)
-    # Opt-in: lets talent assigned to this project create and self-assign their
-    # own tasks. Creator-only approval of deliverables/attachments is unaffected.
+    # Superseded by the creator's account-wide setting (UserSettings.allow_team_task_creation).
+    # Kept only so the old per-project column is not dropped; nothing reads it any more.
     allow_talent_task_creation = models.BooleanField(default=False)
+    # Only meaningful when the owner is a talent (their own project). Private until they switch it on;
+    # then the creators who hired them can see it, read-only.
+    shared_with_creators = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
+
+    def team_can_add_tasks(self):
+        """True when this project's creator lets team members add their own tasks (a Settings option)."""
+        from account.models import UserSettings
+        # No settings row yet means the creator never changed it, so the default (on) applies.
+        return not UserSettings.objects.filter(user_id=self.creator_id, allow_team_task_creation=False).exists()
 
 
 class ProjectClientMembership(models.Model):
@@ -118,6 +127,9 @@ class Task(models.Model):
     recurrence_days = models.PositiveIntegerField(null=True, blank=True)
     # Set when an assignee marks a task done without a deliverable; awaits creator approval.
     awaiting_approval = models.BooleanField(default=False)
+    # Set when the creator sends the task (or one of its deliverables) back for changes. Cleared when
+    # the assignee hands it in again (marks it ready or submits a deliverable) or the task is completed.
+    revision_requested = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

@@ -57,7 +57,7 @@ export default function GetStarted() {
       }
     }
 
-    navigate('/dashboard', { replace: true });
+    navigate('/home', { replace: true });
   };
 
   const handleRoleChoice = async (role: 'creator' | 'talent') => {
@@ -98,7 +98,7 @@ export default function GetStarted() {
             {pendingGoogleUser ? (
               <div className="space-y-4">
                 <p className="text-center text-sm text-muted-foreground">
-                  Are you joining as a Creator/Agency, or as Talent?
+                  Are you joining as a Founder, or as Team?
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <Button
@@ -109,7 +109,7 @@ export default function GetStarted() {
                     onClick={() => handleRoleChoice('creator')}
                   >
                     <Briefcase className="h-5 w-5" />
-                    Creator / Agency
+                    As a Founder
                   </Button>
                   <Button
                     type="button"
@@ -119,7 +119,7 @@ export default function GetStarted() {
                     onClick={() => handleRoleChoice('talent')}
                   >
                     <UserIcon className="h-5 w-5" />
-                    Talent
+                    As a Team Member
                   </Button>
                 </div>
                 {isFinalizing && (

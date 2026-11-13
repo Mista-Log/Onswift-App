@@ -114,7 +114,7 @@ def _render_email(user, report):
         ("Overdue", report["overdue"]),
         ("Due today", report["today"]),
         ("Due this week", report["this_week"]),
-        ("Needs your action", report["needs_action"]),
+        ("Urgent", report["needs_action"]),
     ]
     text_lines = [f"Hi {user.full_name or 'there'}, here's what's left across your projects.", ""]
     html = [f"<p>Hi {escape(user.full_name or 'there')}, here's what's left across your projects.</p>"]
@@ -163,15 +163,27 @@ def send_due_digests(now=None):
 
 
 class ReminderReportView(APIView):
-    """GET /reminders/report/ -> the user's current report plus whether today is a scheduled day."""
+    """GET /reminders/report/ -> the user's current report, whether today is a scheduled day, and whether
+    they have already been shown it today. POST -> record that it was shown today."""
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    def _today(self, request):
         s, _ = UserSettings.objects.get_or_create(user=request.user)
-        today = timezone.now().astimezone(_zone(s.reminder_timezone)).date()
+        return s, timezone.now().astimezone(_zone(s.reminder_timezone)).date()
+
+    def get(self, request):
+        s, today = self._today(request)
         report = build_report(request.user, today)
         report["scheduled_today"] = bool(s.reminder_enabled and is_scheduled_day(s, today))
+        report["seen_today"] = s.report_seen_on == today
         return Response(report)
+
+    def post(self, request):
+        s, today = self._today(request)
+        if s.report_seen_on != today:
+            s.report_seen_on = today
+            s.save(update_fields=["report_seen_on"])
+        return Response(status=204)
 
 
 class SendDueDigestsView(APIView):

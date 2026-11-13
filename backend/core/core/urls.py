@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/v6/', include("library.urls")),
     path('api/v7/', include("crm.urls")),
     path('api/v8/', include("docs.urls")),
+    path('api/v9/', include("agent.urls")),
 
 ]
 

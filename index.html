@@ -58,9 +58,84 @@
     }
     </script>
 
+    <!-- Boot skeleton: painted from this HTML alone, before any JavaScript downloads, so slow
+         networks never show a blank white page. React replaces the contents of #root on mount. -->
+    <script>
+      (function () {
+        try {
+          var d = document.documentElement;
+          var auth = /^\/(login|get-started|signup|forgot-password|verify-email|reset-password|auth)(\/|$)/.test(location.pathname);
+          if (auth) d.classList.add("boot-auth");
+          // The landing page (the home address, for a visitor who isn't signed in) is not the app, so it
+          // gets no app skeleton: just its own white background until it renders. Someone signed in is
+          // on their way to the app from here, so they keep the skeleton.
+          var landing = location.pathname === "/" && !localStorage.getItem("onswift_refresh");
+          if (landing) d.classList.add("boot-landing");
+          var t = localStorage.getItem("theme");
+          // Same rules as the app: light by default, auth pages and the landing page always light.
+          if (!auth && !landing && (t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches))) {
+            d.classList.add("dark");
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <style>
+      :root { --b-bg: #fff; --b-bar: #e8eaed; --b-card: #fff; --b-line: #eceef1; }
+      :root.dark { --b-bg: #000; --b-bar: #2e2e2e; --b-card: #121212; --b-line: #2e2e2e; }
+      html, body { background: var(--b-bg); margin: 0; }
+      .boot { display: flex; min-height: 100vh; background: var(--b-bg); }
+      .boot i { display: block; background: var(--b-bar); border-radius: 8px; animation: boot-pulse 1.6s ease-in-out infinite; }
+      .boot-rail { display: none; width: 80px; flex-shrink: 0; flex-direction: column; align-items: center; gap: 16px; padding: 24px 0; border-right: 1px solid var(--b-line); }
+      .boot-rail i { width: 36px; height: 36px; }
+      .boot-rail i:first-child { width: 40px; height: 40px; border-radius: 12px; }
+      .boot-main { flex: 1; min-width: 0; }
+      .boot-top { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 16px 0 64px; border-bottom: 1px solid var(--b-line); }
+      .boot-top i:first-child { width: 160px; height: 36px; border-radius: 999px; }
+      .boot-top i:last-child { width: 36px; height: 36px; border-radius: 999px; }
+      .boot-body { padding: 16px; }
+      .boot-body .t { width: 190px; height: 32px; margin-bottom: 8px; }
+      .boot-body .s { width: 250px; max-width: 100%; height: 16px; margin-bottom: 24px; }
+      .boot-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+      .boot-card { background: var(--b-card); border: 1px solid var(--b-line); border-radius: 16px; padding: 20px; }
+      .boot-card i { height: 14px; margin-bottom: 12px; }
+      .boot-card i:first-child { width: 55%; height: 18px; }
+      .boot-card i:last-child { width: 80%; margin-bottom: 0; }
+      .boot-auth .boot-rail, .boot-auth .boot-main { display: none; }
+      .boot-authbox { display: none; margin: auto; width: 100%; max-width: 380px; padding: 24px 16px; }
+      .boot-authbox i { height: 44px; margin-bottom: 14px; border-radius: 10px; }
+      .boot-authbox i:first-child { width: 60%; height: 28px; }
+      .boot-auth .boot-authbox { display: block; }
+      .boot-landing .boot > * { display: none; }
+      @media (min-width: 768px) {
+        .boot-rail { display: flex; }
+        .boot-auth .boot-rail { display: none; }
+        .boot-top { padding-left: 16px; }
+        .boot-top i:first-child { width: 256px; }
+        .boot-body { padding: 24px; }
+        .boot-grid { grid-template-columns: repeat(3, 1fr); }
+      }
+      @keyframes boot-pulse { 50% { opacity: 0.5; } }
+      @media (prefers-reduced-motion: reduce) { .boot i { animation: none; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot" role="status" aria-busy="true" aria-label="Loading OnSwift">
+        <div class="boot-rail" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="boot-main" aria-hidden="true">
+          <div class="boot-top"><i></i><i></i></div>
+          <div class="boot-body">
+            <i class="t"></i><i class="s"></i>
+            <div class="boot-grid">
+              <div class="boot-card"><i></i><i></i><i></i></div>
+              <div class="boot-card"><i></i><i></i><i></i></div>
+              <div class="boot-card"><i></i><i></i><i></i></div>
+            </div>
+          </div>
+        </div>
+        <div class="boot-authbox" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

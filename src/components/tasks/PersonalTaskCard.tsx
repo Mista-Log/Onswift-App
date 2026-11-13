@@ -11,9 +11,9 @@ import type { PersonalTask } from "@/components/tasks/PersonalTaskDialog";
 type Status = PersonalTask["status"];
 
 const STATUS_COLORS: Record<Status, string> = {
-  planning: "!bg-orange-100 border-orange-400",
-  "in-progress": "!bg-yellow-100 border-yellow-400",
-  completed: "!bg-green-100 border-green-400",
+  planning: "!bg-orange-100 border-orange-400 dark:!bg-[hsl(24_45%_13%)] dark:border-orange-500/50",
+  "in-progress": "!bg-yellow-100 border-yellow-400 dark:!bg-[hsl(45_45%_12%)] dark:border-yellow-500/50",
+  completed: "!bg-green-100 border-green-400 dark:!bg-[hsl(150_40%_11%)] dark:border-green-500/50",
 };
 
 const STATUS_LABELS: Record<Status, string> = {
@@ -38,7 +38,7 @@ interface PersonalTaskCardProps {
 export function PersonalTaskCard({ task, onStatusChange, onOpen }: PersonalTaskCardProps) {
   return (
     <div
-      className={`glass-card p-4 rounded-lg border space-y-2 cursor-pointer select-none ${STATUS_COLORS[task.status]}`}
+      className={`glass-card p-4 rounded-lg border space-y-2 cursor-pointer select-none dark:[--muted-foreground:0_0%_78%] ${STATUS_COLORS[task.status]}`}
       onClick={(e) => {
         if ((e.target as HTMLElement).closest("[data-radix-popper-content-wrapper]")) return;
         onOpen();
@@ -76,7 +76,7 @@ export function PersonalTaskCard({ task, onStatusChange, onOpen }: PersonalTaskC
       )}
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary" title="Only you can see this task">
+        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary dark:text-purple-300" title="Only you can see this task">
           <Lock className="h-3 w-3" />
           Personal
         </span>

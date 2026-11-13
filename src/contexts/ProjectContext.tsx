@@ -9,7 +9,7 @@ import {
 import { mapFromBackend } from "../lib/api";
 import { useAuth } from "./AuthContext";
 import { secureFetch, isNetworkError } from '../api/apiClient';
-import { readCache, writeCache } from "../lib/cache";
+import { clearCache, readCache, writeCache } from "../lib/cache";
 
 export interface Task {
   id: string;
@@ -25,6 +25,8 @@ export interface Task {
   recurrence_days?: number | null;
   /** A talent asked for completion; waiting on the creator. */
   awaiting_approval?: boolean;
+  /** The creator sent this task (or one of its deliverables) back for changes. */
+  revision_requested?: boolean;
   created_at: string;
 }
 
@@ -46,6 +48,12 @@ export interface Project {
   progress?: number;
   has_clients?: boolean;
   allow_talent_task_creation?: boolean;
+  /** Id of the user who owns the project: a creator, or a talent for a project they made themselves. */
+  creator?: string;
+  /** Name of the owner; used to label a project a team member shared with a creator. */
+  owner_name?: string;
+  /** A talent's own project is private until they switch this on; then their creators can view it. */
+  shared_with_creators?: boolean;
 }
 
 interface ProjectContextType {
@@ -162,16 +170,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           due_date: updates.due_date,
           status: updates.status,
           allow_talent_task_creation: updates.allow_talent_task_creation,
+          shared_with_creators: updates.shared_with_creators,
         }),
       });
 
       if (!res.ok) throw new Error("Failed to update project");
 
       const data = await res.json();
-      const updated = mapFromBackend(data) as Project;
+      // Merge over what we already hold: the mapper keeps only some fields, and the rest
+      // (owner, sharing, has_clients) must survive a rename or a toggle.
+      const updated = { ...mapFromBackend(data), shared_with_creators: data.shared_with_creators } as Project;
 
       setProjects((prev) =>
-        prev.map((p) => (p.id === id ? { ...updated, status: deriveStatus(updated) } : p))
+        prev.map((p) => (p.id === id ? { ...p, ...updated, status: deriveStatus({ ...p, ...updated }) } : p))
       );
     } catch (error: any) {
       console.error("Update Project failed:", error.message);
@@ -210,7 +221,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
       if (!res.ok) throw new Error("Failed to delete project");
 
-      setProjects((prev) => prev.filter((p) => p.id !== id));
+      setProjects((prev) => {
+        const remaining = prev.filter((p) => p.id !== id);
+        writeCache("projects", remaining);
+        return remaining;
+      });
+      // The project's tasks are gone on the server, so drop every saved copy of their deadlines
+      // and tell the sidebar badge to recount.
+      clearCache("deadlines");
+      clearCache("deadline-count");
+      clearCache(`project-tasks:${id}`);
+      window.dispatchEvent(new Event("onswift:deadlines-changed"));
     } catch (error: any) {
       console.error("Delete Project failed:", error.message);
       throw error;

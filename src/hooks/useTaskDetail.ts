@@ -80,6 +80,8 @@ export interface TaskDetail {
   assignee_avatars: string[];
   status: "planning" | "in-progress" | "completed";
   awaiting_approval: boolean;
+  /** The creator sent this task (or one of its deliverables) back for changes. */
+  revision_requested?: boolean;
   priority: TaskPriority | null;
   deadline: string | null;
   task_time: string | null;
@@ -131,7 +133,27 @@ export function useTaskDetail() {
       body: JSON.stringify({ feedback }),
     });
     if (!res.ok) throw new Error("Failed to request revision");
-    setTask((prev) => prev ? { ...prev, awaiting_approval: false } : prev);
+    // The server also posts the feedback as a comment; show it without a reload.
+    const data: { comment?: TaskComment } = await res.json().catch(() => ({}));
+    setTask((prev) => prev ? {
+      ...prev,
+      awaiting_approval: false,
+      revision_requested: true,
+      comments: data.comment && !prev.comments.some((c) => c.id === data.comment!.id)
+        ? [...prev.comments, data.comment]
+        : prev.comments,
+    } : prev);
+  }, []);
+
+  // Re-read the task without the loading state, for changes the server makes on its own
+  // (for example the comment it posts when a deliverable is sent back).
+  const refreshTask = useCallback(async (taskId: string) => {
+    try {
+      const res = await secureFetch(`/api/v2/tasks/${taskId}/`);
+      if (res.ok) setTask(await res.json());
+    } catch {
+      // Keep what is on screen; the next open shows the latest.
+    }
   }, []);
 
   // ── Comments ──────────────────────────────────────────────────────────────
@@ -331,7 +353,7 @@ export function useTaskDetail() {
 
   // Approving a deliverable completes its parent task server-side — mirror that locally.
   const markTaskCompletedLocal = useCallback(() => {
-    setTask((prev) => prev ? { ...prev, status: "completed", awaiting_approval: false } : prev);
+    setTask((prev) => prev ? { ...prev, status: "completed", awaiting_approval: false, revision_requested: false } : prev);
   }, []);
 
   const clearTask = useCallback(() => setTask(null), []);
@@ -342,6 +364,7 @@ export function useTaskDetail() {
     fetchTask,
     updateTask,
     requestTaskRevision,
+    refreshTask,
     deleteTask,
     addComment,
     deleteComment,

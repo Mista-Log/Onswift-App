@@ -937,7 +937,7 @@ export default function CRMBuilder() {
                         </div>
                       ) : sharableUsers.length === 0 ? (
                         <p className="text-sm text-muted-foreground py-2">
-                          No team members or clients found. Hire talent or onboard clients first.
+                          No team members or clients found. Hire your team or onboard clients first.
                         </p>
                       ) : (
                         <div className="space-y-2.5">

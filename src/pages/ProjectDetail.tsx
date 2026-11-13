@@ -3,9 +3,10 @@ import { Switch } from "@/components/ui/switch";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { CelebrationModal } from "@/components/CelebrationModal";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { BoardSkeleton } from "@/components/ui/skeletons";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
-import { Pencil, Grip, Hourglass } from "lucide-react";
+import { Pencil, Grip, Hourglass, Eye, RotateCcw } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ArrowLeft,
@@ -13,7 +14,6 @@ import {
   Users,
   Plus,
   UserPlus,
-  ListPlus,
   MoreVertical,
   CheckCircle2,
   Circle,
@@ -63,7 +63,7 @@ import { ClientChatModal } from "@/components/project/ClientChatModal";
 import { ClientInvitesTable } from "@/components/project/ClientInvitesTable";
 import { TaskDetailModal } from "@/components/project/TaskDetailModal";
 import type { TaskDetail } from "@/hooks/useTaskDetail";
-import { useProjects, type Task } from "@/contexts/ProjectContext";
+import { useProjects, deriveStatus, type Project, type Task } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
@@ -149,9 +149,32 @@ export default function ProjectDetail() {
     );
   }, [searchParams, setSearchParams]);
 
-  const project = projects.find((p) => p.id === id);
-  const isCreator = user?.role === "creator";
-  const canTalentCreateTasks = !isCreator && !!project?.allow_talent_task_creation;
+  const ownProject = projects.find((p) => p.id === id);
+  // A creator can open a project one of their team members chose to share. It is not in their own
+  // project list, so it is fetched on its own, and the page is read-only.
+  const [sharedProject, setSharedProject] = useState<Project | null>(null);
+  useEffect(() => {
+    if (user?.role !== "creator" || !id || ownProject) return;
+    let cancelled = false;
+    secureFetch(`/api/v2/projects/${id}/`)
+      .then(async (res) => {
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (data.creator === user.id) return; // their own project, still loading into the list
+        setSharedProject({ ...data, status: deriveStatus(data) });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [id, user?.id, !!ownProject]);
+
+  const project = ownProject ?? sharedProject ?? undefined;
+  const viewingShared = user?.role === "creator" && !ownProject && !!sharedProject;
+  // "isCreator" means "can manage this project": a creator on their own, or a talent on one they made.
+  const ownsAsTalent = user?.role === "talent" && !!project && project.creator === user.id;
+  const isCreator = (user?.role === "creator" && !viewingShared) || ownsAsTalent;
+  const canTalentCreateTasks = !isCreator && !viewingShared && !!project?.allow_talent_task_creation;
 
   useEffect(() => {
     loadTasks();
@@ -159,7 +182,7 @@ export default function ProjectDetail() {
 
   // Celebrate a talent the first time they open a project that's been concluded.
   useEffect(() => {
-    if (isCreator || !project) return;
+    if (isCreator || viewingShared || !project) return;
     if (project.status !== "completed") return;
     if (localStorage.getItem("onswift_talent_project_done")) return;
     localStorage.setItem("onswift_talent_project_done", "1");
@@ -369,7 +392,7 @@ export default function ProjectDetail() {
     try {
       const res = await secureFetch(`/api/v2/tasks/${id}/request-completion/`, { method: "POST" });
       if (!res.ok) throw new Error("request failed");
-      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, awaiting_approval: true } : t)));
+      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, awaiting_approval: true, revision_requested: false } : t)));
       toast.success("Sent. Awaiting your creator's approval");
     } catch {
       toast.error("Couldn't send for approval. Please try again.");
@@ -419,7 +442,10 @@ export default function ProjectDetail() {
     setTasks((prev) =>
       prev.map((t) =>
         t.id === updated.id
-          ? { ...t, name: updated.name, description: updated.description, status: updated.status, deadline: updated.deadline, assignees: updated.assignees, assignee_names: updated.assignee_names }
+          ? { ...t, name: updated.name, description: updated.description, status: updated.status, deadline: updated.deadline, assignees: updated.assignees, assignee_names: updated.assignee_names,
+              // Keep the card's approval/revision badges in step with what was just done in the modal.
+              awaiting_approval: updated.awaiting_approval ?? t.awaiting_approval,
+              revision_requested: updated.revision_requested ?? t.revision_requested }
           : t
       )
     );
@@ -448,20 +474,6 @@ export default function ProjectDetail() {
       } else {
         toast.error("Failed to update task");
       }
-    }
-  };
-
-  const handleToggleTalentTaskCreation = async (checked: boolean) => {
-    if (!id) return;
-    try {
-      await updateProject(id, { allow_talent_task_creation: checked });
-      toast.success(
-        checked
-          ? "Team members can now add their own tasks."
-          : "Task creation is creator-only again."
-      );
-    } catch (error) {
-      toast.error("Failed to update setting");
     }
   };
 
@@ -535,9 +547,10 @@ export default function ProjectDetail() {
   const completedPersonal = personalTasks.filter((t) => t.status === "completed");
 
   // Available team members for assignment (if creator)
+  // A talent's own project is just for them: tasks there are always theirs.
   const availableAssignees = isCreator ? [
     { id: user.id, name: user.full_name },
-    ...teamMembers.map((m) => ({ id: m.user_id, name: m.name }))
+    ...(ownsAsTalent ? [] : teamMembers.map((m) => ({ id: m.user_id, name: m.name })))
   ] : [];
 
   return (
@@ -560,6 +573,31 @@ export default function ProjectDetail() {
               <p className="mt-1 text-muted-foreground">
                 {project.description}
               </p>
+              {ownsAsTalent && (
+                // Minimal: one quiet line under the description. Private until switched on.
+                <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                  <Switch
+                    className="h-4 w-7 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3"
+                    checked={!!project.shared_with_creators}
+                    aria-label="Share this project with my creators"
+                    onCheckedChange={async (next) => {
+                      try {
+                        await updateProject(project.id, { shared_with_creators: next });
+                        toast.success(next ? "Your creators can now view this project" : "This project is private again");
+                      } catch {
+                        toast.error("Couldn't change sharing. Please try again.");
+                      }
+                    }}
+                  />
+                  {project.shared_with_creators ? "Shared with my creators" : "Private"}
+                </label>
+              )}
+              {viewingShared && (
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/60 px-3 py-1 text-xs text-muted-foreground">
+                  <Eye className="h-3.5 w-3.5" />
+                  Shared by {project.owner_name || "your team member"}. View only.
+                </p>
+              )}
             </div>
           </div>
 
@@ -591,20 +629,6 @@ export default function ProjectDetail() {
                 >
                   <Edit className="mr-2 h-4 w-4" />
                   Rename Project
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={(e) => e.preventDefault()}
-                  className="flex items-center justify-between gap-3"
-                >
-                  <span className="flex items-center">
-                    <ListPlus className="mr-2 h-4 w-4" />
-                    Team can add tasks
-                  </span>
-                  <Switch
-                    checked={!!project.allow_talent_task_creation}
-                    onCheckedChange={handleToggleTalentTaskCreation}
-                  />
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -810,7 +834,9 @@ export default function ProjectDetail() {
           <div className="flex items-center gap-2">
             <TabsList>
               <TabsTrigger value="board" className="text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Board</TabsTrigger>
-              <TabsTrigger value="deliverables" className="text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Attachments</TabsTrigger>
+              {!viewingShared && (
+                <TabsTrigger value="deliverables" className="text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">Attachments</TabsTrigger>
+              )}
             </TabsList>
             {activeTab === "deliverables" && (
               <Button
@@ -1025,9 +1051,7 @@ export default function ProjectDetail() {
 
         {/* Tasks Board */}
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
+          <BoardSkeleton />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
@@ -1041,7 +1065,7 @@ export default function ProjectDetail() {
                 <div
                   className={cn(
                     "space-y-3 min-h-[80px] rounded-lg p-1 transition-colors",
-                    dragOverCol === "planning" && dragTaskId && "bg-orange-50 ring-2 ring-orange-300 ring-dashed"
+                    dragOverCol === "planning" && dragTaskId && "bg-orange-50 ring-2 ring-orange-300 ring-dashed dark:bg-orange-950/50 dark:ring-orange-500/60"
                   )}
                   onDragOver={(e) => { e.preventDefault(); setDragOverCol("planning"); }}
                   onDragLeave={() => setDragOverCol(null)}
@@ -1060,11 +1084,11 @@ export default function ProjectDetail() {
                       key={task.id}
                       task={task}
                       isCreator={isCreator}
-                      stageRule={(to) => stageAction(user?.role, task.status, to, task.awaiting_approval)}
+                      stageRule={(to) => (viewingShared ? "locked" : stageAction(isCreator ? "creator" : user?.role, task.status, to, task.awaiting_approval))}
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
-                      onEdit={() => handleOpenTaskDetail(task.id)}
+                      onEdit={() => { if (!viewingShared) handleOpenTaskDetail(task.id); }}
                       onDelete={() => handleDeleteTask(task.id)}
-                      onAddDeliverable={!isCreator ? () => { setActiveTab("deliverables"); setDeliverablePrefill(task.id); } : undefined}
+                      onAddDeliverable={!isCreator && !viewingShared ? () => { setActiveTab("deliverables"); setDeliverablePrefill(task.id); } : undefined}
                       onDragStart={() => setDragTaskId(task.id)}
                       onDragEnd={() => { setDragTaskId(null); setDragOverCol(null); }}
                     />
@@ -1085,7 +1109,7 @@ export default function ProjectDetail() {
                 <div
                   className={cn(
                     "space-y-3 min-h-[80px] rounded-lg p-1 transition-colors",
-                    dragOverCol === "in-progress" && dragTaskId && "bg-yellow-50 ring-2 ring-yellow-300 ring-dashed"
+                    dragOverCol === "in-progress" && dragTaskId && "bg-yellow-50 ring-2 ring-yellow-300 ring-dashed dark:bg-yellow-950/50 dark:ring-yellow-500/60"
                   )}
                   onDragOver={(e) => { e.preventDefault(); setDragOverCol("in-progress"); }}
                   onDragLeave={() => setDragOverCol(null)}
@@ -1104,11 +1128,11 @@ export default function ProjectDetail() {
                       key={task.id}
                       task={task}
                       isCreator={isCreator}
-                      stageRule={(to) => stageAction(user?.role, task.status, to, task.awaiting_approval)}
+                      stageRule={(to) => (viewingShared ? "locked" : stageAction(isCreator ? "creator" : user?.role, task.status, to, task.awaiting_approval))}
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
-                      onEdit={() => handleOpenTaskDetail(task.id)}
+                      onEdit={() => { if (!viewingShared) handleOpenTaskDetail(task.id); }}
                       onDelete={() => handleDeleteTask(task.id)}
-                      onAddDeliverable={!isCreator ? () => { setActiveTab("deliverables"); setDeliverablePrefill(task.id); } : undefined}
+                      onAddDeliverable={!isCreator && !viewingShared ? () => { setActiveTab("deliverables"); setDeliverablePrefill(task.id); } : undefined}
                       onDragStart={() => setDragTaskId(task.id)}
                       onDragEnd={() => { setDragTaskId(null); setDragOverCol(null); }}
                     />
@@ -1129,7 +1153,7 @@ export default function ProjectDetail() {
                 <div
                   className={cn(
                     "space-y-3 min-h-[80px] rounded-lg p-1 transition-colors",
-                    dragOverCol === "completed" && dragTaskId && "bg-green-50 ring-2 ring-green-300 ring-dashed"
+                    dragOverCol === "completed" && dragTaskId && "bg-green-50 ring-2 ring-green-300 ring-dashed dark:bg-green-950/50 dark:ring-green-500/60"
                   )}
                   onDragOver={(e) => { e.preventDefault(); setDragOverCol("completed"); }}
                   onDragLeave={() => setDragOverCol(null)}
@@ -1148,11 +1172,11 @@ export default function ProjectDetail() {
                       key={task.id}
                       task={task}
                       isCreator={isCreator}
-                      stageRule={(to) => stageAction(user?.role, task.status, to, task.awaiting_approval)}
+                      stageRule={(to) => (viewingShared ? "locked" : stageAction(isCreator ? "creator" : user?.role, task.status, to, task.awaiting_approval))}
                       onStatusChange={(status) => handleUpdateTask(task.id, { status })}
-                      onEdit={() => handleOpenTaskDetail(task.id)}
+                      onEdit={() => { if (!viewingShared) handleOpenTaskDetail(task.id); }}
                       onDelete={() => handleDeleteTask(task.id)}
-                      onAddDeliverable={!isCreator ? () => { setActiveTab("deliverables"); setDeliverablePrefill(task.id); } : undefined}
+                      onAddDeliverable={!isCreator && !viewingShared ? () => { setActiveTab("deliverables"); setDeliverablePrefill(task.id); } : undefined}
                       onDragStart={() => setDragTaskId(task.id)}
                       onDragEnd={() => { setDragTaskId(null); setDragOverCol(null); }}
                     />
@@ -1289,9 +1313,10 @@ interface TaskCardProps {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  planning: "!bg-orange-100 border-orange-400",
-  "in-progress": "!bg-yellow-100 border-yellow-400",
-  completed: "!bg-green-100 border-green-400",
+  // Light: pastel. Dark: solid (fully opaque) deep tints, so text contrast is predictable.
+  planning: "!bg-orange-100 border-orange-400 dark:!bg-[hsl(24_45%_13%)] dark:border-orange-500/50",
+  "in-progress": "!bg-yellow-100 border-yellow-400 dark:!bg-[hsl(45_45%_12%)] dark:border-yellow-500/50",
+  completed: "!bg-green-100 border-green-400 dark:!bg-[hsl(150_40%_11%)] dark:border-green-500/50",
 };
 
 const STATUSES: Array<"planning" | "in-progress" | "completed"> = ["planning", "in-progress", "completed"];
@@ -1324,7 +1349,7 @@ function TaskCard({ task, isCreator, stageRule, onStatusChange, onEdit, onDelete
 
   return (
     <div
-      className={`glass-card p-4 rounded-lg border space-y-3 cursor-pointer select-none ${STATUS_COLORS[task.status] || "border-border/50"}${task.awaiting_approval ? " ring-2 ring-amber-400/60" : ""}`}
+      className={`glass-card p-4 rounded-lg border space-y-3 cursor-pointer select-none dark:[--muted-foreground:0_0%_78%] ${STATUS_COLORS[task.status] || "border-border/50"}${task.awaiting_approval ? " ring-2 ring-amber-400/60" : ""}`}
       draggable={draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -1399,14 +1424,21 @@ function TaskCard({ task, isCreator, stageRule, onStatusChange, onEdit, onDelete
       )}
 
       {task.awaiting_approval && (
-        <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/60 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+        <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/60 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
           <Hourglass className="h-3 w-3" />
           {isCreator ? "Needs your approval" : "Waiting on your creator"}
         </span>
       )}
 
+      {task.revision_requested && !task.awaiting_approval && task.status !== "completed" && (
+        <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/60 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+          <RotateCcw className="h-3 w-3" />
+          {isCreator ? "Revision requested · waiting on assignee" : "Revision requested by your creator"}
+        </span>
+      )}
+
       <div className="flex items-center justify-between text-xs">
-        <span className={task.assignee_names?.length ? "text-muted-foreground" : "text-muted-foreground/50"}>
+        <span className={task.assignee_names?.length ? "text-muted-foreground" : "text-muted-foreground/50 dark:text-muted-foreground/80"}>
           {task.assignee_names?.length ? `Assigned to ${task.assignee_names.join(", ")}` : "Unassigned"}
         </span>
         {task.deadline && <span className="text-muted-foreground">{task.deadline}</span>}

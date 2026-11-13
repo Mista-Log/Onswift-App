@@ -852,58 +852,6 @@ const Footer = () => (
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Landing() {
-  const [showLoader, setShowLoader] = useState(true);
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    const hasSeenLoader = sessionStorage.getItem('landingLoaderSeen') === '1';
-    if (hasSeenLoader) {
-      setShowLoader(false);
-      setIsLoaded(true);
-      return undefined;
-    }
-
-    sessionStorage.setItem('landingLoaderSeen', '1');
-
-    const MIN_DISPLAY_MS = 400; // avoid a jarring flash on fast loads
-    const MAX_DISPLAY_MS = 1200; // hard ceiling so slow assets never hold the page hostage
-    const startedAt = Date.now();
-
-    let settled = false;
-    let hideTimer: number | undefined;
-
-    const settle = () => {
-      if (settled) return;
-      settled = true;
-      const remaining = Math.max(MIN_DISPLAY_MS - (Date.now() - startedAt), 0);
-      window.setTimeout(() => {
-        setIsLoaded(true);
-        hideTimer = window.setTimeout(() => setShowLoader(false), 300);
-      }, remaining);
-    };
-
-    const heroImage = new Image();
-    heroImage.onload = settle;
-    heroImage.onerror = settle;
-    heroImage.src = '/assets/dashboard-preview.png';
-
-    const maxTimer = window.setTimeout(settle, MAX_DISPLAY_MS);
-
-    return () => {
-      window.clearTimeout(maxTimer);
-      if (hideTimer) {
-        window.clearTimeout(hideTimer);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    document.body.style.overflow = showLoader ? 'hidden' : '';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [showLoader]);
-
   useEffect(() => {
     const elements = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'));
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -934,20 +882,7 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen" style={{ background: '#ffffff' }}>
-      {showLoader && (
-        <>
-          <div className={`loader-screen ${isLoaded ? 'is-fading' : ''}`} aria-hidden="true">
-            <div className="loader-center">
-              <span className="loader-ring loader-ring--a" />
-              <span className="loader-ring loader-ring--b" />
-              <img src="/onswift logo.png" alt="OnSwift" className="loader-logo" style={{ filter: 'brightness(0)' }} />
-            </div>
-          </div>
-          <span className="sr-only" role="status" aria-live="polite">Loading OnSwift…</span>
-        </>
-      )}
-
-      <div className={`page-shell ${isLoaded ? 'page-shell--visible' : ''}`}>
+      <div>
         <Navigation />
         <HeroSection />
         <TrustedBySection />

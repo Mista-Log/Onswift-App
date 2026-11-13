@@ -37,6 +37,7 @@ interface NotificationSettings {
   email_notifications: boolean;
   push_notifications: boolean;
   message_alerts: boolean;
+  allow_team_task_creation: boolean;
 }
 
 export default function Settings() {
@@ -49,13 +50,13 @@ export default function Settings() {
   // Profile form state
   const [fullName, setFullName] = useState(user?.full_name || '');
   const [email, setEmail] = useState(user?.email || '');
-  const [bio, setBio] = useState(user?.bio || '');
 
   // Notification settings state
   const [notifications, setNotifications] = useState<NotificationSettings>({
     email_notifications: true,
     push_notifications: true,
     message_alerts: true,
+    allow_team_task_creation: true,
   });
 
   // Account stats state
@@ -93,6 +94,7 @@ export default function Settings() {
             email_notifications: data.email_notifications,
             push_notifications: data.push_notifications,
             message_alerts: data.message_alerts,
+            allow_team_task_creation: data.allow_team_task_creation ?? true,
           });
         }
       } catch (error) {
@@ -107,7 +109,6 @@ export default function Settings() {
     if (user) {
       setFullName(user.full_name || '');
       setEmail(user.email || '');
-      setBio(user.bio || '');
     }
   }, [user]);
 
@@ -120,7 +121,6 @@ export default function Settings() {
         body: JSON.stringify({
           full_name: fullName,
           email: email,
-          bio: bio,
         }),
       });
 
@@ -208,7 +208,7 @@ export default function Settings() {
           {/* Profile Section */}
           <div className="lg:col-span-2">
             <section className="glass-card p-5 sm:p-6 md:p-7">
-              <h2 className="mb-6 text-lg font-semibold text-foreground">Profile</h2>
+              <h2 className="mb-6 text-lg font-semibold text-foreground">Account</h2>
 
               {/* Avatar */}
               <div className="mb-6 flex items-center gap-4 sm:gap-6">
@@ -253,16 +253,24 @@ export default function Settings() {
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="bio">Bio</Label>
-                  <Input 
-                    id="bio" 
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    placeholder={user?.role === 'talent' ? "Professional bio" : "About your brand"} 
-                  />
-                </div>
               </div>
+
+              {/* The profile itself (photo, banner, bio, links, featured work) lives on its own page. */}
+              {user?.role !== 'client' && (
+                <div className="mt-6 flex flex-col gap-3 rounded-lg border border-border/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Your photo, banner, bio, links and featured work are on your profile.
+                  </p>
+                  <div className="flex shrink-0 gap-2">
+                    <Button variant="outline" size="sm" onClick={() => navigate(`/profile/${user?.id}`)}>
+                      View profile
+                    </Button>
+                    <Button size="sm" onClick={handleEditProfile}>
+                      Edit profile
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               <Separator className="my-6 bg-border/50" />
 
@@ -306,6 +314,29 @@ export default function Settings() {
                   />
                 </div>
               </div>
+
+              {user?.role === 'creator' && (
+                <>
+                  <Separator className="my-6 bg-border/50" />
+
+                  {/* Team */}
+                  <h3 className="mb-4 font-semibold text-foreground">Team</h3>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-foreground">Team can add tasks</p>
+                      <p className="text-sm text-muted-foreground">
+                        Let team members add their own tasks to projects they already work on. Applies to all your projects.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={notifications.allow_team_task_creation}
+                      onCheckedChange={(checked) =>
+                        setNotifications(prev => ({ ...prev, allow_team_task_creation: checked }))
+                      }
+                    />
+                  </div>
+                </>
+              )}
 
               <Separator className="my-6 bg-border/50" />
 

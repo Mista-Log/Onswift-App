@@ -158,7 +158,7 @@ export function InviteMemberModal({
               </button>
 
               {/* Hire from Marketplace Option */}
-              <button
+              {/* <button
                 onClick={handleHireFromMarketplace}
                 className={cn(
                   "w-full rounded-xl border border-border/50 p-5 text-left transition-all",
@@ -177,7 +177,7 @@ export function InviteMemberModal({
                     </p>
                   </div>
                 </div>
-              </button>
+              </button> */}
             </div>
           </>
         ) : (

@@ -3,6 +3,8 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from account.models import UserSettings
+
 from .models import PersonalTask, Project, Task
 
 User = get_user_model()
@@ -47,13 +49,18 @@ class PersonalTaskTests(TestCase):
         }, format="json")
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_team_can_add_tasks_by_default(self):
+        # The creator never touched Settings (no row at all): the default is on.
+        self.assertTrue(self.project.team_can_add_tasks())
+        self.assertTrue(self.api(self.talent).get(ELIGIBILITY_URL).data["allowed"])
+
     def test_talent_blocked_until_creator_enables_task_creation(self):
+        UserSettings.objects.create(user=self.creator, allow_team_task_creation=False)
         res = self.api(self.talent).post(LIST_URL, {"name": "Mine"}, format="json")
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(self.api(self.talent).get(ELIGIBILITY_URL).data["allowed"])
 
-        self.project.allow_talent_task_creation = True
-        self.project.save()
+        UserSettings.objects.filter(user=self.creator).update(allow_team_task_creation=True)
 
         res = self.api(self.talent).post(LIST_URL, {
             "name": "Mine", "linked_project_ids": [str(self.project.id)],
@@ -63,10 +70,8 @@ class PersonalTaskTests(TestCase):
         self.assertTrue(elig["allowed"])
         self.assertEqual([p["name"] for p in elig["projects"]], ["Alpha"])
 
-    def test_talent_cannot_link_project_without_flag(self):
-        self.project.allow_talent_task_creation = True
-        self.project.save()
-        Task.objects.create(project=self.other_project, name="T2").assignees.add(self.talent)
+    def test_talent_cannot_link_a_project_they_do_not_work_on(self):
+        # Team task creation is on, but the talent has no task in Beta.
         res = self.api(self.talent).post(LIST_URL, {
             "name": "Mine", "linked_project_ids": [str(self.other_project.id)],
         }, format="json")
@@ -92,8 +97,6 @@ class PersonalTaskTests(TestCase):
         PersonalTask.objects.create(owner=self.creator, name="unlinked")
 
         # A talent who also links a task to the same project must stay invisible to the creator.
-        self.project.allow_talent_task_creation = True
-        self.project.save()
         theirs = PersonalTask.objects.create(owner=self.talent, name="talent private")
         theirs.linked_projects.add(self.project)
 

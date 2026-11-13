@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { ListSkeleton } from "@/components/ui/skeletons";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
 import { TeamMemberCard } from "@/components/dashboard/TeamMemberCard";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Button } from "@/components/ui/button";
 import { Plus, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { greeting } from "@/lib/greeting";
 import { useNavigate } from "react-router-dom";
 import { useProjects } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
@@ -22,6 +22,7 @@ export default function DashboardCreator() {
   const [showInviteModal, setShowInviteModal] = useState(false);
 
   const profilePicture = user?.profilePicture;
+  const firstName = user?.full_name?.trim().split(/\s+/)[0] ?? "";
 
   const handleRemoveMember = async (memberId: string) => {
     const success = await removeTeamMember(memberId);
@@ -60,7 +61,7 @@ export default function DashboardCreator() {
         {/* Welcome Header */}
         <div>
           <h1 className="text-3xl font-bold text-foreground">
-            {greeting(user?.full_name)}
+            {firstName ? `What can I help with, ${firstName}?` : "What can I help with?"}
           </h1>
           <p className="text-muted-foreground mt-1">Here's what's happening with your projects today.</p>
 
@@ -86,9 +87,7 @@ export default function DashboardCreator() {
               </div>
 
               {isLoadingProjects && projects.length === 0 ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-                </div>
+                <ListSkeleton count={3} label="Loading your projects" />
               ) : projects.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 sm:py-12 text-center gap-4">
                   <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-primary/10">

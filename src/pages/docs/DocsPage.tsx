@@ -6,7 +6,7 @@ import { DocEditor } from "@/components/docs/DocEditor";
 import { useDocs, fetchDoc } from "@/hooks/useDocs";
 import type { DocDetail } from "@/hooks/useDocs";
 import { toast } from "sonner";
-import { FileText, Loader2, PanelLeft } from "lucide-react";
+import { ArrowLeft, ChevronRight, FileText, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function DocsPage() {
@@ -38,6 +38,12 @@ export default function DocsPage() {
     });
     return () => { cancelled = true; };
   }, [docId]);
+
+  // Back to wherever the user came from; a page opened directly falls back to the library.
+  const goBack = useCallback(() => {
+    if (window.history.length > 1) navigate(-1);
+    else navigate("/library");
+  }, [navigate]);
 
   const handleNewPage = useCallback(
     async (parentId?: string) => {
@@ -123,11 +129,14 @@ export default function DocsPage() {
               doc={activeDoc}
               onTitleChange={handleTitleChange}
               onToggleSidebar={() => setSidebarOpen((v) => !v)}
+              sidebarOpen={sidebarOpen}
+              onBack={goBack}
             />
           ) : (
             <EmptyState
               onNewPage={() => handleNewPage()}
               onOpenSidebar={() => setSidebarOpen(true)}
+              onBack={goBack}
             />
           )}
         </main>
@@ -139,12 +148,21 @@ export default function DocsPage() {
 function EmptyState({
   onNewPage,
   onOpenSidebar,
+  onBack,
 }: {
   onNewPage: () => void;
   onOpenSidebar: () => void;
+  onBack: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center flex-1 gap-4 text-center px-8">
+    <div className="relative flex flex-col items-center justify-center flex-1 gap-4 text-center px-8">
+      <button
+        onClick={onBack}
+        aria-label="Go back"
+        className="absolute left-3 top-3 h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft size={16} />
+      </button>
       
 
       <div className={cn(
@@ -175,7 +193,7 @@ function EmptyState({
           onClick={onOpenSidebar}
           className="md:hidden flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
         >
-          <PanelLeft size={16} />
+          <ChevronRight size={16} />
           Browse pages
         </button>
       </div>

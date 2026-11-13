@@ -101,13 +101,10 @@ class TeamMemberSerializer(serializers.ModelSerializer):
 
     def get_avatar(self, obj):
         """Get talent avatar URL"""
+        # The photo lives on the user (TalentProfile has no avatar field), and Cloudinary URLs are absolute.
         try:
-            if obj.talent.talentprofile.avatar:
-                request = self.context.get('request')
-                if request:
-                    return request.build_absolute_uri(obj.talent.talentprofile.avatar.url)
-            return None
-        except AttributeError:
+            return obj.talent.profile_picture.url if obj.talent.profile_picture else None
+        except Exception:
             return None
 
     def get_skills(self, obj):

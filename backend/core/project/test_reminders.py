@@ -158,6 +158,31 @@ class EndpointTests(TestCase):
         self.assertTrue(res.data["scheduled_today"])
         self.assertIn("counts", res.data)
 
+    def test_report_is_marked_seen_once_a_day_on_the_account(self):
+        UserSettings.objects.create(user=self.user, reminder_enabled=True, reminder_frequency="daily")
+        self.assertFalse(self.api.get("/api/v2/reminders/report/").data["seen_today"])
+        self.assertEqual(self.api.post("/api/v2/reminders/report/").status_code, 204)
+        self.assertEqual(self.api.post("/api/v2/reminders/report/").status_code, 204)  # harmless twice
+        self.assertTrue(self.api.get("/api/v2/reminders/report/").data["seen_today"])
+        # Yesterday's "seen" does not count for today.
+        s = UserSettings.objects.get(user=self.user)
+        s.report_seen_on -= dt.timedelta(days=1)
+        s.save()
+        self.assertFalse(self.api.get("/api/v2/reminders/report/").data["seen_today"])
+
+    def test_seen_is_per_account(self):
+        other = APIClient()
+        other.force_authenticate(make_user("other@test.com", "talent"))
+        self.api.post("/api/v2/reminders/report/")
+        self.assertFalse(other.get("/api/v2/reminders/report/").data["seen_today"])
+        self.assertEqual(APIClient().post("/api/v2/reminders/report/").status_code, 401)
+
+    def test_deadline_timer_choice_is_saved_on_the_account(self):
+        self.assertTrue(self.api.get("/api/v1/settings/").data["show_deadline_timer"])
+        res = self.api.patch("/api/v1/settings/", {"show_deadline_timer": False}, format="json")
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(self.api.get("/api/v1/settings/").data["show_deadline_timer"])
+
     def test_send_due_requires_token(self):
         anon = APIClient()
         env_without_token = {k: v for k, v in os.environ.items() if k != "DIGEST_CRON_TOKEN"}

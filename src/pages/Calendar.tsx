@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Bell, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Settings } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Settings, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   format,
@@ -192,6 +192,27 @@ export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
+  // The deadline timer is shown by default. The choice is saved on the account (see the effect below);
+  // the copy in this browser only decides what to draw in the moment before the account's answer arrives.
+  const [showTimer, setShowTimer] = useState(() => {
+    try {
+      return localStorage.getItem("onswift_calendar_show_timer") !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const toggleTimer = () => {
+    const next = !showTimer;
+    setShowTimer(next);
+    try {
+      localStorage.setItem("onswift_calendar_show_timer", next ? "1" : "0");
+    } catch {
+      // storage blocked or full: the account still remembers it
+    }
+    void saveReminder({ show_deadline_timer: next }).then((ok) => {
+      if (!ok) toast.error("Couldn't save that choice. It will reset when you reload.");
+    });
+  };
   // Cached rows render instantly on repeat visits; the fetch below refreshes them silently.
   const [rows, setRows] = useState<DeadlineRow[]>(() => readCache<DeadlineRow[]>("deadlines") ?? []);
   const [isLoading, setIsLoading] = useState(() => readCache<DeadlineRow[]>("deadlines") === null);
@@ -202,6 +223,11 @@ export default function Calendar() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { settings: reminder, save: saveReminder } = useReminderSettings();
+  // The account's saved choice wins over whatever this browser remembered.
+  const savedShowTimer = reminder?.show_deadline_timer;
+  useEffect(() => {
+    if (typeof savedShowTimer === "boolean") setShowTimer(savedShowTimer);
+  }, [savedShowTimer]);
   const [reminderOpen, setReminderOpen] = useState(false);
 
   const toggleReminder = async (checked: boolean) => {
@@ -333,7 +359,20 @@ export default function Calendar() {
             </div>
           </div>
 
-          <div className="relative shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
+          <Button
+            variant={showTimer ? "default" : "outline"}
+            size="sm"
+            onClick={toggleTimer}
+            aria-pressed={showTimer}
+            aria-label={`${showTimer ? "Hide" : "Show"} deadline timer`}
+            className="font-semibold gap-2"
+          >
+            <Timer className="h-4 w-4" />
+            <span className="hidden sm:inline">{showTimer ? "Hide" : "Show"} Deadline Timer</span>
+          </Button>
+
+          <div className="relative">
             <Button
               variant={showCalendar ? "default" : "outline"}
               size="sm"
@@ -418,6 +457,7 @@ export default function Calendar() {
               </>
             )}
           </div>
+          </div>
         </div>
 
         {/* Main Content Grid */}
@@ -425,7 +465,7 @@ export default function Calendar() {
           {/* Left: Deadlines */}
           <div className="min-w-0 space-y-6">
             {/* Next Deadline Countdown */}
-            {nextDeadline && <CountdownCircle target={nextDeadline.at} taskName={nextDeadline.row.name} />}
+            {showTimer && nextDeadline && <CountdownCircle target={nextDeadline.at} taskName={nextDeadline.row.name} />}
 
             {/* Deadlines Table */}
             <div className="glass-card p-4 sm:p-6 rounded-lg border border-border/50">

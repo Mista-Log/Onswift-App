@@ -16,7 +16,7 @@ export function useDeadlineCount(): number {
     if (!user) return;
     let cancelled = false;
 
-    (async () => {
+    const load = async () => {
       try {
         const res = await secureFetch("/api/v2/deadlines/");
         if (!res.ok || cancelled) return;
@@ -29,10 +29,15 @@ export function useDeadlineCount(): number {
       } catch {
         // Keep the cached value on failure.
       }
-    })();
+    };
+
+    load();
+    // A project was deleted (or its deadlines changed): recount now.
+    window.addEventListener("onswift:deadlines-changed", load);
 
     return () => {
       cancelled = true;
+      window.removeEventListener("onswift:deadlines-changed", load);
     };
   }, [user?.id]);
 

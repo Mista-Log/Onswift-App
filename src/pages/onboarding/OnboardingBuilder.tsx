@@ -20,21 +20,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FormBlockEditor } from "@/components/onboarding/FormBlockEditor";
 import { BlockRenderer } from "@/components/onboarding/BlockRenderer";
 import { OnboardingLinkTable } from "@/components/onboarding/OnboardingLinkTable";
-import { ArrowLeft, Save, Eye, Link2, Loader2, History, FolderKanban } from "lucide-react";
+import { ArrowLeft, Save, Eye, Link2, Loader2, History, FolderKanban, EllipsisVertical } from "lucide-react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { FIXED_PROCESSING_MESSAGE, runWithFixedProcessingDelay } from "@/lib/loadingGate";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import type { FormBlock, OnboardingTemplate } from "@/types/onboarding";
 
@@ -59,6 +55,7 @@ export default function OnboardingBuilder() {
 
   const { projects } = useProjects();
   const [projectId, setProjectId] = useState<string>("");
+  const [showProfile, setShowProfile] = useState(false);
   const [blocks, setBlocks] = useState<FormBlock[]>([]);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("editor");
@@ -159,6 +156,7 @@ export default function OnboardingBuilder() {
         const data: OnboardingTemplate = await response.json();
         setValue("title", data.title);
         setProjectId(data.project ?? "");
+        setShowProfile(!!data.show_creator_profile);
         // Legacy blocks predate stable ids — assign them so @references can target them.
         setBlocks(data.blocks.map((b) => (b.id ? b : { ...b, id: crypto.randomUUID() })));
         // Offer a draft only if it's newer than the last saved version.
@@ -223,6 +221,26 @@ export default function OnboardingBuilder() {
     }
   };
 
+  // Whether clients filling the form can open my profile from it. Saved straight away, on its own.
+  const toggleShowProfile = async (next: boolean) => {
+    setShowProfile(next); // optimistic
+    try {
+      const response = await secureFetch(`/api/v4/templates/${id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ show_creator_profile: next }),
+      });
+      if (response.ok) {
+        toast.success(next ? "Your profile now shows on this form" : "Your profile is hidden on this form");
+      } else {
+        setShowProfile(!next);
+        toast.error("Failed to update form");
+      }
+    } catch {
+      setShowProfile(!next);
+      toast.error("Failed to update form");
+    }
+  };
+
   const generateLink = async () => {
     if (!projectId) {
       toast.error("Link this form to a project (and save) before generating a link.");
@@ -279,31 +297,53 @@ export default function OnboardingBuilder() {
             {isEditing && <TabsTrigger value="links">Tracker</TabsTrigger>}
           </TabsList>
           <div className="flex-1" />
-          {projects.length > 0 && (
-            <Select value={projectId} onValueChange={setProjectId}>
-              {/* Styled like the toolbar's sm buttons — compact, width fits content */}
-              <SelectTrigger className="h-9 w-auto max-w-[180px] gap-1.5 rounded-md border-input px-3 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
-                <FolderKanban className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate">
-                  <SelectValue placeholder="Link to project" />
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Secondary actions live behind the ⋮ menu so the toolbar fits on a phone. */}
+          {(projects.length > 0 || isEditing || lastSavedAt) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="shrink-0" aria-label="More options">
+                  <EllipsisVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60 max-h-[70vh] overflow-y-auto">
+                {isEditing && (
+                  <DropdownMenuItem onSelect={() => setGenerateDialogOpen(true)}>
+                    <Link2 className="mr-2 h-4 w-4" /> Generate link
+                  </DropdownMenuItem>
+                )}
+                {isEditing && (
+                  <DropdownMenuCheckboxItem checked={showProfile} onCheckedChange={toggleShowProfile}>
+                    Show my profile on this form
+                  </DropdownMenuCheckboxItem>
+                )}
+                {projects.length > 0 && (
+                  <>
+                    {isEditing && <DropdownMenuSeparator />}
+                    <DropdownMenuLabel className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+                      <FolderKanban className="h-3.5 w-3.5" /> Link to project
+                    </DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={projectId} onValueChange={setProjectId}>
+                      {projects.map((p) => (
+                        <DropdownMenuRadioItem key={p.id} value={p.id}>
+                          <span className="truncate">{p.name}</span>
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </>
+                )}
+                {lastSavedAt && (
+                  <>
+                    {(isEditing || projects.length > 0) && <DropdownMenuSeparator />}
+                    <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                      Draft saved {format(lastSavedAt, "h:mm a")}
+                    </DropdownMenuLabel>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           {isEditing && (
             <Dialog open={generateDialogOpen} onOpenChange={setGenerateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5">
-                  <Link2 className="h-3.5 w-3.5" /> Generate link
-                </Button>
-              </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Generate Onboarding Link</DialogTitle>
@@ -336,11 +376,6 @@ export default function OnboardingBuilder() {
                 </div>
               </DialogContent>
             </Dialog>
-          )}
-          {lastSavedAt && (
-            <span className="hidden sm:inline text-xs text-muted-foreground">
-              Draft saved {format(lastSavedAt, "h:mm a")}
-            </span>
           )}
           <Button size="sm" onClick={handleSubmit(onSubmit)} disabled={saving} className="gap-1.5">
             <Save className="h-3.5 w-3.5" />

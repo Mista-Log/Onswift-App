@@ -951,9 +951,9 @@ export default function DocumentLibrary() {
             <div className="flex flex-wrap items-center gap-3">
               {/* Desktop: full search box */}
               <div className="relative hidden sm:block flex-1 min-w-[10rem] max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
                 <Input
-                  className="pl-9 pr-8 rounded-full h-9 bg-white"
+                  className="pl-9 pr-8 rounded-full h-9 bg-background"
                   placeholder="Search by name or tag…"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -971,7 +971,7 @@ export default function DocumentLibrary() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     autoFocus
-                    className="pl-9 pr-9 rounded-full h-9 bg-white"
+                    className="pl-9 pr-9 rounded-full h-9 bg-background"
                     placeholder="Search by name or tag…"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -1012,7 +1012,7 @@ export default function DocumentLibrary() {
 
             {/* Tabs */}
             <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-              <TabsList className="hidden sm:flex bg-muted/50 h-9 gap-1 max-w-full overflow-x-auto">
+              <TabsList className="hidden sm:flex w-fit justify-start bg-muted/50 h-9 gap-1 max-w-full overflow-x-auto">
                 <TabsTrigger value="all" className="text-xs gap-1.5">
                   <Clock size={12} />
                   All

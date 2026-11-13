@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { secureFetch } from "@/api/apiClient";
 
@@ -30,28 +31,16 @@ interface Report {
   this_week: ReportItem[];
   needs_action: ReportItem[];
   scheduled_today: boolean;
+  /** The account has already been shown today's report (on any browser). */
+  seen_today?: boolean;
 }
 
 const checkedKey = (userId: string, date: string) => `daily-report-checked:${userId}:${date}`;
 const clientDate = () => new Date().toLocaleDateString("en-CA");
 
-function Section({
-  title,
-  items,
-  tone,
-  onOpen,
-}: {
-  title: string;
-  items: ReportItem[];
-  tone: string;
-  onOpen: (item: ReportItem) => void;
-}) {
-  if (items.length === 0) return null;
+function ItemList({ items, onOpen }: { items: ReportItem[]; onOpen: (item: ReportItem) => void }) {
   return (
     <div>
-      <h3 className={`mb-1.5 text-sm font-semibold ${tone}`}>
-        {title} ({items.length})
-      </h3>
       <ul className="space-y-1">
         {items.map((item) => (
           <li key={`${item.kind}-${item.id}-${item.reason ?? ""}`}>
@@ -103,9 +92,14 @@ export function DailyReportDialog() {
           // ignore
         }
         const total = Object.values(data.counts).reduce((a, b) => a + b, 0);
-        if (data.scheduled_today && total > 0) {
+        // "Seen today" lives on the account. The browser note above only saves a request; if the browser
+        // can't keep it (storage cleared, full, or a different browser), the account still says no.
+        if (data.scheduled_today && total > 0 && !data.seen_today) {
           setReport(data);
           setOpen(true);
+          secureFetch("/api/v2/reminders/report/", { method: "POST" }).catch(() => {
+            // Not recorded: it may show once more on the next load.
+          });
         }
       } catch (error) {
         console.error("Error loading daily report:", error);
@@ -121,6 +115,14 @@ export function DailyReportDialog() {
     navigate(item.project_id ? `/projects/${item.project_id}` : "/dashboard");
   };
 
+  // Each group that has something in it becomes a tab.
+  const tabs = [
+    { value: "overdue", title: "Overdue", items: report.overdue, tone: "text-destructive" },
+    { value: "today", title: "Due today", items: report.today, tone: "text-warning" },
+    { value: "week", title: "Due this week", items: report.this_week, tone: "text-foreground" },
+    { value: "urgent", title: "Urgent", items: report.needs_action, tone: "text-primary" },
+  ].filter((t) => t.items.length > 0);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[85vh] overflow-y-auto overflow-x-hidden">
@@ -129,12 +131,22 @@ export function DailyReportDialog() {
           <DialogDescription>Here's what's left across your projects.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5">
-          <Section title="Overdue" items={report.overdue} tone="text-destructive" onOpen={openItem} />
-          <Section title="Due today" items={report.today} tone="text-warning" onOpen={openItem} />
-          <Section title="Due this week" items={report.this_week} tone="text-foreground" onOpen={openItem} />
-          <Section title="Needs your action" items={report.needs_action} tone="text-primary" onOpen={openItem} />
-        </div>
+        {tabs.length > 0 && (
+          <Tabs defaultValue={tabs[0].value} className="w-full">
+            <TabsList className="h-auto w-full flex-wrap justify-start">
+              {tabs.map((t) => (
+                <TabsTrigger key={t.value} value={t.value} className={t.tone}>
+                  {t.title} ({t.items.length})
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {tabs.map((t) => (
+              <TabsContent key={t.value} value={t.value} className="mt-3">
+                <ItemList items={t.items} onOpen={openItem} />
+              </TabsContent>
+            ))}
+          </Tabs>
+        )}
 
         <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
           <Button variant="outline" className="w-full sm:w-auto" onClick={() => { setOpen(false); navigate("/calendar"); }}>

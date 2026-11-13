@@ -1,4 +1,4 @@
-import { House, Users, Rocket, Clock, Settings, Search, Bell, LogOut, User, UserRoundPlus, X, MessageCircle, ClipboardList, Files, Wrench, Loader2, BarChart3 } from "lucide-react";
+import { House, Users, Rocket, Clock, Settings, Search, Bell, LogOut, User, UserRoundPlus, X, MessageCircle, ClipboardList, Files, Wrench, Loader2, BarChart3, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { useDeadlineCount } from "@/hooks/useDeadlineCount";
@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
+import { ProfileCompletionBanner } from "@/components/talent/ProfileCompletionBanner";
+import { profileCompletion } from "@/lib/profileCompletion";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,8 +21,10 @@ import {
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 import { SyncStatusPill } from "@/components/layout/SyncStatusPill";
 import { useTheme } from "next-themes";
+import { useOptionalAgent } from "@/contexts/AgentContext";
 
 const creatorNavItems = [
+  { label: "Agent", icon: Sparkles, route: "/chat" },
   { label: "Workspace", icon: House, route: "/dashboard" },
   { label: "Projects", icon: Rocket, route: "/projects" },
   { label: "Analytics", icon: BarChart3, route: "/analytics" },
@@ -47,7 +51,7 @@ const clientNavItems = [
 
 const talentNavItems = [
   { label: "Dashboard", icon: House, route: "/dashboard" },
-  { label: "My Profile", icon: User, route: "/profile/edit" },
+  // { label: "My Profile", icon: User, route: "/profile/edit" },
   { label: "My Projects", icon: Rocket, route: "/projects" },
   { label: "Chats", icon: MessageCircle, route: "/messages" },
   { label: "My Files", icon: Files, route: "/library" },
@@ -248,7 +252,7 @@ export function AppSidebar({ isCollapsed = false, isMobile, onExpand }: AppSideb
                 onFocus={() => { if (query.length >= 2) setOpen(true); }}
                 onKeyDown={(e) => { if (e.key === "Escape") { clear(); inputRef.current?.blur(); } }}
                 placeholder="Search docs, files…"
-                className="h-10 w-full rounded-full border-border/50 bg-secondary/50 pl-9 pr-8 text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-primary"
+                className="h-10 w-full rounded-full border-border/50 bg-secondary/50 pl-9 pr-8 text-sm placeholder:text-muted-foregroun"
               />
               {query && (
                 <button
@@ -345,10 +349,10 @@ export function AppSidebar({ isCollapsed = false, isMobile, onExpand }: AppSideb
                 <p className="text-xs text-primary capitalize mt-1">{user?.role}</p>
               </div>
               <DropdownMenuSeparator />
-              {user?.role === 'talent' && (
-                <DropdownMenuItem onClick={() => navigate('/profile/edit')}>
+              {(user?.role === 'talent' || user?.role === 'creator') && (
+                <DropdownMenuItem onClick={() => navigate(user.role === 'creator' ? '/profile/creator/edit' : '/profile/edit')}>
                   <User className="mr-2 h-4 w-4" />
-                  My Profile
+                  Profile
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem onClick={() => navigate('/settings')}>
@@ -429,11 +433,34 @@ function SearchDropdown({
 }
 
 export function TopBar() {
+  const { user } = useAuth();
+  const agent = useOptionalAgent();
+  const location = useLocation();
+  // The full-page Agent is already on screen at /chat, so the panel toggle would only duplicate it.
+  const showAgentButton = agent?.enabled && location.pathname !== "/chat";
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-end border-b border-border/50 bg-background/80 px-4 md:px-6 backdrop-blur-xl">
       {/* Right side */}
       <div className="flex items-center gap-2 md:gap-4">
+        {showAgentButton && (
+          <button
+            type="button"
+            onClick={agent.togglePanel}
+            aria-pressed={agent.panelOpen}
+            className={cn(
+              "flex h-9 items-center gap-1.5 rounded-xl border px-3 text-sm font-medium transition-colors",
+              agent.panelOpen ? "border-primary/50 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted",
+            )}
+          >
+            <Sparkles className="h-4 w-4" aria-hidden />
+            
+          </button>
+        )}
         <SyncStatusPill />
+        {/* Phones: the profile ring sits right beside the bell, one tap from the profile editor */}
+        {user?.role === "talent" && (
+          <ProfileCompletionBanner variant="header" completionPercentage={profileCompletion(user)} />
+        )}
         <NotificationDropdown />
       </div>
     </header>

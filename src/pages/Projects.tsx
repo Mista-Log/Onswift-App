@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/dashboard/StatusBadge";
+import { StatusDot } from "@/components/dashboard/StatusDot";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Calendar as CalendarIcon, Users, FolderKanban, MoreVertical, Trash2, ExternalLink, ArrowRight, Pencil, Copy } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Users, FolderKanban, MoreVertical, Trash2, ExternalLink, ArrowRight, Pencil, Copy, Search, ListFilter, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CelebrationModal } from "@/components/CelebrationModal";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -39,7 +40,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProjects } from "@/contexts/ProjectContext";
-import { isNetworkError } from "@/api/apiClient";
+import { isNetworkError, secureFetch } from "@/api/apiClient";
+import { deriveStatus, type Project } from "@/contexts/ProjectContext";
 
 export default function Projects() {
   const navigate = useNavigate();
@@ -58,6 +60,35 @@ export default function Projects() {
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [projectToRename, setProjectToRename] = useState<{ id: string; name: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "planning" | "in-progress" | "completed">("all");
+
+  // Search matches the name or description; the filter narrows by status. Both apply together.
+  const needle = query.trim().toLowerCase();
+  const visibleProjects = projects.filter(
+    (p) =>
+      (statusFilter === "all" || p.status === statusFilter) &&
+      (!needle || p.name.toLowerCase().includes(needle) || (p.description ?? "").toLowerCase().includes(needle)),
+  );
+  const filtering = needle !== "" || statusFilter !== "all";
+
+  // Projects a team member chose to share with this creator. Read-only, kept apart from their own.
+  const [sharedWithMe, setSharedWithMe] = useState<Project[]>([]);
+  useEffect(() => {
+    if (user?.role !== "creator") return;
+    let cancelled = false;
+    secureFetch("/api/v2/projects/shared/")
+      .then(async (res) => {
+        if (res.ok && !cancelled) {
+          const rows: Project[] = await res.json();
+          setSharedWithMe(rows.map((p) => ({ ...p, status: deriveStatus(p) })));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role]);
 
   // Mobile "New Project" FAB: contracts to an icon-only button while the page is actively
   // scrolling, then expands back once scrolling settles.
@@ -180,13 +211,13 @@ export default function Projects() {
             </h1>
             <p className="mt-1 text-muted-foreground">
               {isTalent
-                ? "Projects you're currently working on"
+                ? "Projects you're working on, plus any you start yourself"
                 : "Manage all your creative projects"
               }
             </p>
           </div>
 
-          {!isTalent && (
+          {(
             <>
               <Button
                 className="hidden gap-2 sm:inline-flex sm:w-auto"
@@ -286,14 +317,22 @@ export default function Projects() {
         {/* Projects Grid */}
         {projects.length === 0 ? (
           isTalent ? (
-            <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center min-h-[360px]">
-              <div className="rounded-2xl bg-secondary/60 p-6 mb-4">
-                <FolderKanban className="h-12 w-12 text-muted-foreground/50" />
+            <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center min-h-[360px] border-2 border-dashed border-border/60 rounded-2xl bg-secondary/20">
+              <div className="rounded-2xl bg-primary/10 p-5 mb-4">
+                <FolderKanban className="h-12 w-12 text-primary" />
               </div>
-              <p className="text-base font-semibold text-foreground">No projects assigned yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Projects assigned to you will appear here once a creator adds you.
+              <p className="text-base font-semibold text-foreground">Start your own project</p>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground leading-relaxed">
+                You don't have to wait for a creator. Make a project for your own work and track its tasks here.
+                Projects a creator assigns to you will show up here too.
               </p>
+              <p className="mt-2 max-w-sm text-xs text-muted-foreground">
+                Yours are private until you choose to share one with the creators who hired you.
+              </p>
+              <Button className="mt-6 gap-2" onClick={() => setIsDialogOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Create My First Project
+              </Button>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center p-10 sm:p-14 text-center min-h-[420px] border-2 border-dashed border-border/60 rounded-2xl bg-secondary/20">
@@ -316,8 +355,55 @@ export default function Projects() {
             </div>
           )
         ) : (
+          <>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search projects"
+                aria-label="Search projects"
+                className="pl-9 pr-9"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+              <SelectTrigger className="sm:w-48" aria-label="Filter by status">
+                <ListFilter className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All projects</SelectItem>
+                <SelectItem value="planning">Planning</SelectItem>
+                <SelectItem value="in-progress">In progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {visibleProjects.length === 0 && filtering && (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 p-10 text-center">
+              <p className="font-semibold text-foreground">No projects match</p>
+              <p className="mt-1 text-sm text-muted-foreground">Try a different search or filter.</p>
+              <Button variant="outline" className="mt-4" onClick={() => { setQuery(""); setStatusFilter("all"); }}>
+                Clear search and filter
+              </Button>
+            </div>
+          )}
+
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => {
+            {visibleProjects.map((project) => {
               const progress =
                 project.task_count === 0
                   ? 0
@@ -332,8 +418,8 @@ export default function Projects() {
                   <div className="flex justify-between mb-3">
                     <h3 className="font-semibold">{project.name}</h3>
                     <div className="flex items-center gap-2">
-                      <StatusBadge status={project.status} />
-                      {!isTalent && (
+                      <StatusDot status={project.status} />
+                      {(!isTalent || project.creator === user?.id) && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                             <Button
@@ -353,10 +439,12 @@ export default function Projects() {
                               <Pencil className="h-4 w-4 mr-2" />
                               Rename Project
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => handleDuplicateProject(e, { id: project.id, name: project.name })}>
-                              <Copy className="h-4 w-4 mr-2" />
-                              Duplicate Project
-                            </DropdownMenuItem>
+                            {!isTalent && (
+                              <DropdownMenuItem onClick={(e) => handleDuplicateProject(e, { id: project.id, name: project.name })}>
+                                <Copy className="h-4 w-4 mr-2" />
+                                Duplicate Project
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               onClick={(e) => openDeleteDialog(e, { id: project.id, name: project.name })}
                               className="text-destructive focus:text-destructive"
@@ -420,6 +508,37 @@ export default function Projects() {
               );
             })}
           </div>
+          </>
+        )}
+
+        {/* Projects a team member chose to share with this creator: view only */}
+        {!isTalent && sharedWithMe.length > 0 && (
+          <section aria-label="Shared by your team" className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Shared by your team</h2>
+              <p className="text-sm text-muted-foreground">Projects your team members started and chose to show you. View only.</p>
+            </div>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {sharedWithMe.map((project) => (
+                <div
+                  key={project.id}
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                  className="glass-card-hover cursor-pointer p-6 hover:-translate-y-1"
+                >
+                  <div className="mb-1 flex items-start justify-between gap-2">
+                    <h3 className="font-semibold">{project.name}</h3>
+                    <StatusDot status={project.status} />
+                  </div>
+                  <p className="mb-3 text-xs text-muted-foreground">By {project.owner_name || "a team member"}</p>
+                  {project.description && <p className="mb-4 text-sm text-muted-foreground">{project.description}</p>}
+                  <div className="flex justify-between text-sm">
+                    <span>Progress</span>
+                    <span>{project.completed_tasks}/{project.task_count}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         {/* First project celebration */}

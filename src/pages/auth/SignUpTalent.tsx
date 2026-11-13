@@ -35,7 +35,7 @@ const SKILL_OPTIONS = [
 
   // Creator Economy Specific
   'Personal Branding', 'Creator Management',
-  'Talent Management', 'Brand Partnerships',
+  'Team Management', 'Brand Partnerships',
   'Sponsorship Negotiation', 'Affiliate Marketing',
   'Digital Product Creation', 'Course Creation',
   'Membership & Community Monetization',
@@ -272,7 +272,7 @@ export default function SignUpTalent() {
             {/* Invite Banner */}
             {inviteInfo && (
               <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-lg">
-                <div className="flex items-center justify-center gap-2 text-primary mb-1">
+                <div className="flex items-center justify-center gap-2 text-green mb-1">
                   <CheckCircle2 className="h-5 w-5" />
                   <p className="font-semibold">You're Invited!</p>
                 </div>
@@ -284,15 +284,16 @@ export default function SignUpTalent() {
             )}
 
             {/* Stepper — Step 1 of 3: account setup */}
-            <div className="flex items-center justify-center gap-2 mb-4">
+            
+            {/* <div className="flex items-center justify-center gap-2 mb-4">
               <div className="w-3 h-3 rounded-full bg-primary" />
               <div className="w-8 h-0.5 bg-border" />
               <div className="w-3 h-3 rounded-full bg-border" />
               <div className="w-8 h-0.5 bg-border" />
               <div className="w-3 h-3 rounded-full bg-border" />
-            </div>
+            </div> */}
 
-            <h2 className="text-2xl font-semibold text-foreground">Create Talent Account</h2>
+            <h2 className="text-2xl font-semibold text-foreground">Create Team Account</h2>
             <p className="text-muted-foreground mt-2">
               {inviteInfo ? 'Complete your profile to join the team' : 'Set up your profile to start working'}
             </p>
@@ -515,7 +516,7 @@ export default function SignUpTalent() {
                   {inviteToken ? 'Processing invite signup...' : 'Creating account...'}
                 </>
               ) : (
-                'Create Talent Account'
+                'Create Team Account'
               )}
             </Button>
 

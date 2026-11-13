@@ -39,6 +39,8 @@ class OnboardingTemplate(models.Model):
         blank=True,
         related_name="onboarding_templates",
     )
+    # Lets the people filling this form open the creator's profile from it. Off unless the creator turns it on.
+    show_creator_profile = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -169,6 +171,8 @@ class StandaloneForm(models.Model):
         db_index=True,
     )
     is_open = models.BooleanField(default=True, help_text="Whether the form is still accepting responses")
+    # Lets the people filling this form open the creator's profile from it. Off unless the creator turns it on.
+    show_creator_profile = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

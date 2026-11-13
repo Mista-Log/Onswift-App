@@ -1,6 +1,8 @@
 from django.urls import path
 from .views import SignupView, LoginView, UpdateProfileView, UserDetailView
 from .views import UserSettingsView, AccountStatsView, UpdateBasicProfileView, DeleteAccountView
+from .profiles import PublicProfileView, MyFeaturedWorkView, MyFeaturedWorkDetailView
+from .profiles import MyShareLinkView, ProfileByHandleView
 from rest_framework_simplejwt.views import TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
@@ -25,6 +27,14 @@ urlpatterns = [
     path("auth/user/", UserDetailView.as_view(), name="user-detail"),
     path("auth/token/refresh/", TokenRefreshView.as_view()),
     path("user/talentprofile/", TalentProfileListView.as_view(), name="talent-profiles"),
+
+    # Profile preview + Featured section
+    path("profiles/<uuid:user_id>/", PublicProfileView.as_view(), name="public-profile"),
+    # Public share link (creators): manage your own, and the open page behind onswift.org/<handle>
+    path("auth/share/", MyShareLinkView.as_view(), name="share-link"),
+    path("public/profiles/<str:handle>/", ProfileByHandleView.as_view(), name="profile-by-handle"),
+    path("auth/featured/", MyFeaturedWorkView.as_view(), name="featured-work"),
+    path("auth/featured/<uuid:pk>/", MyFeaturedWorkDetailView.as_view(), name="featured-work-detail"),
 
     path("auth/google/", GoogleAuthView.as_view(), name="google-auth"),
     path("auth/verify-otp/", VerifyOtpView.as_view(), name="verify-otp"),

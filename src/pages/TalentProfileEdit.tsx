@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Camera, X, Plus, Link as LinkIcon, Linkedin, Twitter, Github } from "lucide-react";
+import { Camera, X, Plus, Link as LinkIcon } from "lucide-react";
+import { SocialLinksEditor, toSocialValues, type SocialValues } from "@/components/profile/socials";
 import { uploadErrorMessage } from "@/lib/uploadError";
+import { FeaturedManager, useFeaturedWork } from "@/components/profile/FeaturedManager";
+import { ProfilePreviewButton, useOwnPreviewBase } from "@/components/profile/ProfilePreviewPanel";
+import { BannerField, useBannerField } from "@/components/profile/ProfileFormFields";
+import { ShareProfileButton } from "@/components/profile/ShareProfileButton";
+import type { ProfileData } from "@/components/profile/ProfileView";
 
 const SKILL_OPTIONS = [
   "UI/UX Design", "Web Development", "Mobile Development",
@@ -28,7 +34,18 @@ const AVAILABILITY_OPTIONS = [
   "Not Available"
 ];
 
+// The form copies the saved profile into its own state once. On a fresh load the saved profile can arrive
+// a moment after the page opens, so remount the form when it does (keyed on the saved values).
 export default function TalentProfileEdit() {
+  const { user } = useAuth();
+  const saved = JSON.stringify([
+    user?.id, user?.full_name, user?.professional_title, user?.bio, user?.skills,
+    user?.portfolioLinks, user?.hourlyRate, user?.availability, user?.social_links,
+  ]);
+  return <TalentProfileEditForm key={saved} />;
+}
+
+function TalentProfileEditForm() {
   const { user, updateTalentProfile } = useAuth();
   const navigate = useNavigate();
 
@@ -46,14 +63,30 @@ export default function TalentProfileEdit() {
     profilePicture: user?.profilePicture || "",
   });
 
-  const [portfolioLinks, setPortfolioLinks] = useState<string[]>([formData.portfolioLink].filter(Boolean));
-  const [socialLinks, setSocialLinks] = useState({
-    linkedin: user?.social_links?.linkedin || "",
-    twitter: user?.social_links?.twitter || "",
-    github: user?.social_links?.github || "",
-  });
+  const [portfolioLinks, setPortfolioLinks] = useState<string[]>(user?.portfolioLinks?.length ? user.portfolioLinks : [formData.portfolioLink].filter(Boolean));
+  const [socialLinks, setSocialLinks] = useState<SocialValues>(() => toSocialValues(user?.social_links));
+  const banner = useBannerField(user?.banner);
   const [newSkill, setNewSkill] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // The preview shows what your creators will see: the form as it is right now, saved or not.
+  const featured = useFeaturedWork();
+  const base = useOwnPreviewBase(user?.id, featured.items.length);
+  const pictureUrl = useMemo(() => (profilePicture ? URL.createObjectURL(profilePicture) : null), [profilePicture]);
+  const preview: ProfileData = {
+    role: "talent",
+    full_name: formData.full_name,
+    avatar: pictureUrl || user?.profilePicture || null,
+    banner: banner.previewUrl,
+    headline: formData.professional_title,
+    bio: formData.bio,
+    skills: formData.skills,
+    links: portfolioLinks.filter((l) => l.trim()),
+    social_links: socialLinks,
+    featured: featured.items,
+    stats: base.stats,
+    member_since: base.member_since,
+  };
 
   const handleInputChange = (field: string, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -100,6 +133,7 @@ const handleSubmit = async (e: React.FormEvent) => {
     if (profilePicture) {
       formPayload.append("profile_picture", profilePicture);
     }
+    banner.appendTo(formPayload);
 
     // Talent fields
     formPayload.append("professional_title", formData.professional_title);
@@ -113,9 +147,12 @@ const handleSubmit = async (e: React.FormEvent) => {
     });
 
     // Portfolio links
-    portfolioLinks.forEach((link) => {
-      if (link) formPayload.append("portfolio_links", link);
-    });
+    const links = portfolioLinks.map((l) => l.trim()).filter(Boolean);
+    links.forEach((link) => formPayload.append("portfolio_links", link));
+
+    // A form sends nothing for an empty list, so say which lists were emptied.
+    if (formData.skills.length === 0) formPayload.append("clear_fields", "skills");
+    if (links.length === 0) formPayload.append("clear_fields", "portfolio_links");
 
     // Social links (JSONField)
     formPayload.append("social_links", JSON.stringify(socialLinks));
@@ -147,15 +184,21 @@ const handleSubmit = async (e: React.FormEvent) => {
       <div className="animate-fade-in max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">My Profile</h1>
-            <p className="text-muted-foreground mt-1">Dashboard &gt; Profile</p>
+            <h1 className="text-3xl font-bold text-foreground">Profile</h1>
+            
           </div>
-          <Button variant="glow" onClick={handleSubmit} disabled={isLoading}>
-            {isLoading ? "Saving..." : "Save Changes"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <ProfilePreviewButton profile={preview} audience="your creators" />
+            <ShareProfileButton />
+            <Button variant="glow" onClick={handleSubmit} disabled={isLoading}>
+              {isLoading ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
+          <BannerField previewUrl={banner.previewUrl} onPick={banner.pick} onRemove={banner.remove} />
+
           {/* Profile Picture Section */}
           <section className="glass-card p-6">
             <h2 className="text-lg font-semibold text-foreground mb-4">Profile Picture</h2>
@@ -316,8 +359,10 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
           </section>
 
+          <FeaturedManager items={featured.items} onChange={featured.setItems} />
+
           {/* Rates & Availability */}
-          <section className="glass-card p-6">
+          {/* <section className="glass-card p-6">
             <h2 className="text-lg font-semibold text-foreground mb-4">Rates & Availability</h2>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -353,50 +398,10 @@ const handleSubmit = async (e: React.FormEvent) => {
                 </Select>
               </div>
             </div>
-          </section>
+          </section> */}
 
           {/* Social Links */}
-          <section className="glass-card p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Social Links</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>LinkedIn</Label>
-                <div className="relative">
-                  <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    value={socialLinks.linkedin}
-                    onChange={(e) => setSocialLinks(prev => ({ ...prev, linkedin: e.target.value }))}
-                    placeholder="https://linkedin.com/in/yourname"
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Twitter/X</Label>
-                <div className="relative">
-                  <Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    value={socialLinks.twitter}
-                    onChange={(e) => setSocialLinks(prev => ({ ...prev, twitter: e.target.value }))}
-                    placeholder="https://twitter.com/yourhandle"
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>GitHub</Label>
-                <div className="relative">
-                  <Github className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    value={socialLinks.github}
-                    onChange={(e) => setSocialLinks(prev => ({ ...prev, github: e.target.value }))}
-                    placeholder="https://github.com/yourname"
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            </div>
-          </section>
+          <SocialLinksEditor value={socialLinks} onChange={setSocialLinks} />
 
           {/* Action Buttons */}
           <div className="flex gap-4 justify-end">

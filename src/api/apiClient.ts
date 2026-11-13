@@ -135,3 +135,49 @@ export const secureFetch = async (
 
   return response;
 };
+
+// ---------- secure stream ----------
+
+/**
+ * Like secureFetch, for long-lived streaming responses (the Agent's server-sent events).
+ * Differences: no 30 s timeout (a reply can legitimately run ~90 s; the caller aborts via
+ * options.signal) and no network retry (the request is a POST and may have reached the server).
+ * A 401 still refreshes the token and replays once, since nothing has streamed yet.
+ */
+export const secureStream = async (endpoint: string, options: RequestInit = {}): Promise<Response> => {
+  const token = localStorage.getItem("onswift_access");
+  if (!token) throw new Error("No access token");
+
+  const send = (t: string) => {
+    const headers = new Headers(options.headers);
+    headers.set("Authorization", `Bearer ${t}`);
+    if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    return fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers });
+  };
+
+  const response = await send(token);
+  if (response.status !== 401) return response;
+
+  const refreshToken = localStorage.getItem("onswift_refresh");
+  if (!refreshToken) {
+    clearAuthStorage();
+    return response;
+  }
+  try {
+    const refreshRes = await fetchWithTimeout(`${API_BASE_URL}/api/v1/auth/token/refresh/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
+    if (!refreshRes.ok) {
+      clearAuthStorage();
+      return response;
+    }
+    const data = await refreshRes.json();
+    localStorage.setItem("onswift_access", data.access);
+    return await send(data.access);
+  } catch {
+    clearAuthStorage();
+    return response;
+  }
+};

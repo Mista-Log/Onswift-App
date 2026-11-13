@@ -142,7 +142,7 @@ const SCREENS: Screen[] = [
     subtitle: 'Select all that apply.',
     options: [
       'Manage projects',
-      'Find and hire talent',
+      'Onboard team members',
       'Organize team work',
       'Track deliverables & deadlines',
       'Run client work',
@@ -225,7 +225,7 @@ export default function SignUp() {
   });
 
   if (isAuthenticated && !locationState?.fromSignup) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/home" replace />;
   }
 
   const currentScreen = SCREENS[currentScreenIndex];
@@ -271,7 +271,7 @@ export default function SignUp() {
         // swallow — if completion genuinely failed, ProtectedRoute correctly
         // keeps the user on the survey instead of bouncing them silently.
       }
-      navigate('/dashboard');
+      navigate('/home');
     } else {
       setCurrentScreenIndex(SCREENS.length);
     }
@@ -449,7 +449,7 @@ export default function SignUp() {
                       // swallow — if completion genuinely failed, ProtectedRoute correctly
                       // keeps the user on the survey instead of bouncing them silently.
                     }
-                    navigate('/dashboard');
+                    navigate('/home');
                   } else {
                     setCurrentScreenIndex(currentScreenIndex + 1);
                   }
@@ -815,7 +815,7 @@ function CompletionScreen({
               </p>
               
               <div className="mt-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <span className="text-sm font-semibold text-[#6B5CE7]">Get Started →</span>
+                <span className="text-sm font-semibold text-[#6B5CE7]">Get Started</span>
               </div>
             </div>
           </button>
@@ -838,13 +838,13 @@ function CompletionScreen({
                 </div>
               </div>
               
-              <h3 className="text-2xl font-bold text-slate-900 mb-3">Talent</h3>
+              <h3 className="text-2xl font-bold text-slate-900 mb-3">Team</h3>
               <p className="text-slate-600 text-sm leading-relaxed">
                 Showcase your skills <br />and work on exciting projects
               </p>
               
               <div className="mt-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <span className="text-sm font-semibold text-[#6B5CE7]">Get Started →</span>
+                <span className="text-sm font-semibold text-[#6B5CE7]">Get Started</span>
               </div>
             </div>
           </button>
@@ -1005,7 +1005,7 @@ function RoleCard({
         </ul>
 
         <div className="mt-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <span className="text-sm font-semibold" style={{ color: accent.text }}>Get Started →</span>
+          <span className="text-sm font-bold" style={{ color: accent.text }}>Get Started</span>
         </div>
       </div>
     </button>
@@ -1027,10 +1027,10 @@ function RoleSelectScreen({ onRoleSelect }: { onRoleSelect: (role: 'creator' | '
         {/* Creator / Agency — purple identity */}
         <RoleCard
           icon={<Crown className="h-8 w-8 text-[#6B5CE7]" />}
-          eyebrow="For agencies, teams & clients"
-          title="Creator / Agency"
+          eyebrow=""
+          title="For Founders"
           bullets={[
-            'Hire and manage talented professionals',
+            'Manage your Team members',
             'Run projects, tasks & deliverables',
             'Bring your own clients onboard',
           ]}
@@ -1048,12 +1048,12 @@ function RoleSelectScreen({ onRoleSelect }: { onRoleSelect: (role: 'creator' | '
         {/* Talent — distinct teal accent */}
         <RoleCard
           icon={<UserRound className="h-8 w-8 text-[#0E9488]" />}
-          eyebrow="For freelancers & professionals"
-          title="Talent"
+          eyebrow=""
+          title="For Teams"
           bullets={[
-            'Get discovered and hired',
-            'Showcase your skills & portfolio',
-            'Work on exciting projects',
+            'Get onboarded to your founders workspace',
+            'Monitor and deliver tasks without messing up deadline',
+            'Track everything',
           ]}
           accent={{
             gradient: 'linear-gradient(135deg, #ECFEFF 0%, #CCFBF1 100%)',

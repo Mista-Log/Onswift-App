@@ -35,7 +35,7 @@ interface ReminderDialogProps {
 }
 
 const OPTIONS: { value: ReminderFrequency; label: string; hint: string }[] = [
-  { value: "daily", label: "Daily", hint: "Every morning" },
+  { value: "daily", label: "Daily", hint: "Every Day " },
   { value: "weekly", label: "Weekly", hint: "Once every 7 days" },
   { value: "weekends", label: "Weekends only", hint: "Saturday and Sunday" },
 ];

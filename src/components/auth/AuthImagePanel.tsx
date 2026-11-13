@@ -4,7 +4,7 @@ const AUTH_IMAGES = [
   "/assets/Auth%20Images/austin-kehmeier-lyiKExA4zQA-unsplash.avif",
   "/assets/Auth%20Images/mark-mcgregor-Ns8trMR4Om8-unsplash.avif",
   "/assets/Auth%20Images/microsoft-edge-6CNB3iD8M4E-unsplash-1.avif",
-  "/assets/Auth%20Images/Redbull%20Fighter%20Jets.avif",
+  "/assets/Auth%20Images/annie-spratt-MChSQHxGZrQ-unsplash.jpg",
 ];
 
 export function AuthImagePanel() {
@@ -37,7 +37,7 @@ export function AuthImagePanel() {
           className="h-10 w-10 mb-4 object-contain"
         />
         <p className="text-white font-bold text-2xl xl:text-3xl leading-snug">
-          Built for creators,<br />powered by talent.
+          Built for Founders,<br />Powered by Teams.
         </p>
         <p className="text-white/60 text-sm xl:text-base mt-2 leading-relaxed max-w-xs">
           The platform where creative teams collaborate, hire, and get things done.

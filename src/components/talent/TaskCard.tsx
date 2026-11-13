@@ -21,6 +21,8 @@ interface TaskCardProps {
   projectName: string;
   status: "planning" | "in-progress" | "completed";
   awaitingApproval?: boolean;
+  /** The creator sent this task back for changes. */
+  revisionRequested?: boolean;
   assignedToMe?: boolean;
   onStatusChange?: (id: string, status: "planning" | "in-progress" | "completed") => void;
   /** What moving this card to a stage does for the signed-in user (see lib/taskStages). Omit = any stage. */
@@ -36,6 +38,7 @@ export function TaskCard({
   projectName,
   status,
   awaitingApproval,
+  revisionRequested,
   assignedToMe,
   onStatusChange,
   stageRule,
@@ -122,7 +125,7 @@ export function TaskCard({
       className={cn(
         "relative flex items-center gap-2 p-3 rounded-lg border border-border/50 bg-background transition-colors duration-200 sm:gap-4 sm:p-4",
         "hover:border-primary/40 hover:shadow-[0_0_20px_hsl(250_76%_63%/0.15)] dark:hover:shadow-[0_0_20px_hsl(0_0%_100%/0.08)]",
-        isCompleted && "opacity-60"
+        isCompleted && "opacity-60 dark:opacity-100"
       )}
     >
       {swipeable && (
@@ -179,7 +182,7 @@ export function TaskCard({
       <div className="flex-1 min-w-0" onClick={() => { if (!swipe.wasDragged()) onClick?.(); }}>
         <p className={cn(
           "font-medium text-foreground truncate",
-          isCompleted && "line-through"
+          isCompleted && "line-through dark:text-foreground/70"
         )}>
           {name}
         </p>
@@ -204,6 +207,11 @@ export function TaskCard({
           {awaitingApproval && (
             <Badge variant="outline" className="text-xs border-yellow-400/50 bg-yellow-500/10 text-yellow-600 dark:border-yellow-400/40 dark:bg-yellow-500/15 dark:text-yellow-400">
               Pending approval
+            </Badge>
+          )}
+          {revisionRequested && !awaitingApproval && !isCompleted && (
+            <Badge variant="outline" className="text-xs border-amber-400/60 bg-amber-500/10 text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/15 dark:text-amber-300">
+              Revision requested
             </Badge>
           )}
           {assignedToMe && (

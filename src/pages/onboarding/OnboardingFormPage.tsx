@@ -85,12 +85,12 @@ export default function OnboardingTemplates() {
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="gap-1 px-2 sm:px-4">
+                <Button onClick={() => navigate("/onboarding/new")} className="gap-1 px-2 sm:px-4">
                   <Plus className="h-4 w-4 shrink-0" />
                   <span className="hidden sm:inline">New Form</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              {/* <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => navigate("/onboarding/new")}>
                   <Users2 className="h-4 w-4 mr-2" />
                   Client Survey
@@ -99,7 +99,7 @@ export default function OnboardingTemplates() {
                   <ClipboardList className="h-4 w-4 mr-2" />
                   Normal Form
                 </DropdownMenuItem>
-              </DropdownMenuContent>
+              </DropdownMenuContent> */}
             </DropdownMenu>
           </div>
         </div>

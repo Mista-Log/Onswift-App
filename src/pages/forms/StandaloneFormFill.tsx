@@ -17,6 +17,8 @@ import { sanitize } from "isomorphic-dompurify";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle, Lock, ChevronLeft, Check, Loader2 } from "lucide-react";
 import type { StandaloneFormPublicData, FormBlock, BlockResponse } from "@/types/standaloneForm";
+import { CreatorProfileCard } from "@/components/profile/CreatorProfileCard";
+import type { ProfileData } from "@/components/profile/ProfileView";
 
 // Survey animation keyframes (self-contained copy — distinct id/class prefix
 // from ClientOnboard.tsx's so the two pages never share state).
@@ -242,17 +244,18 @@ export default function StandaloneFormFill() {
   const goNext = () => setCurrentStep(currentStep + 1);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-3 sm:p-4">
+      <div className="w-full min-w-0 max-w-2xl">
         {showHeader && (
           <div className="border-b border-slate-200">
-            <div className="px-8 pt-6 pb-4">
+            <div className="px-4 pt-4 pb-3 sm:px-8 sm:pt-6 sm:pb-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-medium text-slate-600">
                   Step {displayStep} of {answerableTotal}
                 </span>
                 <button
                   onClick={handleBack}
+                  aria-label="Previous question"
                   className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
                 >
                   <ChevronLeft className="h-5 w-5 text-slate-600" />
@@ -268,9 +271,14 @@ export default function StandaloneFormFill() {
           </div>
         )}
 
-        <div className="px-8 py-12 md:px-12 md:py-16">
+        <div className="px-4 py-8 sm:px-8 sm:py-12 md:px-12 md:py-16">
           {isIntro && (
-            <IntroScreen title={formData.title} creatorName={formData.creator_name} onContinue={goNext} />
+            <IntroScreen
+              title={formData.title}
+              creatorName={formData.creator_name}
+              creatorProfile={formData.creator_profile}
+              onContinue={goNext}
+            />
           )}
 
           {isBlockStep && currentBlock && (
@@ -301,21 +309,27 @@ export default function StandaloneFormFill() {
 function IntroScreen({
   title,
   creatorName,
+  creatorProfile,
   onContinue,
 }: {
   title: string;
   creatorName: string;
+  creatorProfile?: ProfileData | null;
   onContinue: () => void;
 }) {
   return (
     <div className="text-center space-y-6">
-      <div className="text-8xl sform-vibrate inline-block">📝</div>
-      <h1 className="text-4xl font-bold text-slate-900 mb-2 sform-fade-in-delay-1">{title}</h1>
+      <div className="text-6xl sm:text-8xl sform-vibrate inline-block">💜</div>
+      <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-2 break-words sform-fade-in-delay-1">{title}</h1>
       <p className="text-lg text-slate-600 leading-relaxed sform-fade-in-delay-2 max-w-md mx-auto">
-        by {creatorName}
-        <br />
-        It only takes a minute.
+        from {creatorName}, it only takes a minute.
       </p>
+      {/* Only when the creator chose to show their profile on this form. */}
+      {creatorProfile && (
+        <div className="flex justify-center sform-fade-in-delay-2">
+          <CreatorProfileCard profile={creatorProfile} />
+        </div>
+      )}
       <button
         onClick={onContinue}
         className="w-full px-6 py-3 bg-[#6B5CE7] text-white font-semibold rounded-[100px] hover:bg-[#5A4BD1] transition-colors sform-fade-in-delay-2"
@@ -364,11 +378,15 @@ function BlockStepScreen({
     return (
       <div className="sform-fade-in space-y-8">
         <div
-          className="prose prose-slate max-w-none"
+          className="text-center"
+        >
+
+        </div>
+          <h1 className="prose prose-slate max-w-none text-center font-bold text-1xl"
           dangerouslySetInnerHTML={{
             __html: sanitize(resolveMentions(block.content || "", allBlocks, responses)),
-          }}
-        />
+          }}/>
+        
         <button
           onClick={onContinue}
           disabled={submitting}
@@ -384,7 +402,7 @@ function BlockStepScreen({
 
   return (
     <div className="sform-fade-in">
-      <h2 className="text-3xl font-bold text-slate-900 mb-2">
+      <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 break-words">
         {block.label}
         {block.required && <span className="text-[#6B5CE7] ml-1">*</span>}
       </h2>
@@ -453,7 +471,7 @@ function BlockInput({
             }
           }}
           placeholder={block.placeholder || "Your answer..."}
-          className="w-full px-6 py-4 rounded-[14px] border-2 border-slate-200 focus:border-[#6B5CE7] focus:outline-none text-slate-900 placeholder-slate-400 transition-colors"
+          className="w-full px-4 py-3 sm:px-6 sm:py-4 text-base rounded-[14px] border-2 border-slate-200 focus:border-[#6B5CE7] focus:outline-none text-slate-900 placeholder-slate-400 transition-colors"
         />
       );
 
@@ -471,7 +489,7 @@ function BlockInput({
             }
           }}
           placeholder={block.placeholder || "Your answer... (Shift+Enter for a new line)"}
-          className="w-full px-6 py-4 rounded-[14px] border-2 border-slate-200 focus:border-[#6B5CE7] focus:outline-none text-slate-900 placeholder-slate-400 transition-colors resize-none"
+          className="w-full px-4 py-3 sm:px-6 sm:py-4 text-base rounded-[14px] border-2 border-slate-200 focus:border-[#6B5CE7] focus:outline-none text-slate-900 placeholder-slate-400 transition-colors resize-none"
         />
       );
 
@@ -484,7 +502,7 @@ function BlockInput({
               <button
                 key={option}
                 onClick={() => onChange(option)}
-                className="w-full text-left px-6 py-4 rounded-[14px] border-2 font-medium transition-all sform-fade-in"
+                className="w-full text-left px-4 py-3 sm:px-6 sm:py-4 rounded-[14px] border-2 font-medium break-words transition-all sform-fade-in"
                 style={{
                   borderColor: selected ? "#6B5CE7" : "#e2e8f0",
                   backgroundColor: selected ? "#F5F3FF" : "#f8fafc",
@@ -613,12 +631,12 @@ function FileUploadInput({
   const uploaded = typeof value === "string" && value.length > 0;
 
   return (
-    <div className="border-2 border-dashed border-slate-200 rounded-[14px] p-8 text-center">
+    <div className="border-2 border-dashed border-slate-200 rounded-[14px] p-4 sm:p-8 text-center">
       <input
         type="file"
         disabled={uploading}
         onChange={(e) => handleFile(e.target.files?.[0])}
-        className="max-w-xs mx-auto text-sm text-slate-600 file:mr-4 file:rounded-[100px] file:border-0 file:bg-[#6B5CE7] file:px-4 file:py-2 file:text-white file:font-medium hover:file:bg-[#5A4BD1] disabled:opacity-50"
+        className="w-full max-w-xs mx-auto text-sm text-slate-600 file:mr-4 file:rounded-[100px] file:border-0 file:bg-[#6B5CE7] file:px-4 file:py-2 file:text-white file:font-medium hover:file:bg-[#5A4BD1] disabled:opacity-50"
       />
       {uploading ? (
         <p className="text-sm text-slate-500 mt-3 flex items-center justify-center gap-2">
@@ -700,7 +718,7 @@ function SuccessScreen() {
           <Check className="w-10 h-10 text-[#6B5CE7]" />
         </div>
       </div>
-      <h1 className="text-4xl font-bold text-slate-900 mb-4 sform-fade-in-delay-1">
+      <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4 sform-fade-in-delay-1">
         Thanks! 🎉
       </h1>
       <p className="text-lg text-slate-600 leading-relaxed sform-fade-in-delay-2 max-w-md mx-auto">

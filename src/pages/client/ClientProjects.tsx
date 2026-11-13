@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { secureFetch } from "@/api/apiClient";
 import { toast } from "sonner";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { CardGridSkeleton } from "@/components/ui/skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -74,9 +75,7 @@ export default function ClientProjects() {
   if (loading) {
     return (
       <MainLayout>
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <CardGridSkeleton count={3} label="Loading your projects" />
       </MainLayout>
     );
   }

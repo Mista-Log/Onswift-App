@@ -81,6 +81,7 @@ INSTALLED_APPS = [
     'library',
     'crm',
     'docs',
+    'agent',
     'assistant',
     "corsheaders",
     "rest_framework",
@@ -257,18 +258,32 @@ CLOUDINARY_STORAGE = {
 # }
 
 REST_FRAMEWORK = {
+    # JWT auth that also rejects unverified emails on every endpoint except the
+    # verification ones (see account/authentication.py).
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "account.authentication.VerifiedJWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
     # Scoped, not global — only applied where a view explicitly sets
-    # throttle_classes/throttle_scope (currently just the public standalone
-    # form submit/upload endpoints). No other endpoint's behavior changes.
+    # throttle_classes/throttle_scope (the public standalone form endpoints and
+    # the account/auth endpoints). No other endpoint's behavior changes.
     "DEFAULT_THROTTLE_RATES": {
         "standalone_form_submit": "10/hour",
         "standalone_form_upload": "20/hour",
+        "auth_login": "10/min",
+        "login_email": "10/hour",
+        "auth_signup": "20/hour",
+        "auth_google": "20/min",
+        "password_reset_request": "5/hour",
+        "password_reset_confirm": "10/hour",
+        "otp_verify": "20/hour",
+        "otp_resend": "10/hour",
+        "agent_message": "60/hour",
+        # Public profile pages (onswift.org/<handle>): generous for readers, but stops someone
+        # walking through handles to find which ones exist.
+        "public_profile": "60/min",
     },
 }
 
@@ -321,10 +336,25 @@ EMAIL_HOST_USER     = os.environ.get("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL  = os.environ.get("DEFAULT_FROM_EMAIL") or os.environ.get("EMAIL_HOST_USER", "")
 
+# Email OTP verification is off until sending mail works. Set EMAIL_VERIFICATION_REQUIRED=true to
+# bring it back: new signups then get a code, and unverified users are held at /verify-email.
+EMAIL_VERIFICATION_REQUIRED = os.environ.get("EMAIL_VERIFICATION_REQUIRED", "").lower() == "true"
+
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL")
 
 # Google Calendar OAuth Settings
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+
+# Agent (LLM). Any OpenAI-style endpoint; the key is backend-only and never goes to the browser.
+AGENT_LLM_BASE_URL = os.environ.get("AGENT_LLM_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai")
+AGENT_LLM_API_KEY = os.environ.get("AGENT_LLM_API_KEY") or os.environ.get("AGENT_LLM_KEY", "")
+AGENT_LLM_MODEL = os.environ.get("AGENT_LLM_MODEL", "gemini-3.5-flash")
+AGENT_LLM_MODEL_FALLBACK = os.environ.get("AGENT_LLM_MODEL_FALLBACK", "")
+AGENT_LLM_REASONING_EFFORT = os.environ.get("AGENT_LLM_REASONING_EFFORT", "")
+AGENT_LLM_READ_TIMEOUT = int(os.environ.get("AGENT_LLM_READ_TIMEOUT", 30))
+AGENT_LLM_TOOL_MODE = os.environ.get("AGENT_LLM_TOOL_MODE", "native").strip().lower()  # "json" for Avari
+AGENT_STREAM_TIMEOUT_S = int(os.environ.get("AGENT_STREAM_TIMEOUT_S", 90))
+AGENT_MAX_CONCURRENT_STREAMS = int(os.environ.get("AGENT_MAX_CONCURRENT_STREAMS", 4))
 

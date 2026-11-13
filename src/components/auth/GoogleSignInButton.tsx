@@ -98,7 +98,7 @@ export default function GoogleSignInButton({
 
                 // The account already exists with its role by this point (this is what
                 // creates it, for signup) — go straight to the dashboard either way.
-                navigate("/dashboard", { replace: true });
+                navigate("/home", { replace: true });
               } catch (error) {
                 console.error("Google login failed:", error);
               }

@@ -14,6 +14,8 @@ export interface ReminderSettings {
   reminder_time: string;
   reminder_timezone: string;
   reminder_email: boolean;
+  /** Deadlines page: whether the countdown timer is shown. Saved on the account, not the browser. */
+  show_deadline_timer?: boolean;
 }
 
 export const WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];

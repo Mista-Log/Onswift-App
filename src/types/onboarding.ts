@@ -26,6 +26,8 @@ export interface OnboardingTemplate {
   blocks: FormBlock[];
   project?: string | null;
   project_name?: string | null;
+  /** People filling the form can open the creator's profile from it. */
+  show_creator_profile?: boolean;
   instance_count?: number;
   created_at: string;
   updated_at: string;
@@ -62,6 +64,8 @@ export interface OnboardingPublicData {
   blocks: FormBlock[];
   creator_name: string;
   creator_company: string | null;
+  /** The creator's profile, present only when they switched it on for this form. */
+  creator_profile?: import("@/components/profile/ProfileView").ProfileData | null;
   is_expired: boolean;
   status: string;
 }

@@ -1,0 +1,112 @@
+Raw output of the tests that k6 did not save to their own file.
+Copied from the terminal session of 12 November 2026. Times are local (UTC+1) unless marked utc.
+Test numbers match the test log in ../RESULTS.md.
+
+================================================================================
+Test 1  08:30  smoke, 2 users, from home, WRONG ADDRESS
+        target: https://onswift-backend-gx5jcdupoa-uc.a.run.app
+================================================================================
+    http_req_duration..........: avg=11.69s min=11.69s med=11.69s p(90)=11.69s p(95)=11.69s p(99)=11.69s max=11.69s
+    http_req_failed............: 100.00% 1 out of 1
+    http_reqs..................: 1       0.07931/s
+level=error msg="GoError: CREATOR sign-in failed (HTTP 400). ... <h1>Bad Request (400)</h1>"
+
+================================================================================
+Test 2  08:31  smoke, 2 users, from home, TALENT ACCOUNT REFUSED
+        target: https://onswift-backend-846361006238.us-central1.run.app (all later tests too)
+================================================================================
+    http_req_duration..............: avg=3.09s min=1.24s med=3.09s p(90)=4.57s p(95)=4.76s p(99)=4.9s  max=4.94s
+      { expected_response:true }...: avg=4.94s min=4.94s med=4.94s p(90)=4.94s p(95)=4.94s p(99)=4.94s max=4.94s
+    http_req_failed................: 50.00% 1 out of 2
+    http_reqs......................: 2      0.282217/s
+level=error msg="GoError: TALENT sign-in failed (HTTP 400). ... {\"non_field_errors\":[\"Invalid email or password\"]}"
+
+================================================================================
+Test 3  smoke, 2 users, from home, ONLY ONE SIMULATED USER STARTED (talent path only)
+================================================================================
+    checks_succeeded...: 100.00% 20 out of 20
+    ✓ me is 200
+    ✓ settings is 200
+    ✓ notifications is 200
+    ✓ projects is 200
+    ✓ my-tasks is 200
+    server_errors..................: 0.00%  0 out of 20
+    http_req_duration..............: avg=422.58ms min=337.78ms med=369.98ms p(90)=435.71ms p(95)=890.69ms p(99)=965.5ms  max=979.05ms
+      { name:me }..................: avg=355.74ms min=337.78ms med=356.25ms p(90)=372.15ms p(95)=372.41ms p(99)=372.63ms max=372.68ms
+      { name:my-tasks }............: avg=371.27ms min=357.41ms med=370.56ms p(90)=382.85ms p(95)=384.69ms p(99)=386.17ms max=386.53ms
+      { name:notifications }.......: avg=356.08ms min=344.31ms med=354.62ms p(90)=365.96ms p(95)=368.37ms p(99)=370.3ms  max=370.79ms
+      { name:projects }............: avg=381.48ms min=357.99ms med=364.8ms  p(90)=417.28ms p(95)=427.8ms  p(99)=436.21ms max=438.32ms
+      { name:settings }............: avg=386.25ms min=369.18ms med=381.79ms p(90)=404.86ms p(95)=408.56ms p(99)=411.51ms max=412.25ms
+      { name:team }................: avg=0s       min=0s       med=0s       p(90)=0s       p(95)=0s       p(99)=0s       max=0s
+    http_req_failed................: 0.00%  0 out of 22
+    http_reqs......................: 22     0.5831/s
+    iterations.....................: 4      0.106018/s
+    vus............................: 1      min=0       max=1
+
+Test 4 (the passing smoke test from home) is saved in smoke.txt.
+Test 5 (Run 1) is saved in run1-100users-baseline.txt.
+
+================================================================================
+Test 6  500 users from home, CUT OFF
+================================================================================
+No output. The sending machine ran critically low on memory and the run was stopped before k6
+wrote a summary. Start time and how far it got were not recorded.
+
+================================================================================
+Test 7  10:29  smoke, 2 users, from the VM k6-loadgen
+================================================================================
+    ✓ me is 200
+    ✓ settings is 200
+    ✓ notifications is 200
+    ✓ projects is 200
+    ✓ my-tasks is 200
+    ✓ team is 200
+    server_errors..................: 0.00%  0 out of 40
+    http_req_duration..............: avg=290.01ms min=73.96ms med=86.52ms  p(90)=392.56ms p(95)=418.7ms  p(99)=4.06s    max=5.75s
+      { name:me }..................: avg=88.51ms  min=78.06ms med=85.55ms  p(90)=98.71ms  p(95)=100.18ms p(99)=101.36ms max=101.65ms
+      { name:my-tasks }............: avg=79.77ms  min=76.24ms med=77.74ms  p(90)=84.52ms  p(95)=85.94ms  p(99)=87.07ms  max=87.35ms
+      { name:notifications }.......: avg=97.37ms  min=74.07ms med=86.34ms  p(90)=139.1ms  p(95)=150.6ms  p(99)=159.79ms max=162.09ms
+      { name:projects }............: avg=236.73ms min=73.96ms med=214.73ms p(90)=412.25ms p(95)=415.72ms p(99)=418.5ms  max=419.19ms
+      { name:settings }............: avg=93.84ms  min=76.79ms med=86.14ms  p(90)=111.06ms p(95)=133.12ms p(99)=150.77ms max=155.18ms
+      { name:team }................: avg=84.51ms  min=77.49ms med=86.09ms  p(90)=88.29ms  p(95)=88.34ms  p(99)=88.37ms  max=88.38ms
+    http_req_failed................: 0.00%  0 out of 42
+
+Test 8 (Run 2) is saved in run2-500users-baseline.txt.
+
+================================================================================
+Test 9  11:37  idle start, no minimum instances, from the VM
+        backend idle since Run 2 ended at 10:46 (51 minutes)
+        each line: HTTP status, then total time
+================================================================================
+utc 10:37:28
+first  no-database request : 401 3.605451s
+first  sign-in (database)  : 200 2.143922s
+second no-database request : 401 0.073176s
+second sign-in (database)  : 200 0.956839s
+
+(401 is the expected answer: the request carries no login, so the server replies without
+touching the database.)
+
+Test 10 (Run 3) is saved in run3-100users-from-vm.txt.
+
+================================================================================
+Test 11  12:16  idle start, min-instances=1, from the VM
+         setting changed about 11:55; last request before the wait about 11:56
+================================================================================
+utc 11:16:53
+first  no-database request : 401 0.100681s
+first  sign-in (database)  : 200 1.942439s
+second no-database request : 401 0.073191s
+second sign-in (database)  : 200 0.354107s
+
+================================================================================
+Checks that the backend was still answering (single requests from home, not tests)
+================================================================================
+After setting min-instances=1 (about 11:56):
+local check 1: 401 7.310919s
+local check 2: 401 0.868878s
+local check 3: 401 1.835295s
+
+After setting min-instances back to 0 and deleting the VM (about 14:58):
+backend: 401 8.399515s
+backend: 401 1.860537s

@@ -21,8 +21,9 @@ def linkable_projects(user):
     if user.role == "talent":
         # Talents follow the same opt-in rule as project tasks: the creator must
         # have enabled task creation on a project the talent already works in.
-        return Project.objects.filter(
-            allow_talent_task_creation=True, tasks__assignees=user
+        # A creator with no settings row yet has the default (on).
+        return Project.objects.filter(tasks__assignees=user).exclude(
+            creator__settings__allow_team_task_creation=False
         ).distinct()
     return Project.objects.none()
 

@@ -4,6 +4,7 @@ import { TalentStatCard } from "@/components/talent/TalentStatCard";
 import { ActivityFeed } from "@/components/talent/ActivityFeed";
 import { ProfileCompletionBanner } from "@/components/talent/ProfileCompletionBanner";
 import { DeadlineCountdown } from "@/components/talent/DeadlineCountdown";
+import { MyCreatorsCard } from "@/components/talent/MyCreatorsCard";
 import { MyTasksPanel } from "@/components/tasks/MyTasksPanel";
 import { Folder, CheckSquare, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -124,26 +125,22 @@ export default function DashboardTalent() {
           <p className="text-muted-foreground mt-1">Here's what's happening with your projects today.</p>
         </div>
 
-        {/* Profile Completion Banner */}
-        <ProfileCompletionBanner completionPercentage={profileCompletion} />
-
         {/* Quick Stats */}
         <div className="grid grid-cols-2 gap-5 sm:gap-6 lg:grid-cols-4">
           <TalentStatCard
             title="Active Projects"
             value={activeProjectsCount}
-            icon={Folder}
+            tone="purple"
           />
           <TalentStatCard
             title="Pending Tasks"
             value={pendingTasksCount}
-            icon={CheckSquare}
-            colorClass="text-warning"
+            tone="yellow"
           />
           <TalentStatCard
             title="Completed Tasks"
             value={completedTasksCount}
-            icon={CheckSquare}
+            tone="green"
             colorClass="text-success"
           />
           {/* <TalentStatCard
@@ -192,6 +189,12 @@ export default function DashboardTalent() {
               <p className="text-4xl font-bold text-foreground">#3</p>
               <p className="text-sm text-muted-foreground">Current Rank</p>
             </div> */}
+
+            {/* Profile completion: a small ring at the right, above everything else in this column */}
+            <ProfileCompletionBanner completionPercentage={profileCompletion} />
+
+            {/* The creators they work with, with a way into each one's profile. Hidden when there are none. */}
+            <MyCreatorsCard />
 
             {/* Countdown to the next task deadline */}
             <DeadlineCountdown />

@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import (
     ProjectListCreateView,
+    SharedProjectsListView,
     ProjectDetailView,
     ProjectCompleteView,
     ProjectArchiveView,
@@ -69,6 +70,7 @@ from .deadlines import DeadlineListView
 urlpatterns = [
     # Projects
     path("projects/", ProjectListCreateView.as_view(), name="project-list-create"),
+    path("projects/shared/", SharedProjectsListView.as_view(), name="project-shared-list"),
     path("projects/<uuid:pk>/", ProjectDetailView.as_view(), name="project-detail"),
     path("projects/<uuid:project_id>/complete/", ProjectCompleteView.as_view(), name="project-complete"),
     path("projects/<uuid:project_id>/archive/", ProjectArchiveView.as_view(), name="project-archive"),

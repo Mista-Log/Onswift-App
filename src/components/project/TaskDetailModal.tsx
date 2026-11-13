@@ -201,6 +201,15 @@ function ChecklistBlock({
 
 const MAX_INDENT_DEPTH = 4;
 
+// Deliverable rows use the task cards' colours (see STATUS_COLORS in ProjectDetail): pastel in light,
+// solid deep tints in dark. Waiting for review is a pale purple, approved the full task-card green,
+// sent back the task-card yellow.
+const DELIVERABLE_COLORS: Record<string, string> = {
+  pending: "bg-purple-50 border-purple-200 hover:border-purple-300 dark:bg-[hsl(270_30%_10%)] dark:border-purple-500/30 dark:hover:border-purple-500/50",
+  approved: "bg-green-100 border-green-400 dark:bg-[hsl(150_40%_11%)] dark:border-green-500/50",
+  revision: "bg-yellow-100 border-yellow-400 dark:bg-[hsl(45_45%_12%)] dark:border-yellow-500/50",
+};
+
 function CommentThread({
   comment, repliesByParent, depth, currentUserId, isCreator,
   replyingToCommentId, onToggleReply, onDelete,
@@ -278,7 +287,7 @@ export function TaskDetailModal({
   availableAssignees, currentUserId, isCreator,
 }: TaskDetailModalProps) {
   const {
-    task, isLoading, fetchTask, updateTask, requestTaskRevision, deleteTask,
+    task, isLoading, fetchTask, updateTask, requestTaskRevision, refreshTask, deleteTask,
     addComment, deleteComment,
     createChecklist, deleteChecklist,
     addChecklistItem, toggleChecklistItem, deleteChecklistItem,
@@ -474,7 +483,7 @@ export function TaskDetailModal({
     setIsRequestingRevision(true);
     try {
       await requestTaskRevision(task.id, revisionFeedback.trim());
-      onTaskUpdated?.({ ...task, awaiting_approval: false });
+      onTaskUpdated?.({ ...task, awaiting_approval: false, revision_requested: true });
       toast.success("Revision requested");
       setShowRevisionInput(false);
       setRevisionFeedback("");
@@ -664,7 +673,11 @@ export function TaskDetailModal({
       patchDeliverableLocal(deliverableId, { status, feedback: feedback ?? null });
       if (status === "approved") {
         markTaskCompletedLocal();
-        onTaskUpdated?.({ ...task, status: "completed", awaiting_approval: false });
+        onTaskUpdated?.({ ...task, status: "completed", awaiting_approval: false, revision_requested: false });
+      } else {
+        // The server flags the task and posts the feedback as a comment against this deliverable.
+        onTaskUpdated?.({ ...task, awaiting_approval: false, revision_requested: true });
+        void refreshTask(task.id);
       }
       toast.success(status === "approved" ? "Deliverable approved" : "Revision requested");
     } catch { toast.error("Failed to update deliverable"); }
@@ -1338,6 +1351,25 @@ export function TaskDetailModal({
                 </div>
               )}
 
+              {/* Revision banner: the creator sent the work back. Shown to both roles until it is handed in again. */}
+              {task.revision_requested && !task.awaiting_approval && task.status !== "completed" && (
+                <div role="status" className="rounded-xl border border-black-400/60 bg-white-500/10 px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <RotateCcw className="h-4 w-4 shrink-0 mt-0.5 text-black-600 dark:text-amber-300" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-white-800 dark:text-white  -200">
+                        {isCreator ? "Revision requested" : "Your creator requested a revision"}
+                      </p>
+                      <p className="text-xs text-white-700 dark:text-white-300/90 mt-0.5">
+                        {isCreator
+                          ? "You sent this back for changes. Waiting on the assignee."
+                          : "What to change is in the comments. Attach again when it's done."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Recurring reminder banner — visible to all roles */}
               {task.recurrence_type && (() => {
                 const labels: Record<string, string> = {
@@ -1449,10 +1481,10 @@ export function TaskDetailModal({
                         key={del.id}
                         onClick={() => setSelectedDeliverableId((prev) => (prev === del.id ? null : del.id))}
                         className={cn(
-                          "rounded-lg border px-4 py-3 space-y-2 cursor-pointer transition-colors",
-                          selectedDeliverableId === del.id
-                            ? "border-primary/60 bg-primary/5 ring-1 ring-primary/30"
-                            : "border-border/50 bg-secondary/20 hover:bg-secondary/40 hover:border-border",
+                          "rounded-lg border p-4 space-y-2 cursor-pointer transition-colors dark:[--muted-foreground:0_0%_78%]",
+                          DELIVERABLE_COLORS[del.status] ?? DELIVERABLE_COLORS.pending,
+                          // The colour says the status, so "selected" is shown by a ring instead of a fill.
+                          // selectedDeliverableId === del.id && "ring-2 ring-secondary/60",
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -1462,8 +1494,9 @@ export function TaskDetailModal({
                               variant="secondary"
                               className={cn(
                                 "shrink-0 text-[10px] capitalize",
-                                del.status === "approved" && "bg-green-500/15 text-green-600 border-green-500/20",
-                                del.status === "revision" && "bg-yellow-500/15 text-yellow-600 border-yellow-500/20",
+                                // Darker text than before: the badge now sits on a tinted row, not a grey one.
+                                del.status === "approved" && "bg-green-500/20 text-green-800 border-green-500/30 dark:text-green-300",
+                                del.status === "revision" && "bg-yellow-500/25 text-yellow-800 border-yellow-500/40 dark:text-yellow-300",
                               )}
                             >
                               {del.status}
@@ -1549,11 +1582,11 @@ export function TaskDetailModal({
                         {del.submitted_by_name && (
                           <p className="text-xs text-muted-foreground">By {del.submitted_by_name}</p>
                         )}
-                        {del.status === "revision" && del.feedback && (
-                          <p className="text-xs text-yellow-700 dark:text-yellow-400 bg-yellow-500/10 rounded px-2 py-1">
+                        {/* {del.status === "revision" && del.feedback && (
+                          <p className="text-xs text-black-700 dark:text-yellow-400 bg-yellow-500/10 rounded px-2 py-1">
                             {del.feedback}
                           </p>
-                        )}
+                        )} */}
                         {del.links.length > 0 && (
                           <div className="space-y-1">
                             {del.links.map((link) => (

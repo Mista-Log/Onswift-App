@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { StatusBadge } from "./StatusBadge";
+import { StatusDot } from "./StatusDot";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -74,7 +74,11 @@ export function ProjectCard({
         )}
       >
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h3 className="font-semibold text-foreground truncate">{name}</h3>
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <h3 className="font-semibold text-foreground truncate">{name}</h3>
+            {/* Phone: the dot sits beside the title, because the right-hand group wraps onto its own row. */}
+            <StatusDot status={status} className="shrink-0 sm:hidden" />
+          </div>
           <p className="text-sm text-muted-foreground">
             {status === "completed" ? "Completed:" : "Due:"} {dueDate}
           </p>
@@ -100,7 +104,7 @@ export function ProjectCard({
             )}
           </div>
 
-          <StatusBadge status={status} />
+          <StatusDot status={status} className="hidden sm:inline-flex" />
 
           {showActions && id && onDelete && (
             <DropdownMenu>
