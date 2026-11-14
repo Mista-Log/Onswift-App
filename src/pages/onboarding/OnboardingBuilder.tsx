@@ -291,9 +291,9 @@ export default function OnboardingBuilder() {
           </Button>
           <TabsList className="h-9">
             <TabsTrigger value="editor">Editor</TabsTrigger>
-            <TabsTrigger value="preview" className="gap-1">
+            {/* <TabsTrigger value="preview" className="gap-1">
               <Eye className="h-3.5 w-3.5" /> Preview
-            </TabsTrigger>
+            </TabsTrigger> */}
             {isEditing && <TabsTrigger value="links">Tracker</TabsTrigger>}
           </TabsList>
           <div className="flex-1" />
