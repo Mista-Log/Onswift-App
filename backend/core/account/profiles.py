@@ -29,7 +29,7 @@ def _url(value):
     try:
         return value.url if value else None
     except Exception:
-        return None
+        return str(value) if value else None
 
 
 def can_view_profile(viewer, target):

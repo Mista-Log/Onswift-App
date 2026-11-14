@@ -274,6 +274,15 @@ class UserDetailSerializer(serializers.ModelSerializer):
             "profile",
         ]
 
+    @staticmethod
+    def _safe_media_url(media):
+        if not media:
+            return None
+        try:
+            return media.url
+        except ValueError:
+            return str(media)
+
     def get_profile(self, obj):
         request = self.context.get("request")  # ✅ FIX
         if obj.role == "talent":
@@ -289,11 +298,11 @@ class UserDetailSerializer(serializers.ModelSerializer):
                     "portfolio_links": talent_profile.portfolio_links,
                     "social_links": talent_profile.social_links,
                     "profile_picture": (
-                        obj.profile_picture.url
+                        self._safe_media_url(obj.profile_picture)
                         if obj.profile_picture
                         else None
                     ),
-                    "banner": obj.banner.url if obj.banner else None,
+                    "banner": self._safe_media_url(obj.banner),
                 }
         elif obj.role == "creator":
             creator_profile = getattr(obj, "creatorprofile", None)
@@ -307,11 +316,11 @@ class UserDetailSerializer(serializers.ModelSerializer):
                     "social_links": creator_profile.social_links,
                     "portfolio_links": creator_profile.portfolio_links,
                     "profile_picture": (
-                        obj.profile_picture.url
+                        self._safe_media_url(obj.profile_picture)
                         if obj.profile_picture
                         else None
                     ),
-                    "banner": obj.banner.url if obj.banner else None,
+                    "banner": self._safe_media_url(obj.banner),
                 }
         return None
 
