@@ -63,7 +63,7 @@ export function Composer({ onSend, onStop, streaming, placeholder, large }: Comp
           onKeyDown={onKeyDown}
           rows={1}
           aria-label="Message the Agent"
-          placeholder={placeholder ?? "Ask  anything about your projects, tasks..."}
+          placeholder={placeholder ?? "Ask anything about your projects, tasks..."}
           className="max-h-40 min-h-[2.25rem] flex-1 resize-none bg-transparent py-1.5 text-sm outline-none placeholder:text-muted-foreground"
         />
         {streaming ? (
