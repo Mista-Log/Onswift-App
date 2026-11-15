@@ -72,7 +72,7 @@ def run_create_project(user, args):
 # --- create_task ------------------------------------------------------------------------------
 
 def _team_assignees(user, ids):
-    """The people named, only if each is an accepted member of this creator's own team.
+    """The people named, only if each is the user themself or an accepted member of their own team.
     Anyone else (another creator's talent, a client, a made-up id) reads as 'not found'."""
     import uuid as _uuid
 
@@ -88,6 +88,8 @@ def _team_assignees(user, ids):
 
     hires = HireRequest.objects.filter(creator=user, status="accepted", talent_id__in=wanted).select_related("talent")
     found = {h.talent_id: h.talent for h in hires}
+    if user.id in wanted:
+        found[user.id] = user  # the user can always give a task to themself
     if len(found) != len(set(wanted)):
         raise ToolError("Assignee not found on your team. Use list_team to see who can be assigned.")
     return [found[w] for w in dict.fromkeys(wanted)]
@@ -108,14 +110,20 @@ def prepare_create_task(user, args):
     if args.get("deadline"):
         summary += f", due {args['deadline']}"
     if assignees:
-        summary += ", assigned to " + ", ".join(clip(a.full_name or a.email) for a in assignees)
+        summary += ", assigned to " + ", ".join(
+            "you" if a.id == user.id else clip(a.full_name or a.email) for a in assignees
+        )
     return summary
 
 
 def run_create_task(user, args):
+    from types import SimpleNamespace
+
     project = _own_project(user, args["project_id"])
     assignees = _team_assignees(user, args.get("assignee_ids"))
-    task = _valid(TaskSerializer(data=_task_fields(args, assignees))).save(project=project)
+    # The serializer reads request.user to skip notifying someone about a task they gave themself.
+    acting_as = {"request": SimpleNamespace(user=user)}
+    task = _valid(TaskSerializer(data=_task_fields(args, assignees), context=acting_as)).save(project=project)
     return {"id": str(task.id), "name": task.name, "project_id": str(project.id), "link": f"/projects/{project.id}"}
 
 
@@ -185,8 +193,9 @@ register(Tool(
         )
         + " Ask for the description, deadline and priority together in ONE short message, unless the user already "
         "gave them or said to skip them or to pick for them (then leave them out or choose sensibly and say so). "
-        "To assign teammates, call list_team first and pass their ids as assignee_ids; only people on that list "
-        "can be assigned, and assigning notifies them once the user confirms. If the user names someone who is not "
+        "To assign the task, call list_team first and pass ids from it as assignee_ids; the list includes the "
+        "user themself (is_you), so 'assign it to me' works. Only people on that list "
+        "can be assigned, and assigning notifies teammates once the user confirms. If the user names someone who is not "
         f"on the list, say so instead of proposing. {_NEEDS_CONFIRMATION}"
     ),
     parameters={
@@ -201,7 +210,7 @@ register(Tool(
                 "type": "array",
                 "items": {"type": "string"},
                 "maxItems": 10,
-                "description": "User ids from list_team. Nobody else can be assigned.",
+                "description": "User ids from list_team (teammates or the user themself). Nobody else can be assigned.",
             },
         },
         "required": ["project_id", "name"],

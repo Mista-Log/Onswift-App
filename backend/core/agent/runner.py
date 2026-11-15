@@ -24,7 +24,15 @@ from .tools import ToolError, get_tool, run_tool, tool_specs
 
 logger = logging.getLogger(__name__)
 
-MAX_ITERATIONS = 4  # model calls per user message; free tiers are slow and scarce
+# Model calls per user message. A plain question still takes one or two; the ceiling only matters for
+# long jobs ("make a project with eight tasks"), which used to hit a limit of 4 after finishing the work.
+MAX_ITERATIONS = 10
+# Sent with one last call, without tools, when the ceiling is reached.
+WRAP_UP = (
+    "You have used all your tool steps for this message and cannot call any more tools. "
+    "Reply now in plain words: what you did or proposed, and anything left to do. "
+    "If something is left, tell the user they can say 'continue'."
+)
 MAX_HISTORY = 40  # messages replayed to the model
 TITLE_LENGTH = 60
 
@@ -63,7 +71,8 @@ def system_prompt(user, today=None):
         "choose a sensible value and say what you chose. "
         "After proposing, say briefly what you proposed and that it needs their confirmation; never say "
         "something was created or changed before they confirm. You cannot complete tasks or delete anything. "
-        "You can assign teammates only when creating a task: find them with list_team and pass their ids as "
+        "You can assign a task, to teammates or to the user themself, only when creating it: find them with "
+        "list_team (the user is the row marked is_you) and pass their ids as "
         "assignee_ids; never assign anyone who is not on that list. Keep answers short and plain. "
         "Format replies as markdown. When you list several records (tasks, deadlines, projects, files), "
         "use a markdown table with one row per record and short columns such as Task, Project, Due, Status, "
@@ -152,10 +161,29 @@ def run_turn(conversation, user_text, provider, max_iterations=MAX_ITERATIONS, p
             for call, result in results:
                 conversation.add_message(role="tool", tool_call_id=call.id, content=json.dumps(result))
 
+    # Out of steps. Whatever the tools did has already happened, so let the model say so in plain
+    # words (one last call, no tools) instead of ending on an error.
+    text, extra = "", None
+    try:
+        messages = to_provider_messages(load_history(conversation))
+        for event in provider.stream(messages, tools=None, system=f"{system}\n{WRAP_UP}"):
+            if isinstance(event, TextDelta):
+                text += event.text
+                yield {"type": "text_delta", "text": event.text}
+            elif isinstance(event, Usage):
+                _record_usage(user, conversation, provider, event)
+            elif isinstance(event, Done):
+                extra = event.message_extra
+    except ProviderError as error:
+        logger.warning("Agent wrap-up call failed: %s", error)
+    if text.strip():
+        message = conversation.add_message(role="assistant", content=text, message_extra=extra)
+        yield {"type": "done", "message_id": str(message.id)}
+        return
     yield {
         "type": "error",
         "code": "too_many_steps",
-        "message": "That took too many steps. Try a more specific question.",
+        "message": "I ran out of steps before I could wrap this up. Say \"continue\" and I'll pick up where I left off.",
     }
 
 

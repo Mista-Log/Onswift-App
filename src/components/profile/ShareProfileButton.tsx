@@ -160,6 +160,9 @@ function CreatorShare() {
           <p id="share-handle-help" className={error ? "mt-1.5 text-xs text-destructive" : "mt-1.5 text-xs text-muted-foreground"}>
             {error || "Letters and numbers, with dots, dashes or underscores in between."}
           </p>
+          {!live && (
+            <p className="mt-1 text-xs text-muted-foreground">This link won't work until you switch it on below.</p>
+          )}
         </div>
 
         <label className="flex items-start justify-between gap-4 rounded-lg border border-border/60 p-3">

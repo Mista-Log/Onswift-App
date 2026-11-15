@@ -374,6 +374,37 @@ class TeamMemberSerializer(serializers.ModelSerializer):
         model = TeamMember
         fields = ("id", "name", "avatar")
 
+def with_project_stats(queryset):
+    """
+    Load everything ProjectSerializer shows in one go: counts and flags are worked out inside the
+    projects query, owners and team members are fetched in bulk. Without this the serializer runs
+    about ten queries for every project in a list.
+    """
+    from django.db.models import Count, Exists, OuterRef, Subquery
+    from django.db.models.functions import Coalesce
+    from account.models import UserSettings
+    from portal.models import ClientInvite
+
+    def tasks(**where):
+        # A subquery, not Count("tasks"): some lists already join tasks to filter, which would skew a join count.
+        counted = (
+            Task.objects.filter(project=OuterRef("pk"), **where)
+            .order_by().values("project").annotate(n=Count("pk")).values("n")
+        )
+        return Coalesce(Subquery(counted), 0)
+
+    return queryset.select_related("creator").prefetch_related("team_members").annotate(
+        stat_tasks=tasks(),
+        stat_completed=tasks(status="completed"),
+        stat_in_progress=tasks(status="in-progress"),
+        stat_has_membership=Exists(ProjectClientMembership.objects.filter(project=OuterRef("pk"))),
+        stat_has_invite=Exists(ClientInvite.objects.filter(project=OuterRef("pk"))),
+        stat_team_tasks_off=Exists(
+            UserSettings.objects.filter(user_id=OuterRef("creator_id"), allow_team_task_creation=False)
+        ),
+    )
+
+
 class ProjectSerializer(serializers.ModelSerializer):
     teamMembers = TeamMemberSerializer(
         many=True,
@@ -412,7 +443,11 @@ class ProjectSerializer(serializers.ModelSerializer):
             "created_at",
         )
 
+    # Each getter uses the value loaded by with_project_stats when it is there, and asks the
+    # database itself otherwise (a project that was just created or fetched some other way).
     def get_allow_talent_task_creation(self, obj):
+        if hasattr(obj, "stat_team_tasks_off"):
+            return not obj.stat_team_tasks_off
         return obj.team_can_add_tasks()
 
     def get_owner_name(self, obj):
@@ -426,6 +461,8 @@ class ProjectSerializer(serializers.ModelSerializer):
         return value
 
     def get_has_clients(self, obj):
+        if hasattr(obj, "stat_has_membership"):
+            return obj.stat_has_membership or obj.stat_has_invite
         from portal.models import ClientInvite
         return (
             ProjectClientMembership.objects.filter(project=obj).exists()
@@ -442,20 +479,25 @@ class ProjectSerializer(serializers.ModelSerializer):
         return project
     
     def get_task_count(self, obj):
+        if hasattr(obj, "stat_tasks"):
+            return obj.stat_tasks
         return obj.tasks.count()
 
     def get_completed_tasks(self, obj):
+        if hasattr(obj, "stat_completed"):
+            return obj.stat_completed
         return obj.tasks.filter(status="completed").count()
 
     def get_in_progress_tasks(self, obj):
+        if hasattr(obj, "stat_in_progress"):
+            return obj.stat_in_progress
         return obj.tasks.filter(status="in-progress").count()
 
     def get_progress(self, obj):
-        total = obj.tasks.count()
+        total = self.get_task_count(obj)
         if total == 0:
             return 0
-        completed = obj.tasks.filter(status="completed").count()
-        return int((completed / total) * 100)
+        return int((self.get_completed_tasks(obj) / total) * 100)
 
 
 class ProjectSampleSerializer(serializers.ModelSerializer):

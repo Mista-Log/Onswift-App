@@ -63,7 +63,7 @@ import { ClientChatModal } from "@/components/project/ClientChatModal";
 import { ClientInvitesTable } from "@/components/project/ClientInvitesTable";
 import { TaskDetailModal } from "@/components/project/TaskDetailModal";
 import type { TaskDetail } from "@/hooks/useTaskDetail";
-import { useProjects, deriveStatus, type Project, type Task } from "@/contexts/ProjectContext";
+import { useProjects, deriveStatus, onProjectsChanged, type Project, type Task } from "@/contexts/ProjectContext";
 import { useTeam } from "@/contexts/TeamContext";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
@@ -150,27 +150,41 @@ export default function ProjectDetail() {
   }, [searchParams, setSearchParams]);
 
   const ownProject = projects.find((p) => p.id === id);
-  // A creator can open a project one of their team members chose to share. It is not in their own
-  // project list, so it is fetched on its own, and the page is read-only.
-  const [sharedProject, setSharedProject] = useState<Project | null>(null);
+  // The list can be behind (a project the Agent just made) or never hold this project (one a team
+  // member shared with a creator, which is read-only). Either way this project is fetched on its own,
+  // and only the server's answer decides that it does not exist.
+  const [fetched, setFetched] = useState<{ id: string; project: Project } | null>(null);
+  const [lookup, setLookup] = useState<"loading" | "missing" | "error">("loading");
+  const [lookupAttempt, setLookupAttempt] = useState(0);
   useEffect(() => {
-    if (user?.role !== "creator" || !id || ownProject) return;
+    if (!user || !id || ownProject) return;
     let cancelled = false;
+    setLookup("loading");
     secureFetch(`/api/v2/projects/${id}/`)
       .then(async (res) => {
-        if (!res.ok || cancelled) return;
+        if (cancelled) return;
+        if (!res.ok) {
+          setLookup(res.status === 404 || res.status === 403 ? "missing" : "error");
+          return;
+        }
         const data = await res.json();
-        if (data.creator === user.id) return; // their own project, still loading into the list
-        setSharedProject({ ...data, status: deriveStatus(data) });
+        if (cancelled) return;
+        setFetched({ id, project: { ...data, status: deriveStatus(data) } });
+        // Theirs but missing from the list: the list is out of date, so bring it up to date.
+        if (!(user.role === "creator" && data.creator !== user.id)) void fetchProjects();
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setLookup("error");
+      });
     return () => {
       cancelled = true;
     };
-  }, [id, user?.id, !!ownProject]);
+  }, [id, user?.id, !!ownProject, lookupAttempt]);
 
-  const project = ownProject ?? sharedProject ?? undefined;
-  const viewingShared = user?.role === "creator" && !ownProject && !!sharedProject;
+  const fetchedProject = fetched?.id === id ? fetched.project : undefined;
+  const project = ownProject ?? fetchedProject;
+  const viewingShared =
+    user?.role === "creator" && !ownProject && !!fetchedProject && fetchedProject.creator !== user.id;
   // "isCreator" means "can manage this project": a creator on their own, or a talent on one they made.
   const ownsAsTalent = user?.role === "talent" && !!project && project.creator === user.id;
   const isCreator = (user?.role === "creator" && !viewingShared) || ownsAsTalent;
@@ -178,6 +192,8 @@ export default function ProjectDetail() {
 
   useEffect(() => {
     loadTasks();
+    // The Agent added or changed a task while this board is open: refresh it quietly.
+    return onProjectsChanged(() => void loadTasks(true));
   }, [id]);
 
   // Celebrate a talent the first time they open a project that's been concluded.
@@ -525,13 +541,27 @@ export default function ProjectDetail() {
   };
 
   if (!project) {
+    if (lookup === "loading") {
+      return (
+        <MainLayout>
+          <BoardSkeleton label="Loading project" />
+        </MainLayout>
+      );
+    }
     return (
       <MainLayout>
         <div className="flex flex-col items-center justify-center min-h-[400px]">
-          <p className="text-muted-foreground">Project not found</p>
-          <Button className="mt-4" onClick={() => navigate("/projects")}>
-            Back to Projects
-          </Button>
+          <p className="text-muted-foreground">
+            {lookup === "error" ? "Couldn't load this project. Check your connection and try again." : "Project not found"}
+          </p>
+          <div className="mt-4 flex gap-2">
+            {lookup === "error" && (
+              <Button onClick={() => setLookupAttempt((n) => n + 1)}>Try again</Button>
+            )}
+            <Button variant={lookup === "error" ? "outline" : "default"} onClick={() => navigate("/projects")}>
+              Back to Projects
+            </Button>
+          </div>
         </div>
       </MainLayout>
     );

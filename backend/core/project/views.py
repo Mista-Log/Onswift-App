@@ -20,7 +20,7 @@ from .serializers import (
     TaskSyncSerializer, CalendarSyncedTaskSerializer,
     TaskCommentSerializer, TaskAttachmentSerializer,
     TaskChecklistSerializer, TaskChecklistItemSerializer,
-    duplicate_project,
+    duplicate_project, with_project_stats,
 )
 from .permissions import IsCreator
 from .ownership import is_owner, shared_with_creator, creator_can_view, visible_to_talent
@@ -38,10 +38,11 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         user = self.request.user
         if user.role == "creator":
             # Creators see their own projects
-            return Project.objects.filter(creator=user)
+            # Newest first, so a project just created sits at the top of the board.
+            return with_project_stats(Project.objects.filter(creator=user).order_by("-created_at"))
         else:
             # Talents see their own projects and the ones they are assigned work in
-            return visible_to_talent(user)
+            return with_project_stats(visible_to_talent(user).order_by("-created_at"))
 
     def perform_create(self, serializer):
         # Automatically assign creator
@@ -57,7 +58,7 @@ class SharedProjectsListView(generics.ListAPIView):
         user = self.request.user
         if user.role != "creator":
             return Project.objects.none()
-        return shared_with_creator(user).order_by("-created_at")
+        return with_project_stats(shared_with_creator(user).order_by("-created_at"))
 
 
 class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -236,20 +237,20 @@ class TaskListCreateView(generics.ListCreateAPIView):
             # Creators see all tasks for their projects
             try:
                 project = Project.objects.get(id=project_id, creator=user)
-                return project.tasks.all()
+                return project.tasks.prefetch_related("assignees")
             except Project.DoesNotExist:
                 # Not theirs: allowed to look only if a team member shared it with them.
                 shared = shared_with_creator(user).filter(id=project_id).first()
-                return shared.tasks.all() if shared else Task.objects.none()
+                return shared.tasks.prefetch_related("assignees") if shared else Task.objects.none()
         else:
             if user.role == "talent" and Project.objects.filter(id=project_id, creator=user).exists():
                 # A talent's own project: they see every task in it
-                return Task.objects.filter(project_id=project_id)
+                return Task.objects.filter(project_id=project_id).prefetch_related("assignees")
             # Otherwise only the tasks assigned to them in this project
             return Task.objects.filter(
                 project_id=project_id,
                 assignees=user
-            )
+            ).prefetch_related("assignees")
 
     def perform_create(self, serializer):
         user = self.request.user

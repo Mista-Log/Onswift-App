@@ -17,7 +17,7 @@ from agent.providers.base import (
     Usage,
 )
 from agent.providers.fake import FakeProvider
-from agent.runner import MAX_HISTORY, load_history, run_turn
+from agent.runner import MAX_HISTORY, MAX_ITERATIONS, load_history, run_turn
 from agent.tools import tool_specs
 from project.models import Project
 
@@ -179,15 +179,25 @@ class ToolLoopTests(RunnerTestCase):
         self.assertEqual([m["tool_call_id"] for m in second[2:]], ["c1", "c2"])
 
     def test_the_loop_stops_after_the_iteration_cap(self):
-        turns = [tool_turn(tool_call(f"c{i}", "list_projects")) for i in range(10)]
+        turns = [tool_turn(tool_call(f"c{i}", "list_projects")) for i in range(MAX_ITERATIONS + 5)]
         events, provider = self.run_turn(*turns)
+        # The model kept asking for tools even on the wrap-up call, so there is nothing to say.
         self.assertEqual(events[-1]["code"], "too_many_steps")
-        self.assertEqual(len(provider.calls), 4)
+        self.assertIn("continue", events[-1]["message"])
+        self.assertEqual(len(provider.calls), MAX_ITERATIONS + 1)
+
+    def test_at_the_cap_the_model_wraps_up_in_words_instead_of_an_error(self):
+        turns = [tool_turn(tool_call(f"c{i}", "list_projects")) for i in range(2)]
+        events, provider = self.run_turn(*turns, text_turn("Done: I checked twice."), max_iterations=2)
+        self.assertEqual(events[-1]["type"], "done")
+        self.assertNotIn("error", [e["type"] for e in events])
+        self.assertIsNone(provider.calls[-1]["tools"])  # the last call cannot start more work
+        self.assertEqual(self.conversation.messages.last().content, "Done: I checked twice.")
 
     def test_the_cap_can_be_lowered(self):
         turns = [tool_turn(tool_call(f"c{i}", "list_projects")) for i in range(10)]
         _, provider = self.run_turn(*turns, max_iterations=2)
-        self.assertEqual(len(provider.calls), 2)
+        self.assertEqual(len(provider.calls), 3)  # two working calls, then the wrap-up
 
     def test_a_stream_cut_off_mid_tools_leaves_no_dangling_tool_call(self):
         provider = FakeProvider([tool_turn(tool_call("c1", "list_projects")), text_turn("ok")])

@@ -60,6 +60,8 @@ interface ProjectContextType {
   projects: Project[];
   /** True only while the very first load is in flight and nothing is cached yet. */
   isLoading: boolean;
+  /** True while the latest attempt to load the list failed; what is on screen may be out of date. */
+  loadFailed: boolean;
   fetchProjects: () => Promise<void>;
   addProject: (
     project: Omit<Project, "id" | "teamMembers" | "task_count" | "completed_tasks" | "status" | "progress">
@@ -76,6 +78,21 @@ interface ProjectContextType {
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
+
+const PROJECTS_CHANGED = "onswift:projects-changed";
+const MAX_AUTO_RETRIES = 5;
+const STALE_AFTER_MS = 60_000;
+
+/** Tell the app that projects or tasks were changed somewhere else, so the project list reloads. */
+export function announceProjectsChanged(): void {
+  window.dispatchEvent(new Event(PROJECTS_CHANGED));
+}
+
+/** Calls `handler` each time that happens. Returns the unsubscribe function. */
+export function onProjectsChanged(handler: () => void): () => void {
+  window.addEventListener(PROJECTS_CHANGED, handler);
+  return () => window.removeEventListener(PROJECTS_CHANGED, handler);
+}
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -100,11 +117,25 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     () => readCache<Project[]>("projects") === null && !!localStorage.getItem("onswift_access")
   );
   const signedInUserId = useRef<string | undefined>(undefined);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const failedAttempts = useRef(0);
+  const lastLoadedAt = useRef(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getToken = () => localStorage.getItem("onswift_access");
 
+  const cancelRetry = () => {
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+    retryTimer.current = null;
+  };
+
   // FETCH PROJECTS
+  // A failed load keeps whatever is on screen, flags it, and tries again by itself with growing
+  // gaps (2s, 4s, 8s, 16s, 30s). After that it waits for the user, the tab or the network to return.
   const fetchProjects = async () => {
+    cancelRetry();
+    let loaded = false;
+    let worthRetrying = true;
     try {
       // Just provide the endpoint. secureFetch handles the token + refresh!
       const response = await secureFetch('/api/v2/projects/');
@@ -113,9 +144,26 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         const mapped = data.map((p: Project) => ({ ...p, status: deriveStatus(p) }));
         setProjects(mapped);
         writeCache("projects", mapped);
+        loaded = true;
+      } else {
+        // The server refused (signed out, not allowed): asking again will not change the answer.
+        worthRetrying = response.status >= 500 || response.status === 408 || response.status === 429;
       }
     } catch (error) {
       console.error("Error loading projects:", error);
+    }
+    if (!signedInUserId.current) return;
+    if (loaded) {
+      failedAttempts.current = 0;
+      lastLoadedAt.current = Date.now();
+      setLoadFailed(false);
+      return;
+    }
+    setLoadFailed(true);
+    failedAttempts.current += 1;
+    if (worthRetrying && failedAttempts.current <= MAX_AUTO_RETRIES) {
+      const delay = Math.min(30_000, 2_000 * 2 ** (failedAttempts.current - 1));
+      retryTimer.current = setTimeout(() => void fetchProjects(), delay);
     }
   };
 
@@ -125,12 +173,38 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     if (!user) {
       if (signedInUserId.current) setProjects([]);
       signedInUserId.current = undefined;
+      cancelRetry();
+      failedAttempts.current = 0;
+      setLoadFailed(false);
       return;
     }
     signedInUserId.current = user.id;
     setIsLoading(projects.length === 0);
     fetchProjects().finally(() => setIsLoading(false));
   }, [user?.id]);
+
+  // Something outside this provider changed projects or tasks (the Agent): bring the list up to date.
+  useEffect(() => {
+    return onProjectsChanged(() => {
+      if (signedInUserId.current) void fetchProjects();
+    });
+  }, []);
+
+  // Coming back to the tab or back online: refresh if the list is stale or its last load failed.
+  useEffect(() => {
+    const refresh = () => {
+      if (!signedInUserId.current || document.visibilityState !== "visible") return;
+      const stale = Date.now() - lastLoadedAt.current > STALE_AFTER_MS;
+      if (stale || failedAttempts.current > 0) void fetchProjects();
+    };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("online", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("online", refresh);
+      cancelRetry();
+    };
+  }, []);
 
   // ---------------- ADD PROJECT ----------------
   const addProject = async (projectData: {name: string; description: string; due_date: string;}): Promise<string | undefined> => {
@@ -332,6 +406,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       value={{
         projects,
         isLoading,
+        loadFailed,
         fetchProjects,
         addProject,
         updateProject,

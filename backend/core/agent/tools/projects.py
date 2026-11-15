@@ -128,13 +128,16 @@ def list_team(user, args):
 
     hires = HireRequest.objects.filter(creator=user, status="accepted").select_related("talent")
     rows = [{"id": str(h.talent_id), "name": h.talent.full_name or h.talent.email} for h in hires[: MAX_ROWS + 1]]
-    return limited(rows)
+    # The user comes first: they can give a task to themself ("assign it to me").
+    me = {"id": str(user.id), "name": user.full_name or "You", "is_you": True}
+    return limited([me] + rows)
 
 
 register(Tool(
     name="list_team",
     description=(
-        "List the people on the user's team (id and name). Use it to find the id of a teammate such as "
+        "List who can be given a task (id and name): the user themself, marked is_you, then the people on "
+        "their team. Use it to find the id of the user ('assign it to me') or of a teammate such as "
         "'LeRo' before assigning them a task with create_task's assignee_ids."
     ),
     parameters={"type": "object", "properties": {}},
