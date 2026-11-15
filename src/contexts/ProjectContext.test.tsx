@@ -5,8 +5,8 @@
  * they leave.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import { ProjectProvider, useProjects } from "./ProjectContext";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { ProjectProvider, announceProjectsChanged, useProjects } from "./ProjectContext";
 
 const secureFetch = vi.fn();
 let mockUser: { id: string } | null = null;
@@ -18,11 +18,12 @@ vi.mock("../api/apiClient", () => ({
 vi.mock("./AuthContext", () => ({ useAuth: () => ({ user: mockUser }) }));
 
 function Probe() {
-  const { projects, isLoading } = useProjects();
+  const { projects, isLoading, loadFailed } = useProjects();
   return (
     <div>
       <span data-testid="count">{projects.length}</span>
       <span data-testid="loading">{String(isLoading)}</span>
+      <span data-testid="failed">{String(loadFailed)}</span>
     </div>
   );
 }
@@ -86,5 +87,110 @@ describe("ProjectProvider loading", () => {
     mockUser = null;
     rerender(tree());
     await waitFor(() => expect(screen.getByTestId("count").textContent).toBe("0"));
+  });
+
+  it("reloads the list when something outside it (the Agent) changed projects", async () => {
+    mockUser = { id: "u1" };
+    render(tree());
+    await waitFor(() => expect(screen.getByTestId("count").textContent).toBe("1"));
+
+    secureFetch.mockResolvedValue({
+      ok: true,
+      json: async () => [
+        { id: "p1", name: "Alpha", task_count: 0, completed_tasks: 0 },
+        { id: "p2", name: "Made by the Agent", task_count: 0, completed_tasks: 0 },
+      ],
+    });
+    announceProjectsChanged();
+
+    await waitFor(() => expect(screen.getByTestId("count").textContent).toBe("2"));
+  });
+
+  it("flags a failed load, keeps what was on screen, and retries by itself", async () => {
+    mockUser = { id: "u1" };
+    render(tree());
+    await waitFor(() => expect(screen.getByTestId("count").textContent).toBe("1"));
+
+    vi.useFakeTimers();
+    try {
+      secureFetch.mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({}) });
+      await act(async () => {
+        announceProjectsChanged();
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.getByTestId("failed").textContent).toBe("true");
+      expect(screen.getByTestId("count").textContent).toBe("1");
+      const callsAfterFailure = secureFetch.mock.calls.length;
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_000);
+      });
+      expect(secureFetch.mock.calls.length).toBe(callsAfterFailure + 1);
+      expect(screen.getByTestId("failed").textContent).toBe("false");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not keep retrying when the server refuses the request", async () => {
+    mockUser = { id: "u1" };
+    secureFetch.mockResolvedValue({ ok: false, status: 403, json: async () => ({}) });
+    vi.useFakeTimers();
+    try {
+      render(tree());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(secureFetch).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("failed").textContent).toBe("true");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives up retrying by itself after five tries", async () => {
+    mockUser = { id: "u1" };
+    secureFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.useFakeTimers();
+    try {
+      render(tree());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10 * 60_000);
+      });
+      expect(secureFetch).toHaveBeenCalledTimes(6);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries a failed load as soon as the tab is looked at again", async () => {
+    mockUser = { id: "u1" };
+    secureFetch.mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({}) });
+    render(tree());
+    await waitFor(() => expect(screen.getByTestId("failed").textContent).toBe("true"));
+
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    await waitFor(() => expect(screen.getByTestId("failed").textContent).toBe("false"));
+    expect(screen.getByTestId("count").textContent).toBe("1");
+  });
+
+  it("does not reload on tab focus when the list was loaded moments ago", async () => {
+    mockUser = { id: "u1" };
+    render(tree());
+    await waitFor(() => expect(screen.getByTestId("count").textContent).toBe("1"));
+
+    document.dispatchEvent(new Event("visibilitychange"));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(secureFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores that announcement while logged out", async () => {
+    render(tree());
+    announceProjectsChanged();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(secureFetch).not.toHaveBeenCalled();
   });
 });

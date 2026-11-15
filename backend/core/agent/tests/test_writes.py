@@ -132,6 +132,24 @@ class WriteToolTests(TestCase):
         self.assertEqual(list(Task.objects.get(id=result["id"]).assignees.all()), [lero])
         self.assertEqual(Notification.objects.filter(user=lero).count(), 1)  # confirming does
 
+    def test_the_user_can_assign_a_task_to_themself_without_being_notified(self):
+        lero = make_user("lero@test.com", "talent")
+        self.hire(self.a, lero)
+        args = {**self.valid_args()["create_task"], "assignee_ids": [str(self.a.id), str(lero.id)]}
+        _, summary = propose_tool(self.a, "create_task", args)
+        self.assertIn("assigned to you, lero@test.com", summary)
+
+        from notification.models import Notification
+        result = execute_write(self.a, "create_task", args)
+        self.assertEqual(set(Task.objects.get(id=result["id"]).assignees.all()), {self.a, lero})
+        self.assertEqual(Notification.objects.filter(user=self.a).count(), 0)  # no "you assigned yourself"
+        self.assertEqual(Notification.objects.filter(user=lero).count(), 1)
+
+    def test_list_team_puts_the_user_first_so_they_can_be_assigned(self):
+        text = str(run_tool(self.a, "list_team", {}))
+        self.assertIn(str(self.a.id), text)
+        self.assertIn("is_you", text)
+
     def test_only_the_callers_own_accepted_team_can_be_assigned(self):
         stranger = make_user("stranger@test.com", "talent")        # nobody hired them
         theirs = make_user("theirs@test.com", "talent")

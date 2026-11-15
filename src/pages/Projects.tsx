@@ -46,7 +46,7 @@ import { deriveStatus, type Project } from "@/contexts/ProjectContext";
 export default function Projects() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { projects, addProject, deleteProject, updateProject, duplicateProject } = useProjects();
+  const { projects, addProject, deleteProject, updateProject, duplicateProject, loadFailed, fetchProjects } = useProjects();
   const isTalent = user?.role === 'talent';
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -203,6 +203,17 @@ export default function Projects() {
   return (
     <MainLayout>
       <div className="animate-fade-in space-y-6 sm:space-y-8">
+        {loadFailed && (
+          <div
+            role="status"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground"
+          >
+            <span>Couldn't refresh your projects. What you see may be out of date.</span>
+            <Button size="sm" variant="outline" onClick={() => void fetchProjects()}>
+              Try again
+            </Button>
+          </div>
+        )}
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>

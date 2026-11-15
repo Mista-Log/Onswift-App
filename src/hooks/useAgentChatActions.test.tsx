@@ -66,6 +66,26 @@ describe("resolveAction", () => {
     expect(card(hook).busy).toBeFalsy();
   });
 
+  it("an executed project or task change tells the app its project list is out of date", async () => {
+    const heard = vi.fn();
+    window.addEventListener("onswift:projects-changed", heard);
+    const hook = await withProposal();
+    secureFetch.mockResolvedValueOnce(json(200, action({ status: "executed", result: { link: "/projects/p1" } })));
+    await act(() => hook.result.current.resolveAction("a1", "confirm"));
+    expect(heard).toHaveBeenCalledTimes(1);
+    window.removeEventListener("onswift:projects-changed", heard);
+  });
+
+  it("a rejected change, or one that made something else, does not", async () => {
+    const heard = vi.fn();
+    window.addEventListener("onswift:projects-changed", heard);
+    const hook = await withProposal();
+    secureFetch.mockResolvedValueOnce(json(200, action({ status: "executed", tool: "create_doc", result: { link: "/docs/d1" } })));
+    await act(() => hook.result.current.resolveAction("a1", "confirm"));
+    expect(heard).not.toHaveBeenCalled();
+    window.removeEventListener("onswift:projects-changed", heard);
+  });
+
   it("reject posts to the reject endpoint", async () => {
     const hook = await withProposal();
     secureFetch.mockResolvedValueOnce(json(200, action({ status: "rejected" })));

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import { secureFetch, secureStream } from "@/api/apiClient";
 import { chatReducer, initialChatState, type Rating } from "@/lib/agent/chatReducer";
 import { announceFormUpdated } from "@/lib/agent/formEvents";
+import { announceProjectsChanged } from "@/contexts/ProjectContext";
 import { createSseParser, type AgentAction } from "@/lib/agent/sse";
 
 /** What the page tells the Agent about where the user is. The server re-checks it. */
@@ -165,6 +166,8 @@ export function useAgentChat() {
       if (body && body.id === id && typeof body.status === "string") {
         dispatch({ type: "action_resolved", action: body as AgentAction });
         if (body.tool === "update_form" && body.status === "executed" && body.result?.id) announceFormUpdated(body.result.id);
+        // A project or task was made or changed: the project list on screen is now out of date.
+        if (body.status === "executed" && String(body.result?.link ?? "").startsWith("/projects/")) announceProjectsChanged();
         return;
       }
       const message =
