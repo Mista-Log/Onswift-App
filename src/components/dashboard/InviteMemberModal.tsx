@@ -140,7 +140,7 @@ export function InviteMemberModal({
                 onClick={() => setStep("send-invite")}
                 className={cn(
                   "w-full rounded-xl border border-border/50 p-5 text-left transition-all",
-                  "hover:border-primary/50 hover:bg-secondary/50",
+                  "hover:border-secondary/50 hover:bg-secondary/50",
                   "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 )}
               >
@@ -151,7 +151,7 @@ export function InviteMemberModal({
                   <div className="flex-1 pt-0.5">
                     <h3 className="font-semibold text-foreground">Send Invite Link</h3>
                     <p className="mt-1.5 text-sm text-muted-foreground">
-                      Invite someone you know via email or a shareable link
+                      Click to invite someone using a shareable link
                     </p>
                   </div>
                 </div>
@@ -192,7 +192,7 @@ export function InviteMemberModal({
             <div className="space-y-6 py-6">
 
               {/* Email */}
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
                 <Input
                   id="email"
@@ -202,7 +202,7 @@ export function InviteMemberModal({
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-10"
                 />
-              </div>
+              </div> */}
 
               {/* Link duration */}
               <div className="space-y-3">
@@ -236,7 +236,7 @@ export function InviteMemberModal({
               </div>
 
               {/* Personal message */}
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <Label htmlFor="message" className="text-sm font-medium">
                   Personal Message{" "}
                   <span className="font-normal text-muted-foreground">(Optional)</span>
@@ -249,13 +249,13 @@ export function InviteMemberModal({
                   rows={3}
                   className="resize-none"
                 />
-              </div>
+              </div> */}
             </div>
 
             <div className="flex flex-col gap-3 pt-2">
               <div className="flex gap-3">
                 <Button
-                  variant="outline"
+                  
                   className="flex-1 h-10 gap-2"
                   onClick={handleCopyLink}
                   disabled={isGenerating}
@@ -263,14 +263,15 @@ export function InviteMemberModal({
                   {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
                   {isGenerating ? "Generating…" : "Copy Link"}
                 </Button>
-                <Button
+
+                {/* <Button
                   className="flex-1 h-10 gap-2"
                   onClick={handleSendEmail}
                   disabled={isGenerating}
                 >
                   {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   {isGenerating ? "Generating…" : "Send Email"}
-                </Button>
+                </Button> */}
               </div>
               {isGenerating && (
                 <p className="text-xs text-muted-foreground text-center">{generatingMessage}</p>
