@@ -1,4 +1,4 @@
-import { ChevronDown, Loader2, TrendingUp, UserPlus, Users } from "lucide-react";
+import { ChevronDown, Loader2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -6,10 +6,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import { useCreatorAnalytics, type AnalyticsRange } from "@/hooks/useCreatorAnalytics";
-import { CompletionChart } from "./CompletionChart";
-import { ClientAcquisitionChart } from "./ClientAcquisitionChart";
-import { TeamStatusDonut } from "./TeamStatusDonut";
+import { useProjects } from "@/contexts/ProjectContext";
+import { StatusDot } from "@/components/dashboard/StatusDot";
+import { ThroughputChart } from "./ThroughputChart";
+import { TeamPerformanceList } from "./TeamPerformanceList";
 
 const RANGES: { value: AnalyticsRange; label: string }[] = [
   { value: "24h", label: "Last 24 hours" },
@@ -20,45 +22,89 @@ const RANGES: { value: AnalyticsRange; label: string }[] = [
   { value: "24m", label: "Last 24 months" },
 ];
 
-function ChartSkeleton() {
+// Slice colours match StatusDot (purple / red / green), so the donut and the legend dots agree.
+const STATUSES = [
+  { value: "in-progress", label: "In Progress", color: "hsl(250 76% 63%)" },
+  { value: "planning", label: "Planning", color: "rgb(239 68 68)" },
+  { value: "completed", label: "Completed", color: "rgb(16 185 129)" },
+] as const;
+
+/** Donut drawn with a conic gradient: no chart library needed, and it renders the same everywhere. */
+function StatusDonut({ slices, total }: { slices: { color: string; count: number }[]; total: number }) {
+  let start = 0;
+  const stops = slices
+    .filter((s) => s.count > 0)
+    .map((s) => {
+      const end = start + (s.count / total) * 360;
+      const stop = `${s.color} ${start}deg ${end}deg`;
+      start = end;
+      return stop;
+    });
   return (
-    <div className="flex h-[240px] sm:h-[300px] xl:h-[380px] items-center justify-center">
+    <div
+      className="relative h-32 w-32 shrink-0 rounded-full"
+      style={{ background: `conic-gradient(${stops.join(", ")})` }}
+      aria-hidden
+    >
+      <div className="absolute inset-[18%] flex flex-col items-center justify-center rounded-full bg-card">
+        <span className="text-2xl font-bold leading-none text-foreground">{total}</span>
+        <span className="mt-1 text-[11px] text-muted-foreground">{total === 1 ? "project" : "projects"}</span>
+      </div>
+    </div>
+  );
+}
+
+function Spinner({ className }: { className?: string }) {
+  return (
+    <div className={cn("flex items-center justify-center", className)}>
       <Loader2 className="h-6 w-6 animate-spin text-primary" />
     </div>
   );
 }
 
-function ChartCard({
-  icon: Icon,
-  title,
-  subtitle,
-  children,
-}: {
-  icon: typeof TrendingUp;
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-}) {
+function Panel({ title, aside, className, children }: { title: string; aside?: React.ReactNode; className?: string; children: React.ReactNode }) {
   return (
-    <div className="min-w-0 rounded-xl border border-border/50 p-4">
-      <div className="mb-1 flex items-center gap-2">
-        <Icon className="h-4 w-4 text-primary" />
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+    <section className={cn("glass-card min-w-0 p-4 sm:p-5", className)}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        {aside}
       </div>
-      <p className="mb-4 text-xs text-muted-foreground">{subtitle}</p>
       {children}
+    </section>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="glass-card min-w-0 p-4">
+      <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-bold leading-tight text-foreground">{value}</p>
     </div>
   );
 }
 
 export function AnalyticsSection() {
   const { data, isLoading, error, refetch, range, setRange } = useCreatorAnalytics("30d");
+  const { projects, isLoading: projectsLoading } = useProjects();
+
+  const approved = data?.completion.reduce((sum, p) => sum + p.approved, 0) ?? 0;
+  const newClients = data?.clients.reduce((sum, p) => sum + p.new_clients, 0) ?? 0;
+  const submitted = data?.talent.reduce((sum, t) => sum + t.submitted, 0) ?? 0;
+  const talentApproved = data?.talent.reduce((sum, t) => sum + t.approved, 0) ?? 0;
+  const approvalRate = submitted > 0 ? `${Math.round((talentApproved / submitted) * 100)}%` : "—";
+  const activeProjects = projects.filter((p) => p.status !== "completed").length;
+  const statusCounts = STATUSES.map((s) => ({ ...s, count: projects.filter((p) => p.status === s.value).length }));
+  const show = (v: string) => (isLoading && !data ? "—" : v);
   const activeLabel = RANGES.find((r) => r.value === range)?.label ?? "Range";
 
   return (
-    <section className="glass-card p-4 sm:p-6 md:p-7 lg:p-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">Analytics</h2>
+    <div className="space-y-4 sm:space-y-5">
+      {/* Header + range switch */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Analytics</h1>
+          <p className="mt-1 text-sm text-muted-foreground">How your agency is delivering across projects and team.</p>
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="sm" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
@@ -68,7 +114,11 @@ export function AnalyticsSection() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {RANGES.map((r) => (
-              <DropdownMenuItem key={r.value} onClick={() => setRange(r.value)}>
+              <DropdownMenuItem
+                key={r.value}
+                onClick={() => setRange(r.value)}
+                className={cn(range === r.value && "font-semibold text-primary")}
+              >
                 {r.label}
               </DropdownMenuItem>
             ))}
@@ -83,33 +133,72 @@ export function AnalyticsSection() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard icon={TrendingUp} title="Completed work" subtitle="Approved deliverables">
-          {isLoading ? <ChartSkeleton /> : <CompletionChart data={data?.completion ?? []} />}
-        </ChartCard>
-
-        <ChartCard icon={UserPlus} title="Client acquisition" subtitle="New clients">
-          {isLoading ? <ChartSkeleton /> : <ClientAcquisitionChart data={data?.clients ?? []} />}
-        </ChartCard>
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Approved deliverables" value={show(String(approved))} />
+        <StatCard label="New clients" value={show(String(newClients))} />
+        <StatCard label="Approval rate" value={show(approvalRate)} />
+        <StatCard label="Active projects" value={projectsLoading && projects.length === 0 ? "—" : String(activeProjects)} />
       </div>
 
-      <ChartCard icon={Users} title="Talent performance" subtitle="How your team is delivering">
-        {isLoading ? (
-          <ChartSkeleton />
-        ) : error ? (
-          <div className="flex h-[240px] sm:h-[300px] xl:h-[380px] items-center justify-center text-sm text-muted-foreground">
-            Data unavailable.
-          </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Throughput */}
+        <Panel
+          title="Deliverables & clients"
+          className="lg:col-span-2"
+          aside={
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(250_76%_63%)]" />Approved</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(250_60%_85%)] dark:bg-[hsl(250_30%_45%)]" />New clients</span>
+            </div>
+          }
+        >
+          {isLoading && !data ? (
+            <Spinner className="h-[200px] sm:h-[240px] xl:h-[280px]" />
+          ) : (
+            <ThroughputChart completion={data?.completion ?? []} clients={data?.clients ?? []} />
+          )}
+        </Panel>
+
+        {/* Projects by status */}
+        <Panel title="Projects by status">
+          {projectsLoading && projects.length === 0 ? (
+            <Spinner className="h-32" />
+          ) : projects.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No projects yet</p>
+          ) : (
+            <div className="flex flex-wrap items-center justify-center gap-5 sm:flex-nowrap lg:flex-wrap xl:flex-nowrap">
+              <StatusDonut slices={statusCounts} total={projects.length} />
+              <ul className="min-w-0 flex-1 space-y-2.5">
+                {statusCounts.map((s) => (
+                  <li key={s.value} className="flex items-center gap-2.5 text-sm">
+                    <StatusDot status={s.value} className="h-3 w-3" />
+                    <span className="flex-1 truncate text-foreground">{s.label}</span>
+                    <span className="font-semibold text-foreground">{s.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      {/* Team performance */}
+      <Panel title="Team performance">
+        {isLoading && !data ? (
+          <Spinner className="h-32" />
+        ) : error && !data ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Data unavailable.</p>
         ) : data && data.talent.length > 0 ? (
-          <TeamStatusDonut data={data.talent} />
+          <TeamPerformanceList data={data.talent} />
         ) : (
-          <div className="flex h-[240px] sm:h-[300px] xl:h-[380px] flex-col items-center justify-center text-center text-muted-foreground">
+          <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
             <Users className="mb-2 h-10 w-10 opacity-40" />
             <p className="text-sm">No team activity yet</p>
             <p className="text-xs">Invite talent and assign work to see performance here.</p>
           </div>
         )}
-      </ChartCard>
-    </section>
+      </Panel>
+    </div>
   );
 }
