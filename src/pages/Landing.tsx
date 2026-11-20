@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, Check, ChevronDown, Menu, Minus, Plus, X } from 'lucide-react';
+import { DashboardPreview } from '@/components/landing/DashboardPreview';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -92,57 +93,80 @@ function useInViewToggle<T extends HTMLElement>(threshold = 0) {
 
 const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [onDark, setOnDark] = useState(true);
+  const [hidden, setHidden] = useState(false);
   const navigate = useNavigate();
+
+  // Over the violet top of the hero the nav is clear with white text. Past it, the nav turns into a
+  // frosted pill so it stays readable over any section, and it tucks away while scrolling down
+  // (so it never sits on top of what you're reading) and slides back the moment you scroll up.
+  useEffect(() => {
+    let lastY = window.scrollY;
+    const update = () => {
+      const y = window.scrollY;
+      const hero = document.getElementById('top');
+      const darkUntil = hero ? hero.offsetHeight * 0.4 : window.innerHeight * 0.5;
+      const overHero = y < darkUntil;
+      setOnDark(overHero);
+      if (overHero) setHidden(false);
+      else if (Math.abs(y - lastY) > 6) setHidden(y > lastY);
+      lastY = y;
+    };
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
 
   const navLinks = [
     { label: 'Home', href: '#top' },
-    { label: 'Features', href: '#features' },
-    { label: 'How It Works', href: '#how-it-works' },
-    { label: 'Creator Tools', href: '#creator-tools' },
-    { label: 'Testimonials', href: '#testimonials' },
+    { label: 'Product', href: '#product' },
     { label: 'FAQ', href: '#faq' },
-    { label: 'Blog', href: '/blog', isRoute: true },
+    { label: 'Contact', href: '#contact' },
   ];
 
+  const linkColor = onDark ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-black';
+  const ctaColor = onDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-[#5b3fc4]';
+
   return (
-    <header className="fixed left-0 right-0 top-0 z-50 px-4 pt-4 md:px-8 lg:px-12">
+    <header
+      className={`fixed left-0 right-0 top-0 z-50 px-4 pt-4 transition-transform duration-300 ease-out md:px-8 lg:px-12 ${
+        hidden && !isOpen ? '-translate-y-[120%]' : 'translate-y-0'
+      }`}
+    >
       <nav
-        className="mx-auto flex max-w-6xl items-center justify-between rounded-full px-5 py-3"
-        style={{
-          background: 'rgba(255,255,255,0.85)',
-          border: '1px solid rgba(0,0,0,0.08)',
-          backdropFilter: 'blur(20px)',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
-        }}
+        className={`mx-auto flex max-w-6xl items-center justify-between rounded-full border px-5 py-3 transition-all duration-300 ${
+          onDark
+            ? 'border-transparent bg-transparent shadow-none'
+            : 'border-black/[0.06] bg-white/75 shadow-[0_8px_30px_rgba(59,31,143,0.10)] backdrop-blur-xl'
+        }`}
       >
-        <a href="/" className="flex items-center">
-          <img src="/onswift-logo-white.png" alt="OnSwift" className="h-7 w-auto" style={{ filter: 'brightness(0)' }} />
+        <a href="#top" className="flex items-center">
+          <img
+            src="/onswift-logo-white.png"
+            alt="OnSwift"
+            className="h-7 w-auto transition-[filter] duration-300"
+            style={{ filter: onDark ? 'none' : 'brightness(0)' }}
+          />
         </a>
 
         <div className="hidden items-center gap-8 md:flex">
-          {navLinks.map((link) =>
-            link.isRoute ? (
-              <Link
-                key={link.label}
-                to={link.href}
-                className="inline-block py-3 text-sm font-medium text-gray-600 transition-colors hover:text-black"
-              >
-                {link.label}
-              </Link>
-            ) : (
-              <a
-                key={link.label}
-                href={link.href}
-                className="inline-block py-3 text-sm font-medium text-gray-600 transition-colors hover:text-black"
-              >
-                {link.label}
-              </a>
-            )
-          )}
+          {navLinks.map((link) => (
+            <a
+              key={link.label}
+              href={link.href}
+              className={`inline-block py-3 text-sm font-medium transition-colors duration-300 ${linkColor}`}
+            >
+              {link.label}
+            </a>
+          ))}
         </div>
 
         <button
-          className="hidden min-h-[40px] rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-[#5b3fc4] md:block"
+          className={`hidden min-h-[40px] rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-300 md:block ${ctaColor}`}
           onClick={() => navigate('/get-started')}
           type="button"
         >
@@ -151,14 +175,14 @@ const Navigation = () => {
 
         <div className="flex items-center gap-2 md:hidden">
           <button
-            className="rounded-full bg-black px-4 py-2 text-xs font-semibold text-white transition-all hover:bg-[#5b3fc4]"
+            className={`rounded-full px-4 py-2 text-xs font-semibold transition-all duration-300 ${ctaColor}`}
             onClick={() => navigate('/get-started')}
             type="button"
           >
             Get Started
           </button>
           <button
-            className="flex h-12 w-12 items-center justify-center text-black"
+            className={`flex h-12 w-12 items-center justify-center transition-colors duration-300 ${onDark ? 'text-white' : 'text-black'}`}
             onClick={() => setIsOpen((o) => !o)}
             aria-label="Toggle menu"
             type="button"
@@ -179,27 +203,16 @@ const Navigation = () => {
           }}
         >
           <div className="flex flex-col gap-3">
-            {navLinks.map((link) =>
-              link.isRoute ? (
-                <Link
-                  key={link.label}
-                  to={link.href}
-                  className="py-2 text-sm font-medium text-gray-600 transition-colors hover:text-black"
-                  onClick={() => setIsOpen(false)}
-                >
-                  {link.label}
-                </Link>
-              ) : (
-                <a
-                  key={link.label}
-                  href={link.href}
-                  className="py-2 text-sm font-medium text-gray-600 transition-colors hover:text-black"
-                  onClick={() => setIsOpen(false)}
-                >
-                  {link.label}
-                </a>
-              )
-            )}
+            {navLinks.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                className="py-2 text-sm font-medium text-gray-600 transition-colors hover:text-black"
+                onClick={() => setIsOpen(false)}
+              >
+                {link.label}
+              </a>
+            ))}
             <button
               className="mt-2 rounded-full bg-black py-2.5 text-sm font-semibold text-white"
               onClick={() => { navigate('/get-started'); setIsOpen(false); }}
@@ -218,44 +231,24 @@ const Navigation = () => {
 
 const HeroSection = () => {
   const navigate = useNavigate();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [videoDimmed, setVideoDimmed] = useState(false);
-
-  // Softens the hard cut when the video loops: dims it just before/after the
-  // restart point so the jump is masked by a brief fade rather than a visible jump cut.
-  const handleVideoTimeUpdate = () => {
-    const video = videoRef.current;
-    if (!video || !Number.isFinite(video.duration)) return;
-    const nearLoopBoundary = video.duration - video.currentTime < 0.4 || video.currentTime < 0.4;
-    setVideoDimmed(nearLoopBoundary);
-  };
 
   return (
     <section
       id="top"
       className="reveal relative flex min-h-screen flex-col items-center justify-center overflow-hidden pt-28 pb-16 text-center"
       data-reveal
-      style={{ background: '#0a0a0a' }}
+      // Lavender-to-violet: deep violet behind the white headline for contrast, easing into soft
+      // lavender behind the dashboard so the hero melts into the white section below.
+      style={{ background: 'linear-gradient(180deg, #3b1f8f 0%, #5b3fc4 30%, #8b6cf0 55%, #c4b5fd 80%, #ede9fe 100%)' }}
     >
-      {/* Fullscreen looping background video */}
-      <video
-        ref={videoRef}
-        className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ease-in-out ${videoDimmed ? 'opacity-20' : 'opacity-100'}`}
-        src="/assets/hero-bg.mp4"
-        autoPlay
-        loop
-        muted
-        playsInline
-        preload="auto"
-        onTimeUpdate={handleVideoTimeUpdate}
-        aria-hidden="true"
-      />
-
-      {/* Dark overlay for text legibility over the video */}
+      {/* Soft glow accents for depth */}
       <div
         className="pointer-events-none absolute inset-0"
         aria-hidden="true"
-        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.35) 45%, rgba(0,0,0,0.7) 100%)' }}
+        style={{
+          background:
+            'radial-gradient(ellipse 60% 40% at 15% 20%, rgba(196,181,253,0.35), transparent 70%), radial-gradient(ellipse 50% 35% at 85% 35%, rgba(167,139,250,0.3), transparent 70%)',
+        }}
       />
 
       <div className="relative z-10 mx-auto mt-3 max-w-5xl px-6 md:mt-40">
@@ -263,15 +256,15 @@ const HeroSection = () => {
           className="animate-fade-in-up mb-6 font-instrument-serif text-3xl leading-[1.1] text-white opacity-0 sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl"
           style={{ animationDelay: '0.1s' }}
         >
-          Run Your Business<br /><span className="italic">Without</span> Chaos
+          Run Your Service Business<br /><span className="italic">With Ease</span>
         </h1>
 
         <p
           className="animate-fade-in-up mx-auto mb-10 max-w-xl text-base font-light leading-relaxed text-white/70 opacity-0 md:text-lg"
           style={{ animationDelay: '0.25s' }}
         >
-          Hire better people, manage projects calmly, and stop being the bottleneck,
-          all with OnSwift, an all-in-one operating system for modern agencies.
+          OnSwift is the operating system for service businesses. You run the projects, your team
+          delivers, your clients follow along, and an AI agent handles the busywork in between.
         </p>
 
         <div
@@ -300,16 +293,12 @@ const HeroSection = () => {
       {/* Dashboard preview */}
       <div className="relative z-10 mx-auto mt-16 w-full max-w-5xl px-6">
         <div
-          className="relative overflow-hidden rounded-2xl border border-white/10"
+          className="relative overflow-hidden rounded-2xl border border-white/40"
           style={{
-            boxShadow: '0 0 60px rgba(124,92,232,0.35), 0 40px 80px rgba(0,0,0,0.5)',
+            boxShadow: '0 0 60px rgba(124,92,232,0.35), 0 40px 80px rgba(59,31,143,0.35)',
           }}
         >
-          <img
-            src="/assets/dashboard-preview.png"
-            alt="OnSwift dashboard"
-            className="block h-auto w-full"
-          />
+          <DashboardPreview />
         </div>
       </div>
     </section>
@@ -322,7 +311,7 @@ const TrustedBySection = () => (
   <section className="reveal py-12" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
     <div className="mx-auto max-w-5xl px-6">
       <p className="mb-8 text-center text-sm font-medium tracking-widest text-gray-600 uppercase">
-        Trusted By
+        Trusted by growing service businesses
       </p>
       <div className="flex flex-wrap items-center justify-center gap-10 md:gap-16">
         {['OVERBOOKED', 'MATHETES', 'Kaicension', 'AGENCYE'].map((brand) => (
@@ -332,6 +321,43 @@ const TrustedBySection = () => (
           >
             {brand}
           </span>
+        ))}
+      </div>
+    </div>
+  </section>
+);
+
+// ─── Why OnSwift ──────────────────────────────────────────────────────────────
+
+const WHY_CARDS = [
+  { src: '/canv-1.png', alt: 'Easy to Use: simple enough to get started without a learning curve.' },
+  { src: '/canv-2.png', alt: 'Operations All in One Place: everything you need to manage your operations, together.' },
+  { src: '/canv-3.png', alt: 'Save Time & Energy: spend less time managing the work and more time doing it.' },
+];
+
+const WhyOnSwiftSection = () => (
+  <section id="product" className="reveal py-20 lg:py-28" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+    <div className="mx-auto max-w-6xl px-6 lg:px-10">
+      <div className="mb-12 flex flex-col items-center text-center">
+        <span
+          className="mb-5 inline-flex items-center rounded-full bg-black px-3 py-1.5 font-semibold uppercase tracking-[0.12em] text-white"
+          style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: '8.8px', lineHeight: 1 }}
+        >
+          Why OnSwift?
+        </span>
+        <h2 className="max-w-2xl text-3xl font-bold leading-tight text-black md:text-4xl lg:text-5xl">
+          Run Your Service Business with Ease.
+        </h2>
+      </div>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {WHY_CARDS.map((card) => (
+          <img
+            key={card.src}
+            src={card.src}
+            alt={card.alt}
+            loading="lazy"
+            className="mx-auto w-full max-w-sm rounded-3xl transition-transform duration-300 hover:-translate-y-1"
+          />
         ))}
       </div>
     </div>
@@ -353,18 +379,18 @@ const ProblemSection = () => (
         {/* Content */}
         <div className="flex-1">
           <h2 className="mb-4 text-1xl font-bold leading-tight text-black md:text-4xl lg:text-5xl">
-            You Didn&apos;t Start an Agency to Become a Project Manager.
+            You Didn&apos;t Start a Business to Become a Project Manager.
           </h2>
           <p className="mb-8 text-base text-gray-600 md:text-lg">
-            You started your agency because you&apos;re great at what you do. But now, you&apos;re:
+            You built it because you&apos;re great at the work. Somewhere along the way, the work became:
           </p>
           <ul className="flex flex-col gap-4">
             {[
-              'Chasing freelancers',
-              'Managing five different tools',
-              'Following up on missed deadlines',
-              'Fixing mistakes',
-              'Holding everything in your head',
+              'Chasing updates across WhatsApp, email and DMs',
+              'Paying for five tools that don’t talk to each other',
+              'Hearing about missed deadlines after your client does',
+              'Re-explaining feedback buried in screenshots and threads',
+              'Being the only person who knows where everything is',
             ].map((pain) => (
               <li key={pain} className="flex items-center gap-4">
                 <XBadge />
@@ -384,7 +410,8 @@ const BridgeStatement = () => (
   <section className="reveal py-20 lg:py-28" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
     <div className="mx-auto max-w-4xl px-6 text-center">
       <p className="text-2xl leading-snug text-black md:text-3xl lg:text-4xl">
-        But that is over now. OnSwift brings hiring, operations, and Client Delivery into one simple AI-led system.
+        OnSwift puts your projects, your team and your clients in one workspace, with an AI agent
+        that keeps it all moving. The business keeps running, even when you step out of the room.
       </p>
     </div>
   </section>
@@ -395,28 +422,28 @@ const BridgeStatement = () => (
 const FeaturesSection = () => {
   const features: FeatureCard[] = [
     {
-      title: 'Vetted Talent Marketplace',
-      description: 'Hire reliable talents without gambling on quality.',
+      title: 'Your Team, Organized',
+      description: 'Invite staff and freelancers with one link. Everyone sees exactly the work assigned to them, nothing more.',
       image: '/assets/feature-talent-matching.png',
     },
     {
-      title: 'AI Operations Manager',
-      description: 'Your invisible project manager that never sleeps.',
+      title: 'AI Agent',
+      description: 'Ask in plain English. It sets up projects, assigns tasks and chases updates, and checks with you before it changes anything.',
       image: '/assets/feature-auto-pm.png',
     },
     {
-      title: 'Unified Workspace',
-      description: 'Tasks, communication, files, and timelines, together.',
+      title: 'Approvals, Built In',
+      description: 'Deliverables are submitted, reviewed and approved in one place, with every revision on record.',
       image: '/assets/feature-quality-control.png',
     },
     {
-      title: 'Founder Dashboard',
-      description: 'See your entire agency at a glance.',
+      title: 'Founder Dashboard & Analytics',
+      description: 'Delivery, workload and project health at a glance, so you catch slippage before your client does.',
       image: '/assets/feature-scale.png',
     },
     {
-      title: 'Quality & Accountability',
-      description: 'Every task has clear ownership.',
+      title: 'Client Portal',
+      description: 'Clients onboard through your own forms, follow progress live and message you directly. No more status-update emails.',
       image: '/assets/feature-communication.png',
       // imageClassName: 'object-contain object-center',
       // imageWrapClassName: 'flex items-center justify-center',
@@ -440,7 +467,7 @@ const FeaturesSection = () => {
         <div className="mb-12 text-center">
           <SectionBadge light={inView}>Features</SectionBadge>
           <h2 className={`mt-5 text-3xl font-bold transition-colors duration-700 md:text-4xl lg:text-5xl ${inView ? 'text-white' : 'text-black'}`}>
-            Everything Your Agency Needs, <br />In One Place.
+            One Workspace. <br />Every Moving Part.
           </h2>
         </div>
 
@@ -483,23 +510,38 @@ const FeaturesSection = () => {
 const HowItWorksSection = () => {
   const steps: HowItWorksStep[] = [
     {
-      title: 'Set Up Your Agency',
-      description: 'Connect your projects, team, and workflows in minutes.',
-      bullets: ['Import clients', 'Add your team', 'Create projects', 'Set deadlines'],
+      title: 'Bring Your Business In',
+      description: 'Set up in minutes, not weeks.',
+      bullets: [
+        'Create projects in a click, or just ask the AI agent',
+        'Invite your team with a single link',
+        'Send clients a branded onboarding form',
+        'Sync every deadline to Google Calendar',
+      ],
       image: '/assets/feature-invite.png',
       imageLeft: false,
     },
     {
-      title: 'Organize & Automate',
-      description: 'Let OnSwift structure your operations.',
-      bullets: ['Smart task breakdown', 'Clear timelines', 'Automated follow-ups', 'Central dashboard'],
+      title: 'Run the Work',
+      description: 'Everyone knows what to do next, without asking you.',
+      bullets: [
+        'Tasks with clear owners, stages and due dates',
+        'Conversations next to the work, not lost in WhatsApp',
+        'Files and docs right where the project lives',
+        'An AI agent that handles the follow-ups',
+      ],
       image: '/assets/feature-project-dashboard.png',
       imageLeft: true,
     },
     {
-      title: 'Deliver & Scale',
-      description: 'Run projects with confidence.',
-      bullets: ['Track progress live', 'Catch delays early', 'Maintain quality', 'Impress clients'],
+      title: 'Deliver & Grow',
+      description: 'Ship work clients approve, and take on more of it.',
+      bullets: [
+        'Review and approve deliverables in one place',
+        'Clients track progress in their own portal',
+        'Analytics on delivery and team performance',
+        'Add clients without adding chaos',
+      ],
       image: '/assets/feature-deadliner.png',
       imageLeft: false,
     },
@@ -511,7 +553,7 @@ const HowItWorksSection = () => {
         <div className="reveal mb-14 text-center" data-reveal>
           <SectionBadge>How it Works</SectionBadge>
           <h2 className="mt-5 text-3xl font-bold text-black md:text-4xl lg:text-5xl">
-            All-in-One Operating <br />System for Agencies.
+            From Kickoff to Client Approval, <br />in One Flow.
           </h2>
         </div>
 
@@ -562,27 +604,27 @@ const HowItWorksSection = () => {
 const CreatorToolsSection = () => {
   const cards: CreatorCard[] = [
     {
-      id: "agency",
-      title: 'Agency Founders',
-      description: 'Creators Scaling into Agencies, Small Agencies (3–10 People), Growing Agencies (10–50 People) can now manage teams and clients with clarity.',
+      id: "creators",
+      title: 'For Creators & Founders',
+      description: 'Run every project, person and client from one dashboard, from a one-person studio to a 50-person agency. Delegate with confidence and get your evenings back.',
       image: '/assets/feature-blur.png',
     },
     {
-      id: "freelance",
-      title: "Freelancers & Solopreneurs",
-      description: "Manage clients, projects, and income streams without the chaos of scaling alone.",
-      image: "/assets/feature-client-portal.png",
-    },
-    {
-      id: "remote",
-      title: "Remote Teams",
-      description: "Work smoothly across locations.",
+      id: "teams",
+      title: "For Your Team",
+      description: "Staff and freelancers, local or remote, get a clear list of what's theirs, when it's due and where the files are. Less pinging, more doing.",
       image: '/assets/feature-soup.png',
     },
     {
-      id: "coaches",
-      title: "Coaches & Consultants",
-      description: "Coaches & Consultants can now run backend operations professionally, deliver premium services without overwhelm.",
+      id: "clients",
+      title: "For Your Clients",
+      description: "A professional portal to onboard, follow progress, review work and talk to you. Clients feel looked after without chasing you for updates.",
+      image: "/assets/feature-client-portal.png",
+    },
+    {
+      id: "consultants",
+      title: "For Coaches & Consultants",
+      description: "Deliver a premium client experience with the back office of a much larger firm, without hiring an operations manager.",
       image: '/assets/feature-coaching-d.png',
     },
   ];
@@ -602,12 +644,12 @@ const CreatorToolsSection = () => {
     >
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
         <div className="mb-12 text-center">
-          <SectionBadge light={inView}>Social &amp; Creator Tools</SectionBadge>
+          <SectionBadge light={inView}>Who It&apos;s For</SectionBadge>
           <h2 className={`mt-5 text-3xl font-bold transition-colors duration-700 md:text-4xl lg:text-5xl ${inView ? 'text-white' : 'text-black'}`}>
-            Built for Agencies &amp; Creators<br />Who Are Scaling into Agencies
+            One Platform.<br />Every Side of the Work.
           </h2>
           <p className={`mt-4 text-base transition-colors duration-700 ${inView ? 'text-white/80' : 'text-gray-600'}`}>
-            OnSwift supports how modern founders actually work.
+            Creators get control, teams get clarity and clients get confidence.
           </p>
         </div>
           {/* {Card Section} */}
@@ -666,7 +708,7 @@ const TestimonialsSection = () => {
         <div className="mb-12 text-center">
           <SectionBadge>Testimonials</SectionBadge>
           <h2 className="mt-5 text-3xl font-bold text-black md:text-4xl lg:text-5xl">
-            What Founders Who Uses <br />Onswift Says
+            Founders Who Stopped <br />Being the Bottleneck
           </h2>
         </div>
 
@@ -706,11 +748,12 @@ const FAQSection = () => {
   const [open, setOpen] = useState<number | null>(null);
 
   const faqs: FaqItem[] = [
-    { question: 'Is OnSwift hard to set up?', answer: 'No. Most founders are fully set up in under 30 minutes. We guide you through the entire process.' },
-    { question: 'Is this just another project management tool?', answer: 'No. OnSwift combines hiring, operations, communication, and AI into one unified system built for agencies.' },
-    { question: 'Who is OnSwift best for?', answer: 'Creators, coaches, consultants, and agencies making $3k–$50k+/month who want to scale without chaos.' },
-    { question: 'Can I use it with my current team?', answer: 'Yes. Import your existing freelancers and staff easily. No disruption to your current workflows.' },
-    { question: 'Do I need technical skills?', answer: 'No. If you can use WhatsApp, you can use OnSwift. It\'s designed for non-technical founders.' },
+    { question: 'Is this just another project management tool?', answer: 'No. Project tools stop at tasks. OnSwift runs the whole service business: your team, your client portal, onboarding forms, approvals, files, chat and analytics, with an AI agent working across all of it.' },
+    { question: 'Who is OnSwift for?', answer: 'Service businesses that deliver work for clients: agencies, studios, creators scaling into agencies, coaches and consultants. It works for a team of one and a team of fifty.' },
+    { question: 'What does the AI agent actually do?', answer: 'It knows your workspace. Ask it to set up a project, break work into tasks, assign people or summarize where things stand. Anything that changes your data is proposed first and only runs when you approve it.' },
+    { question: 'What can my clients see?', answer: 'Only what you invite them to. Each client gets their own portal for the projects they’re part of, where they can follow progress, fill in your forms and message you.' },
+    { question: 'Can I bring my current team?', answer: 'Yes. Invite staff and freelancers with a link and they’re in. Everyone sees just the work assigned to them.' },
+    { question: 'How long does it take to set up?', answer: 'Most founders are up and running in under 30 minutes. No technical skills needed: if you can use WhatsApp, you can use OnSwift.' },
   ];
 
   return (
@@ -721,9 +764,11 @@ const FAQSection = () => {
           <div className="lg:w-80 lg:shrink-0">
             <SectionBadge>FAQ</SectionBadge>
             <h2 className="mt-5 text-3xl font-bold leading-tight text-black md:text-4xl">
-              Everything You Want to Know
+              Questions, Answered
             </h2>
-            <p className="mt-4 text-base text-gray-600">Still unsure? We&apos;ve got you.</p>
+            <p className="mt-4 text-base text-gray-600">
+              Still unsure? <a href="#contact" className="font-medium text-[#5b3fc4] hover:underline">Talk to us.</a>
+            </p>
           </div>
 
           {/* Right: accordion */}
@@ -778,11 +823,11 @@ const FinalCTA = () => {
           }}
         >
           <h2 className="mb-5 text-3xl font-bold leading-tight text-white md:text-5xl lg:text-6xl">
-            Run Your Agency<br />Without Chaos
+            Stop Being<br />the Bottleneck.
           </h2>
           <p className="mx-auto mb-8 max-w-xl text-base leading-relaxed text-white/80">
-            Hire better people, manage projects calmly, and stop being the bottleneck,
-            all with OnSwift, an all-in-one operating system for agencies.
+            Bring your projects, your team and your clients into one calm workspace.
+            Set up in minutes. Free to start.
           </p>
           <button
             className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-base font-semibold text-gray-900 transition-all hover:bg-white/90"
@@ -800,20 +845,24 @@ const FinalCTA = () => {
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
 
+// Public contact address shown in the footer's Contact column.
+const CONTACT_EMAIL = 'contact.support@onswift.org';
+
 const Footer = () => (
   <footer
+    id="contact"
     className="reveal py-16"
     data-reveal
     style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.08)' }}
   >
     <div className="mx-auto max-w-6xl px-6 lg:px-10">
-      <div className="grid grid-cols-1 gap-12 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-12 md:grid-cols-4">
         {/* Col 1: Logo + tagline */}
         <div>
           <img src="/onswift-logo-white.png" alt="OnSwift" className="mb-4 h-7 w-auto" style={{ filter: 'brightness(0)' }} />
           <p className="text-sm leading-relaxed text-gray-600">
-            Hire better people, manage projects calmly, and stop being the bottleneck,
-            all with OnSwift, an all-in-one operating system for agencies.
+            The operating system for service businesses. Projects, team and clients in one calm
+            workspace, with an AI agent that keeps it all moving.
           </p>
         </div>
 
@@ -821,12 +870,34 @@ const Footer = () => (
         <div>
           <p className="mb-4 text-sm font-semibold text-black">Company</p>
           <ul className="flex flex-col gap-3">
-            {['About Us', 'Contact', 'Product', 'Newsletter', 'Blogs', 'Pricing'].map((link) => (
-              <li key={link}>
-                <a href="#" className="inline-block py-1 text-sm text-gray-600 transition-colors hover:text-black">{link}</a>
+            {[
+              { label: 'Product', href: '#product' },
+              { label: 'FAQ', href: '#faq' },
+              { label: 'Blog', href: '/blog' },
+            ].map((link) => (
+              <li key={link.label}>
+                {link.href.startsWith('/') ? (
+                  <Link to={link.href} className="inline-block py-1 text-sm text-gray-600 transition-colors hover:text-black">{link.label}</Link>
+                ) : (
+                  <a href={link.href} className="inline-block py-1 text-sm text-gray-600 transition-colors hover:text-black">{link.label}</a>
+                )}
               </li>
             ))}
           </ul>
+        </div>
+
+        {/* Col 3: Contact */}
+        <div>
+          <p className="mb-4 text-sm font-semibold text-black">Contact</p>
+          <p className="mb-3 text-sm leading-relaxed text-gray-600">
+            Questions, partnerships or a walkthrough for your team? We reply within one business day.
+          </p>
+          <a
+            href={`mailto:${CONTACT_EMAIL}`}
+            className="inline-block py-1 text-sm font-semibold text-[#5b3fc4] transition-colors hover:text-black"
+          >
+            {CONTACT_EMAIL}
+          </a>
         </div>
 
         {/* Col 3: Resources */}
@@ -843,7 +914,7 @@ const Footer = () => (
       </div>
 
       <div className="mt-12 border-t border-black/10 pt-8">
-        <p className="text-center text-xs text-gray-600">© 2025 OnSwift. Calm systems for growing agencies.</p>
+        <p className="text-center text-xs text-gray-600">© {new Date().getFullYear()} OnSwift. The operating system for service businesses.</p>
       </div>
     </div>
   </footer>
@@ -886,6 +957,7 @@ export default function Landing() {
         <Navigation />
         <HeroSection />
         <TrustedBySection />
+        <WhyOnSwiftSection />
         <ProblemSection />
         <BridgeStatement />
         <FeaturesSection />
