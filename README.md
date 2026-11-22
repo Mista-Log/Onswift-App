@@ -224,6 +224,10 @@ Names only; never commit values.
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in ID-token verification and Calendar OAuth | |
 | `ASSISTANT_EMAIL` | Service-account email for OnSwift AI | `assistant@onswift.org` |
 | `DIGEST_CRON_TOKEN` | Shared secret for `POST /api/v2/reminders/send-due/` | Endpoint answers 503 if unset |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Lets Django verify `/admin` (Supabase) sessions for the email campaign API | Same values as the frontend's `VITE_SUPABASE_*` |
+| `CAMPAIGN_ADMIN_EMAILS` | Comma-separated Supabase admin emails allowed to use Email campaigns | Empty = nobody |
+| `CAMPAIGN_CREDS_KEY` | Fernet key that encrypts admins' saved SMTP passwords | Generate once with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Changing it makes saved passwords unreadable |
+| `PUBLIC_API_URL` | Optional public backend URL for campaign unsubscribe links | Defaults to the host that served the scheduler call |
 
 Hard-coded in settings (change in code, not env): `DEBUG = False`, CORS allowed origins (`https://onswift-app.vercel.app`, `https://www.onswift.org`, `http://localhost:8080`), CSRF trusted origins, JWT lifetimes (access **20 minutes**, refresh **7 days**), scoped throttles for public forms (`standalone_form_submit` 10/hour, `standalone_form_upload` 20/hour), production security flags (secure cookies, HSTS for one week with subdomains and preload, `SECURE_PROXY_SSL_HEADER`).
 
@@ -1139,6 +1143,15 @@ Repository secrets used: `DJANGO_SECRET_KEY`, `DATABASE_URL`, `GCP_WORKLOAD_IDEN
 
 **Production checklist.** Set `SECRET_KEY`, `ALLOWED_HOSTS` (include the Cloud Run host), `DATABASE_URL`, Cloudinary and SMTP credentials, `FRONTEND_URL`, Google credentials, and `DIGEST_CRON_TOKEN`; add the frontend origin to `CORS_ALLOWED_ORIGINS`/`CSRF_TRUSTED_ORIGINS` in `settings.py` (these lists are hard-coded); schedule the digest call; run migrations before deploying code that needs them.
 
+**Email campaigns (`/admin/email/*`).** The production version of the old `send_winback.py` script: the Django app `campaigns`, mounted at `/api/v10/`, with the frontend in `src/pages/admin/email/` (Material 3, lazy-loaded).
+- Each admin saves their own SMTP mailbox under Sender settings. The password is Fernet-encrypted and never returned. Campaigns send from the mailbox of the admin who presses Start.
+- Sends are queued in the database and drained by `POST /api/v10/campaigns/send-due/` (header `X-Cron-Token: $DIGEST_CRON_TOKEN`). Each call sends what is due for up to about 45 seconds, spacing emails 20–45 seconds apart and respecting each sender's daily limit.
+- To go live:
+  1. Set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `CAMPAIGN_ADMIN_EMAILS` and `CAMPAIGN_CREDS_KEY` on Cloud Run.
+  2. Create a Cloud Scheduler job that POSTs to that URL **every minute** with the header.
+  3. Run `python manage.py import_winback_state --sent-log <sent_log.txt> --optouts <optouts.txt>` once against production. It marks everyone the script already emailed as sent, so they're skipped, and creates the Win-back campaign as a draft.
+- Opt-outs are global. The unsubscribe link (GET shows a confirm button; POST and one-click unsubscribe record it) and the Opt-outs page both write to the same list.
+
 ---
 
 ## 14. Testing
@@ -1162,6 +1175,7 @@ Repository secrets used: `DJANGO_SECRET_KEY`, `DATABASE_URL`, `GCP_WORKLOAD_IDEN
 | `/f/:slug` | Public | Standalone form fill |
 | `/blog`, `/blog/:slug` | Public | Blog |
 | `/admin/login`, `/admin/dashboard`, `/admin/posts/new`, `/admin/posts/:id/edit`, `/admin/categories` | Supabase admins | Blog CMS |
+| `/admin/email/campaigns`, `/admin/email/campaigns/:id`, `/admin/email/sender`, `/admin/email/opt-outs` | Supabase admins on `CAMPAIGN_ADMIN_EMAILS` | Email campaigns |
 | `/dashboard` | All (role-branched) | Creator / Talent / Client dashboard |
 | `/projects`, `/projects/:id` | All (client gets client pages) | Projects, project detail |
 | `/projects/:projectId/messages` | Client (and creator via modal) | Project thread |

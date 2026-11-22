@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { LogOut, FileText, Folder, Menu, X } from 'lucide-react'
+import { LogOut, FileText, Folder, Menu, X, Mail, UserCog, Ban } from 'lucide-react'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 import { Button } from '@/components/ui/button'
 
@@ -36,6 +36,34 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       >
         <Folder className="h-4 w-4" />
         Categories
+      </Link>
+
+      <div className="mb-3 mt-6 text-xs font-semibold uppercase text-slate-500">
+        Email
+      </div>
+      <Link
+        to="/admin/email/campaigns"
+        onClick={() => setSidebarOpen(false)}
+        className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+      >
+        <Mail className="h-4 w-4" />
+        Campaigns
+      </Link>
+      <Link
+        to="/admin/email/sender"
+        onClick={() => setSidebarOpen(false)}
+        className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+      >
+        <UserCog className="h-4 w-4" />
+        Sender settings
+      </Link>
+      <Link
+        to="/admin/email/opt-outs"
+        onClick={() => setSidebarOpen(false)}
+        className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+      >
+        <Ban className="h-4 w-4" />
+        Opt-outs
       </Link>
     </>
   )

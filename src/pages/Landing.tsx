@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, Check, ChevronDown, Menu, Minus, Plus, X } from 'lucide-react';
 import { DashboardPreview } from '@/components/landing/DashboardPreview';
@@ -56,6 +56,12 @@ const XBadge = () => (
   </span>
 );
 
+// One italic word inside a heading, echoing the hero's "With Ease". Rule: one word, never a
+// whole line, and only in a few sections.
+const SerifAccent = ({ children }: { children: React.ReactNode }) => (
+  <span className="font-instrument-serif italic">{children}</span>
+);
+
 const SectionBadge = ({ children, light }: { children: React.ReactNode; light?: boolean }) => (
   <span
     className="inline-block rounded-full px-5 py-2 text-sm font-semibold transition-colors duration-700"
@@ -70,7 +76,7 @@ const SectionBadge = ({ children, light }: { children: React.ReactNode; light?: 
 );
 
 // Continuous (non-unobserving) in-view tracker — used where a section's color scheme
-// should toggle back when scrolled away, unlike the one-shot `reveal`/`data-reveal` fade-in below.
+// should toggle back when scrolled away (the element-level scroll reveal is set up in `Landing` below).
 function useInViewToggle<T extends HTMLElement>(threshold = 0) {
   const ref = useRef<T>(null);
   const [inView, setInView] = useState(false);
@@ -235,8 +241,7 @@ const HeroSection = () => {
   return (
     <section
       id="top"
-      className="reveal relative flex min-h-screen flex-col items-center justify-center overflow-hidden pt-28 pb-16 text-center"
-      data-reveal
+      className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden pt-28 pb-16 text-center"
       // Lavender-to-violet: deep violet behind the white headline for contrast, easing into soft
       // lavender behind the dashboard so the hero melts into the white section below.
       style={{ background: 'linear-gradient(180deg, #3b1f8f 0%, #5b3fc4 30%, #8b6cf0 55%, #c4b5fd 80%, #ede9fe 100%)' }}
@@ -252,24 +257,29 @@ const HeroSection = () => {
       />
 
       <div className="relative z-10 mx-auto mt-3 max-w-5xl px-6 md:mt-40">
-        <h1
-          className="animate-fade-in-up mb-6 font-instrument-serif text-3xl leading-[1.1] text-white opacity-0 sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl"
-          style={{ animationDelay: '0.1s' }}
-        >
-          Run Your Service Business<br /><span className="italic">With Ease</span>
+        {/* Each line rises from under its own mask edge, with a soft bounce. */}
+        <h1 className="mb-6 font-instrument-serif text-3xl leading-[1.1] text-white sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl">
+          <span className="reveal-item reveal-mask" data-reveal-item data-reveal-delay="150">
+            <span>Run Your Service Business</span>
+          </span>
+          <span className="reveal-item reveal-mask" data-reveal-item data-reveal-delay="450">
+            <span className="italic">With Ease .</span>
+          </span>
         </h1>
 
         <p
-          className="animate-fade-in-up mx-auto mb-10 max-w-xl text-base font-light leading-relaxed text-white/70 opacity-0 md:text-lg"
-          style={{ animationDelay: '0.25s' }}
+          className="reveal-item mx-auto mb-10 max-w-xl text-base font-light leading-relaxed text-white/70 md:text-lg"
+          data-reveal-item
+          data-reveal-delay="1000"
         >
           OnSwift is the operating system for service businesses. You run the projects, your team
           delivers, your clients follow along, and an AI agent handles the busywork in between.
         </p>
 
         <div
-          className="animate-fade-in-up flex flex-col items-center gap-4 opacity-0 sm:flex-row sm:justify-center"
-          style={{ animationDelay: '0.4s' }}
+          className="reveal-item hero-cta-split flex flex-col items-center gap-4 sm:flex-row sm:justify-center"
+          data-reveal-item
+          data-reveal-delay="1300"
         >
           <button
             className="group inline-flex items-center gap-2 rounded-full bg-white px-7 py-3 text-sm font-medium text-black transition-all hover:bg-white/90 hover:shadow-lg"
@@ -290,15 +300,25 @@ const HeroSection = () => {
         </div>
       </div>
 
-      {/* Dashboard preview */}
-      <div className="relative z-10 mx-auto mt-16 w-full max-w-5xl px-6">
-        <div
-          className="relative overflow-hidden rounded-2xl border border-white/40"
-          style={{
-            boxShadow: '0 0 60px rgba(124,92,232,0.35), 0 40px 80px rgba(59,31,143,0.35)',
-          }}
-        >
-          <DashboardPreview />
+      {/* Dashboard preview: 15% wider than max-w-5xl (64rem), with light skimming its border */}
+      <div
+        className="reveal-item relative z-10 mx-auto mt-16 w-full max-w-[73.6rem] px-6"
+        data-reveal-item
+        data-reveal-delay="1600"
+      >
+        <div className="relative">
+          <div
+            className="relative overflow-hidden rounded-2xl border border-white/40"
+            style={{
+              boxShadow: '0 0 60px rgba(124,92,232,0.35), 0 40px 80px rgba(59,31,143,0.35)',
+            }}
+          >
+            <DashboardPreview />
+          </div>
+          <div className="hero-ring-glow" aria-hidden="true">
+            <div className="hero-ring" />
+          </div>
+          <div className="hero-ring" aria-hidden="true" />
         </div>
       </div>
     </section>
@@ -308,7 +328,7 @@ const HeroSection = () => {
 // ─── Trusted By ───────────────────────────────────────────────────────────────
 
 const TrustedBySection = () => (
-  <section className="reveal py-12" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+  <section className="py-12" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
     <div className="mx-auto max-w-5xl px-6">
       <p className="mb-8 text-center text-sm font-medium tracking-widest text-gray-600 uppercase">
         Trusted by growing service businesses
@@ -317,6 +337,7 @@ const TrustedBySection = () => (
         {['OVERBOOKED', 'MATHETES', 'Kaicension', 'AGENCYE'].map((brand) => (
           <span
             key={brand}
+            data-reveal-item
             className="text-base font-bold tracking-wider text-gray-500 transition-colors hover:text-black"
           >
             {brand}
@@ -325,7 +346,63 @@ const TrustedBySection = () => (
       </div>
     </div>
   </section>
+  
 );
+
+// ─── Bridge Statement ─────────────────────────────────────────────────────────
+
+// The statement pins to the screen on its own, then fades out as the reader keeps scrolling.
+// The section is taller than the viewport so the pinned stretch has room to play out.
+const BridgeStatement = () => {
+  const sectionRef = useRef<HTMLElement>(null);
+  const textRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    const text = textRef.current;
+    if (!section || !text || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+
+    const clamp = (n: number) => Math.min(1, Math.max(0, n));
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const rect = section.getBoundingClientRect();
+      const vh = window.innerHeight;
+      // 0 → 1 while it rises into view; then 1 → 0 over the back half of the pinned stretch.
+      const enter = clamp(1 - rect.top / (vh * 0.6));
+      const progress = clamp(-rect.top / Math.max(1, rect.height - vh));
+      const exit = 1 - clamp((progress - 0.3) / 0.6);
+      text.style.opacity = String(Math.min(enter, exit));
+      text.style.translate = `0 ${(1 - exit) * -40}px`;
+      text.style.filter = exit < 1 ? `blur(${(1 - exit) * 6}px)` : '';
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, []);
+
+  return (
+    <section ref={sectionRef} className="relative h-[200vh]" style={{ background: '#ffffff' }}>
+      <div className="sticky top-0 flex h-screen items-center justify-center">
+        <p
+          ref={textRef}
+          className="mx-auto max-w-4xl px-6 text-center text-2xl leading-snug text-black md:text-3xl lg:text-4xl"
+        >
+          OnSwift puts your projects, your team and your clients in one workspace, with an AI agent
+          that keeps it all moving. The business keeps running, even when you step out of the room.
+        </p>
+      </div>
+    </section>
+  );
+};
 
 // ─── Why OnSwift ──────────────────────────────────────────────────────────────
 
@@ -336,7 +413,7 @@ const WHY_CARDS = [
 ];
 
 const WhyOnSwiftSection = () => (
-  <section id="product" className="reveal py-20 lg:py-28" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+  <section id="product" className="py-20 lg:py-28" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
     <div className="mx-auto max-w-6xl px-6 lg:px-10">
       <div className="mb-12 flex flex-col items-center text-center">
         <span
@@ -345,9 +422,12 @@ const WhyOnSwiftSection = () => (
         >
           Why OnSwift?
         </span>
-        <h2 className="max-w-2xl text-3xl font-bold leading-tight text-black md:text-4xl lg:text-5xl">
-          Run Your Service Business with Ease.
-        </h2>
+       
+          
+        
+        <h2 className="mb-4 text-left text-3xl font-instrument-serif font-normal leading-tight text-black md:text-5xl lg:text-6xl">
+            Cause <SerifAccent>why not?</SerifAccent>
+          </h2>
       </div>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {WHY_CARDS.map((card) => (
@@ -367,19 +447,13 @@ const WhyOnSwiftSection = () => (
 // ─── Problem Section ──────────────────────────────────────────────────────────
 
 const ProblemSection = () => (
-  <section className="reveal py-20 lg:py-28" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+  <section className="py-20 lg:py-28" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
     <div className="mx-auto max-w-6xl px-6 lg:px-10">
-      <div className="flex flex-col items-center gap-12 lg:flex-row lg:items-start lg:gap-16">
-        <img
-          src="/assets/onswift_customer.png"
-          alt="OnSwift Customer"
-          className="w-full max-w-xs shrink-0 rounded-3xl border border-black/10 lg:w-72"
-        />
-
+      <div className="flex flex-col gap-12 lg:flex-row lg:items-start lg:gap-16">
         {/* Content */}
         <div className="flex-1">
-          <h2 className="mb-4 text-1xl font-bold leading-tight text-black md:text-4xl lg:text-5xl">
-            You Didn&apos;t Start a Business to Become a Project Manager.
+          <h2 className="mb-4 text-left text-3xl font-instrument-serif font-normal leading-tight text-black md:text-5xl lg:text-6xl">
+            Did You Start a Business to Become a Problem Manager? We <SerifAccent>doubt</SerifAccent> that
           </h2>
           <p className="mb-8 text-base text-gray-600 md:text-lg">
             You built it because you&apos;re great at the work. Somewhere along the way, the work became:
@@ -404,18 +478,7 @@ const ProblemSection = () => (
   </section>
 );
 
-// ─── Bridge Statement ─────────────────────────────────────────────────────────
 
-const BridgeStatement = () => (
-  <section className="reveal py-20 lg:py-28" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-    <div className="mx-auto max-w-4xl px-6 text-center">
-      <p className="text-2xl leading-snug text-black md:text-3xl lg:text-4xl">
-        OnSwift puts your projects, your team and your clients in one workspace, with an AI agent
-        that keeps it all moving. The business keeps running, even when you step out of the room.
-      </p>
-    </div>
-  </section>
-);
 
 // ─── Features Bento ───────────────────────────────────────────────────────────
 
@@ -456,7 +519,7 @@ const FeaturesSection = () => {
     <section
       id="features"
       ref={sectionRef}
-      className="reveal py-20 transition-colors duration-700 lg:py-28"
+      className="py-20 transition-colors duration-700 lg:py-28"
       data-reveal
       style={{
         background: inView ? 'hsl(250 76% 63%)' : '#ffffff',
@@ -466,8 +529,8 @@ const FeaturesSection = () => {
       <div className="mx-auto max-w-7xl px-6 lg:px-10">
         <div className="mb-12 text-center">
           <SectionBadge light={inView}>Features</SectionBadge>
-          <h2 className={`mt-5 text-3xl font-bold transition-colors duration-700 md:text-4xl lg:text-5xl ${inView ? 'text-white' : 'text-black'}`}>
-            One Workspace. <br />Every Moving Part.
+          <h2 className={`mt-5 text-4xl font-instrument-serif font-normal transition-colors duration-700 md:text-5xl lg:text-6xl ${inView ? 'text-white' : 'text-black'}`}>
+            One Workspace <br />That Has Every Moving Part.
           </h2>
         </div>
 
@@ -479,7 +542,7 @@ const FeaturesSection = () => {
                 <img src={f.image} alt={f.title} className={`h-auto w-full ${f.imageClassName ?? ''}`} />
               </div>
               <div className="p-6">
-                <h3 className="mb-2 text-lg font-bold text-black">{f.title}</h3>
+                <h3 className="mb-2 text-2xl font-instrument-serif font-normal text-black">{f.title}</h3>
                 <p className="text-base leading-relaxed text-gray-600">{f.description}</p>
               </div>
             </div>
@@ -494,7 +557,7 @@ const FeaturesSection = () => {
                 <img src={f.image} alt={f.title} className={`h-auto w-full ${f.imageClassName ?? ''}`} />
               </div>
               <div className="p-6">
-                <h3 className="mb-2 text-lg font-bold text-black">{f.title}</h3>
+                <h3 className="mb-2 text-2xl font-instrument-serif font-normal text-black">{f.title}</h3>
                 <p className="text-base leading-relaxed text-gray-600">{f.description}</p>
               </div>
             </div>
@@ -516,7 +579,7 @@ const HowItWorksSection = () => {
         'Create projects in a click, or just ask the AI agent',
         'Invite your team with a single link',
         'Send clients a branded onboarding form',
-        'Sync every deadline to Google Calendar',
+        
       ],
       image: '/assets/feature-invite.png',
       imageLeft: false,
@@ -537,23 +600,54 @@ const HowItWorksSection = () => {
       title: 'Deliver & Grow',
       description: 'Ship work clients approve, and take on more of it.',
       bullets: [
-        'Review and approve deliverables in one place',
-        'Clients track progress in their own portal',
-        'Analytics on delivery and team performance',
         'Add clients without adding chaos',
+        'Clients track progress in their own portal',
+        'Review and approve deliverables in one place',
+        'Analytics on delivery and team performance',
       ],
       image: '/assets/feature-deadliner.png',
       imageLeft: false,
     },
   ];
 
+  // lg+ only (where the cards pin). A card that has just pinned gets a small settle; cards
+  // that a newer card has covered ease back and dim, so the stack reads as layered.
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  useEffect(() => {
+    const wide = window.matchMedia('(min-width: 1024px)');
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const cards = cardRefs.current.filter((c): c is HTMLDivElement => !!c);
+      const stuck = cards.map((card, i) => wide.matches && card.getBoundingClientRect().top <= 104 + i * 24 + 1);
+      cards.forEach((card, i) => {
+        const covered = stuck[i] && stuck.slice(i + 1).some(Boolean);
+        card.classList.toggle('is-stuck', stuck[i] && !covered);
+        card.classList.toggle('is-covered', covered);
+      });
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, []);
+
   return (
     <section id="how-it-works" className="py-20 lg:py-28" style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
-        <div className="reveal mb-14 text-center" data-reveal>
+        <div className="mb-14 text-center" data-reveal>
           <SectionBadge>How it Works</SectionBadge>
-          <h2 className="mt-5 text-3xl font-bold text-black md:text-4xl lg:text-5xl">
-            From Kickoff to Client Approval, <br />in One Flow.
+          <h2 className="mt-5 text-4xl font-instrument-serif font-normal text-black md:text-5xl lg:text-6xl">
+            From Kickoff to Client Approval, <br />in One <SerifAccent>Flow</SerifAccent>.
           </h2>
         </div>
 
@@ -564,7 +658,10 @@ const HowItWorksSection = () => {
           {steps.map((step, index) => (
             <div
               key={step.title}
-              className="overflow-hidden rounded-3xl lg:sticky"
+              ref={(el) => {
+                cardRefs.current[index] = el;
+              }}
+              className="how-card overflow-hidden rounded-3xl lg:sticky"
               style={{
                 background: '#fafafa',
                 border: '1px solid rgba(0,0,0,0.08)',
@@ -575,7 +672,7 @@ const HowItWorksSection = () => {
               <div className={`flex flex-col gap-8 p-8 lg:flex-row lg:items-center lg:gap-12 lg:p-12 ${step.imageLeft ? 'lg:flex-row-reverse' : ''}`}>
                 {/* Text */}
                 <div className="flex-1">
-                  <h3 className="mb-3 text-2xl font-black text-black md:text-3xl">{step.title}</h3>
+                  <h3 className="mb-3 text-3xl font-instrument-serif font-normal text-black md:text-4xl">{step.title}</h3>
                   <p className="mb-6 text-base text-gray-600">{step.description}</p>
                   <ul className="flex flex-col gap-3">
                     {step.bullets.map((b) => (
@@ -635,7 +732,7 @@ const CreatorToolsSection = () => {
     <section
       id="creator-tools"
       ref={sectionRef}
-      className="reveal py-20 transition-colors duration-700 lg:py-28"
+      className="py-20 transition-colors duration-700 lg:py-28"
       data-reveal
       style={{
         background: inView ? '#000000' : '#ffffff',
@@ -645,8 +742,8 @@ const CreatorToolsSection = () => {
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
         <div className="mb-12 text-center">
           <SectionBadge light={inView}>Who It&apos;s For</SectionBadge>
-          <h2 className={`mt-5 text-3xl font-bold transition-colors duration-700 md:text-4xl lg:text-5xl ${inView ? 'text-white' : 'text-black'}`}>
-            One Platform.<br />Every Side of the Work.
+          <h2 className={`mt-5 text-4xl font-instrument-serif font-normal transition-colors duration-700 md:text-5xl lg:text-6xl ${inView ? 'text-white' : 'text-black'}`}>
+            One Platform<br />For Every Side of the Work.
           </h2>
           <p className={`mt-4 text-base transition-colors duration-700 ${inView ? 'text-white/80' : 'text-gray-600'}`}>
             Creators get control, teams get clarity and clients get confidence.
@@ -664,7 +761,7 @@ const CreatorToolsSection = () => {
               }}
             >
               <div className="p-6">
-                <h3 className="mb-2 text-lg font-bold text-black">{card.title}</h3>
+                <h3 className="mb-2 text-2xl font-instrument-serif font-normal text-black">{card.title}</h3>
                 <p className="mb-4 text-sm leading-relaxed text-gray-600">{card.description}</p>
               </div>
               <div className="overflow-hidden bg-white p-4">
@@ -703,39 +800,64 @@ const TestimonialsSection = () => {
   ];
 
   return (
-    <section id="testimonials" className="reveal py-20 lg:py-28" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+    <section id="testimonials" className="py-20 lg:py-28" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
         <div className="mb-12 text-center">
           <SectionBadge>Testimonials</SectionBadge>
-          <h2 className="mt-5 text-3xl font-bold text-black md:text-4xl lg:text-5xl">
+          <h2 className="mt-5 text-4xl font-instrument-serif font-normal text-black md:text-5xl lg:text-6xl">
             Founders Who Stopped <br />Being the Bottleneck
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          {testimonials.map((t) => (
-            <div
-              key={t.author}
-              className="flex flex-col justify-between rounded-xl p-7"
-              style={{
-                background: '#fafafa',
-                border: '1px solid rgba(0,0,0,0.08)',
-              }}
-            >
-              <p className="mb-6 text-sm leading-relaxed text-gray-700">{t.quote}</p>
-              <div className="flex items-center gap-3 border-t border-black/10 pt-5">
-                <img
-                  src={t.avatar}
-                  alt={t.author}
-                  className="h-10 w-10 shrink-0 rounded-full object-cover"
-                />
-                <div>
-                  <p className="text-sm font-semibold text-black">{t.author}</p>
-                  <p className="text-xs text-gray-600">{t.role}</p>
-                </div>
-              </div>
-            </div>
-          ))}
+        {/* Large quote cards: a wide soft-gradient card beside a narrow solid accent,
+            then the third quote across the full width. */}
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
+          {testimonials.map((t, i) => {
+            const accent = i === 1;
+            return (
+              <figure
+                key={t.author}
+                className={`relative flex min-h-[340px] flex-col justify-between overflow-hidden rounded-2xl p-7 md:min-h-[420px] md:p-9 ${
+                  i === 0 ? 'lg:col-span-3' : i === 1 ? 'lg:col-span-2' : 'lg:col-span-5 lg:min-h-[320px]'
+                }`}
+                style={{
+                  background: accent
+                    ? '#7c5ce8'
+                    : i === 0
+                      ? 'linear-gradient(160deg, #dcd3ff 0%, #ece8ff 45%, #f6f2ff 100%)'
+                      : 'linear-gradient(160deg, #e8f0ff 0%, #efeaff 55%, #f8f5ff 100%)',
+                }}
+              >
+                {/* Faint oversized quote mark as the watermark */}
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 100 80"
+                  className="pointer-events-none absolute -right-8 top-1/2 w-[340px] -translate-y-1/2 md:w-[420px]"
+                  fill={accent ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.55)'}
+                >
+                  <path d="M0 80V48C0 22 12 6 36 0l5 10C28 15 22 24 21 36h19v44H0Zm56 0V48C56 22 68 6 92 0l5 10C84 15 78 24 77 36h19v44H56Z" />
+                </svg>
+
+                <blockquote
+                  className={`relative max-w-xl pl-[0.4em] text-xl leading-snug tracking-tight md:text-2xl lg:text-[1.7rem] ${
+                    accent ? 'text-white' : 'text-[#14112a]'
+                  }`}
+                  style={{ textIndent: '-0.4em' }}
+                >
+                  &ldquo;{t.quote}&rdquo;
+                </blockquote>
+
+                <figcaption className="relative mt-10 flex items-center gap-4">
+                  <img src={t.avatar} alt={t.author} className="h-9 w-9 shrink-0 rounded-full object-cover" />
+                  <span className={`h-9 w-px ${accent ? 'bg-white/30' : 'bg-black/10'}`} aria-hidden="true" />
+                  <span>
+                    <span className={`block text-sm font-semibold ${accent ? 'text-white' : 'text-black'}`}>{t.author}</span>
+                    <span className={`block text-xs ${accent ? 'text-white/75' : 'text-gray-600'}`}>{t.role}</span>
+                  </span>
+                </figcaption>
+              </figure>
+            );
+          })}
         </div>
       </div>
     </section>
@@ -757,13 +879,13 @@ const FAQSection = () => {
   ];
 
   return (
-    <section id="faq" className="reveal py-20 lg:py-28" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+    <section id="faq" className="py-20 lg:py-28" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
         <div className="flex flex-col gap-12 lg:flex-row lg:gap-16">
           {/* Left: title */}
           <div className="lg:w-80 lg:shrink-0">
             <SectionBadge>FAQ</SectionBadge>
-            <h2 className="mt-5 text-3xl font-bold leading-tight text-black md:text-4xl">
+            <h2 className="mt-5 text-4xl font-instrument-serif font-normal leading-tight text-black md:text-5xl">
               Questions, Answered
             </h2>
             <p className="mt-4 text-base text-gray-600">
@@ -776,6 +898,7 @@ const FAQSection = () => {
             {faqs.map((item, i) => (
               <div
                 key={item.question}
+                data-reveal-item
                 className={`overflow-hidden rounded-2xl transition-shadow ${open === i ? '' : 'hover:shadow-[inset_0_0_0_1px_rgba(124,92,232,0.35)]'}`}
                 style={{
                   background: open === i ? 'rgba(124,92,232,0.08)' : '#fafafa',
@@ -814,7 +937,7 @@ const FinalCTA = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="reveal py-20 lg:py-28" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+    <section className="py-20 lg:py-28" data-reveal style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
       <div className="mx-auto max-w-6xl px-6 lg:px-10">
         <div
           className="mx-auto max-w-4xl overflow-hidden rounded-3xl p-10 text-center md:p-16"
@@ -822,8 +945,8 @@ const FinalCTA = () => {
             background: 'linear-gradient(140deg, #2d1b5e 0%, #46299c 50%, #5b3fc4 100%)',
           }}
         >
-          <h2 className="mb-5 text-3xl font-bold leading-tight text-white md:text-5xl lg:text-6xl">
-            Stop Being<br />the Bottleneck.
+          <h2 className="mb-5 text-4xl font-instrument-serif font-normal leading-tight text-white md:text-6xl lg:text-7xl">
+            Stop Being<br />the <SerifAccent>Bottleneck</SerifAccent>.
           </h2>
           <p className="mx-auto mb-8 max-w-xl text-base leading-relaxed text-white/80">
             Bring your projects, your team and your clients into one calm workspace.
@@ -851,7 +974,7 @@ const CONTACT_EMAIL = 'contact.support@onswift.org';
 const Footer = () => (
   <footer
     id="contact"
-    className="reveal py-16"
+    className="py-16"
     data-reveal
     style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.08)' }}
   >
@@ -922,32 +1045,65 @@ const Footer = () => (
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function Landing() {
-  useEffect(() => {
-    const elements = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'));
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Pieces inside a [data-reveal] section that animate in on their own, in reading order.
+// An element already inside a picked element is skipped, so a card moves as one unit.
+const REVEAL_PICK = 'h1, h2, h3, p, li, img, button, blockquote, span[class*="rounded-full"], .grid > *, [data-reveal-item]';
+const REVEAL_STAGGER_MS = 120;
+const REVEAL_MAX_STAGGER = 6;
 
-    if (prefersReduced) {
-      elements.forEach((el) => el.classList.add('is-visible'));
+function collectRevealItems(): HTMLElement[] {
+  const picked: HTMLElement[] = Array.from(document.querySelectorAll<HTMLElement>('#top [data-reveal-item]'));
+  document.querySelectorAll<HTMLElement>('[data-reveal]').forEach((section) => {
+    section.querySelectorAll<HTMLElement>(REVEAL_PICK).forEach((el) => {
+      if (!picked.some((p) => p === el || p.contains(el))) picked.push(el);
+    });
+  });
+  return picked;
+}
+
+export default function Landing() {
+  // Layout effect: items are hidden before the first paint, so nothing flashes in and back out.
+  useLayoutEffect(() => {
+    const items = collectRevealItems();
+    items.forEach((el) => el.classList.add('reveal-item'));
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      items.forEach((el) => el.classList.add('is-visible'));
       return undefined;
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
+        const entering = entries
+          .filter((e) => e.isIntersecting && !e.target.classList.contains('is-visible'))
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top || a.boundingClientRect.left - b.boundingClientRect.left);
+
+        entering.forEach((entry, i) => {
+          const el = entry.target as HTMLElement;
+          // The hero's slow choreographed delays apply on first load only; later passes use the stagger.
+          const fixed = el.dataset.revealDelay;
+          delete el.dataset.revealDelay;
+          el.style.setProperty(
+            '--reveal-delay',
+            `${fixed ?? Math.min(i, REVEAL_MAX_STAGGER) * REVEAL_STAGGER_MS}ms`
+          );
+          el.classList.add('is-visible');
+        });
+
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-visible');
-            observer.unobserve(entry.target);
-          }
+          if (entry.isIntersecting) return;
+          const el = entry.target as HTMLElement;
+          // Left through the top (reader scrolled down past it): next time it comes back from above.
+          const exitedAbove = entry.boundingClientRect.bottom <= (entry.rootBounds?.top ?? 0);
+          el.style.setProperty('--reveal-from', exitedAbove ? '-1' : '1');
+          el.classList.remove('is-visible');
         });
       },
-      {
-        threshold: 0.2,
-        rootMargin: '0px 0px -10% 0px',
-      }
+      // A small inset so items animate once they're properly on screen, not at the very edge.
+      { threshold: 0, rootMargin: '-6% 0px -6% 0px' }
     );
 
-    elements.forEach((el) => observer.observe(el));
+    items.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, []);
 
@@ -957,9 +1113,9 @@ export default function Landing() {
         <Navigation />
         <HeroSection />
         <TrustedBySection />
+        <BridgeStatement />
         <WhyOnSwiftSection />
         <ProblemSection />
-        <BridgeStatement />
         <FeaturesSection />
         <HowItWorksSection />
         <CreatorToolsSection />

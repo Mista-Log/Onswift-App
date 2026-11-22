@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     'docs',
     'agent',
     'assistant',
+    'campaigns',
     "corsheaders",
     "rest_framework",
     "rest_framework.authtoken",
