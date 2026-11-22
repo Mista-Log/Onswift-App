@@ -1,11 +1,4 @@
-
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk&display=swap");
-
-/* Landing page hero headline only — see tailwind.config.ts `instrument-serif` font family */
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+/* Google Fonts (Inter, Space Grotesk, Instrument Serif) load from <link> tags in index.html. */
 
 /* 7-segment LCD digits for the deadline countdown (DSEG7, SIL OFL 1.1 — see public/fonts/DSEG-LICENSE.txt) */
 @font-face {
@@ -307,16 +300,6 @@
     animation: fadeIn 0.5s ease-out forwards;
   }
 
-  .reveal {
-    opacity: 0;
-    transform: translateY(40px) scale(0.98);
-  }
-
-  .reveal.is-visible {
-    opacity: 1;
-    animation: revealRise 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
   .animate-slide-up {
     animation: slideUp 0.5s ease-out forwards;
   }
@@ -336,18 +319,144 @@
   }
 }
 
-@keyframes revealRise {
+/* ─── Landing: scroll reveal ──────────────────────────────────────────────────
+   Landing.tsx tags elements with .reveal-item and toggles .is-visible as they enter
+   and leave the viewport, so they replay in both scroll directions. --reveal-from is
+   +1 when the element waits below the viewport and -1 when it waits above (scrolling
+   back up), so it always rises toward where the reader is looking.
+   Uses the individual `translate` property (not `transform`) so it never fights an
+   element's own hover transforms or transitions. */
+.reveal-item {
+  --reveal-from: 1;
+  --reveal-delay: 0ms;
+}
+
+.reveal-item:not(.is-visible) {
+  opacity: 0;
+  translate: 0 calc(var(--reveal-from) * 56px);
+}
+
+.reveal-item.is-visible {
+  animation: revealSoftBounce 1.5s cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay) both;
+}
+
+@keyframes revealSoftBounce {
   0% {
     opacity: 0;
-    transform: translateY(40px) scale(0.98);
+    translate: 0 calc(var(--reveal-from) * 56px);
   }
-  70% {
+  55% {
     opacity: 1;
-    transform: translateY(-6px) scale(1.01);
+    translate: 0 calc(var(--reveal-from) * -7px);
+  }
+  78% {
+    translate: 0 calc(var(--reveal-from) * 2px);
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    translate: 0 0;
+  }
+}
+
+/* Hero heading lines push out from under a mask edge. The line clips; its inner span moves. */
+.reveal-mask {
+  display: block;
+  overflow: hidden;
+  /* Room for descenders and the italic overhang so the mask doesn't crop glyphs. */
+  padding: 0 0.12em 0.14em;
+  margin: 0 -0.12em -0.14em;
+}
+
+.reveal-mask > span {
+  display: inline-block;
+}
+
+.reveal-mask.reveal-item:not(.is-visible) {
+  opacity: 1;
+  translate: none;
+}
+
+.reveal-mask.reveal-item:not(.is-visible) > span {
+  translate: 0 calc(var(--reveal-from) * 110%);
+}
+
+.reveal-mask.reveal-item.is-visible {
+  animation: none;
+}
+
+.reveal-mask.reveal-item.is-visible > span {
+  animation: revealFromMask 1.8s cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay) both;
+}
+
+@keyframes revealFromMask {
+  0% {
+    translate: 0 calc(var(--reveal-from) * 110%);
+  }
+  58% {
+    translate: 0 calc(var(--reveal-from) * -6%);
+  }
+  80% {
+    translate: 0 calc(var(--reveal-from) * 1.5%);
+  }
+  100% {
+    translate: 0 0;
+  }
+}
+
+/* ─── Landing: light skimming the dashboard border ───────────────────────────
+   Two comets 180deg apart travel around the border. A conic gradient spins via the
+   animatable --ring-angle; the mask keeps only a thin ring of it. The glow layer is
+   the same ring blurred (the blur sits on the wrapper so the mask doesn't clip it). */
+@property --ring-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.hero-ring {
+  position: absolute;
+  inset: -1px;
+  border-radius: calc(1rem + 1px);
+  padding: 2px;
+  pointer-events: none;
+  /* Violet tail into a white-hot head: the violet reads on the dashboard's white edge,
+     the white reads on the violet hero. */
+  background: conic-gradient(
+    from var(--ring-angle),
+    transparent 0deg,
+    rgba(139, 108, 240, 0) 8deg,
+    rgba(139, 108, 240, 0.85) 40deg,
+    rgba(196, 181, 253, 1) 54deg,
+    rgba(255, 255, 255, 1) 60deg,
+    transparent 66deg,
+    transparent 188deg,
+    rgba(139, 108, 240, 0.85) 220deg,
+    rgba(196, 181, 253, 1) 234deg,
+    rgba(255, 255, 255, 1) 240deg,
+    transparent 246deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: ringSpin 9s linear infinite;
+}
+
+.hero-ring-glow {
+  position: absolute;
+  inset: -14px;
+  pointer-events: none;
+  filter: blur(14px);
+}
+
+.hero-ring-glow > .hero-ring {
+  inset: 6px;
+  padding: 10px;
+}
+
+@keyframes ringSpin {
+  to {
+    --ring-angle: 360deg;
   }
 }
 
@@ -499,14 +608,88 @@
   animation: confetti-fall 2.2s ease-in infinite;
 }
 
+/* ─── Landing: hero CTAs split out from the centre ──────────────────────────────
+   Side by side (sm+), each button starts shifted onto the row's centre line, then slides
+   back to its place once the row is visible. 50% of its own width + half the 1rem gap. */
+@media (min-width: 640px) {
+  .hero-cta-split > :first-child {
+    --cta-shift: calc(50% + 0.5rem);
+    position: relative;
+    z-index: 1;
+  }
+  .hero-cta-split > :last-child {
+    --cta-shift: calc(-50% - 0.5rem);
+  }
+  .hero-cta-split:not(.is-visible) > * {
+    translate: var(--cta-shift) 0;
+  }
+  .hero-cta-split.is-visible > * {
+    animation: ctaSplit 1.4s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--reveal-delay, 0ms) + 350ms) both;
+  }
+}
+
+@keyframes ctaSplit {
+  0% {
+    translate: var(--cta-shift) 0;
+  }
+  70% {
+    translate: calc(var(--cta-shift) * -0.06) 0;
+  }
+  100% {
+    translate: 0 0;
+  }
+}
+
+/* ─── Landing: How-it-works card stack ─────────────────────────────────────────
+   A card that has just pinned settles with a small give; covered cards recede. */
+.how-card {
+  transform-origin: 50% 0;
+  transition: scale 0.6s cubic-bezier(0.34, 1.4, 0.64, 1), filter 0.6s ease;
+}
+
+.how-card.is-stuck {
+  animation: howCardSettle 0.7s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.how-card.is-covered {
+  scale: 0.96;
+  filter: brightness(0.94);
+}
+
+@keyframes howCardSettle {
+  0% {
+    translate: 0 10px;
+  }
+  55% {
+    translate: 0 -3px;
+  }
+  100% {
+    translate: 0 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .reveal {
-    opacity: 1;
-    transform: none;
+  .hero-cta-split > *,
+  .how-card {
+    translate: none !important;
+    scale: none !important;
+    animation: none !important;
   }
 
-  .reveal.is-visible {
+  .reveal-item:not(.is-visible),
+  .reveal-mask.reveal-item:not(.is-visible) > span {
+    opacity: 1;
+    translate: none;
+  }
+
+  .reveal-item.is-visible,
+  .reveal-mask.reveal-item.is-visible > span {
     animation: none;
+  }
+
+  .hero-ring {
+    animation: none;
+    --ring-angle: 135deg;
   }
 }
 

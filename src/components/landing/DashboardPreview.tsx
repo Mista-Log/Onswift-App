@@ -865,7 +865,7 @@ export function DashboardPreview({ userName = "Zeus" }: { userName?: string }) {
   // Pinned to the base of Analytics, outside the scroll area, so it never covers the content.
   const analyticsNudge = (
     <div className="flex shrink-0 justify-center pb-5 pt-1">
-      {nudgeToast("Sign up to see your agency's real numbers")}
+      {nudgeToast("Sign up to see your brands real numbers")}
     </div>
   );
 
