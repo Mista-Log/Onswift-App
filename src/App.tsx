@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -84,6 +84,11 @@ import { AdminPostEditor } from "./pages/admin/AdminPostEditor";
 import { AdminCategoriesPage } from "./pages/admin/AdminCategoriesPage";
 import { AdminProtectedRoute } from "./components/admin/AdminProtectedRoute";
 import { AdminAuthProvider } from "./contexts/AdminAuthContext";
+// Admin email campaigns: lazy so their Material 3 styles and fonts only load there.
+const EmailCampaignsPage = lazy(() => import("./pages/admin/email/CampaignsPage"));
+const EmailCampaignDetailPage = lazy(() => import("./pages/admin/email/CampaignDetailPage"));
+const EmailSenderSettingsPage = lazy(() => import("./pages/admin/email/SenderSettingsPage"));
+const EmailOptOutsPage = lazy(() => import("./pages/admin/email/OptOutsPage"));
 
 // Public Blog
 import { BlogListPage } from "./pages/blog/BlogListPage";
@@ -180,6 +185,10 @@ const App = () => (
                                     <Route path="posts/new" element={<AdminPostEditor />} />
                                     <Route path="posts/:id/edit" element={<AdminPostEditor />} />
                                     <Route path="categories" element={<AdminCategoriesPage />} />
+                                    <Route path="email/campaigns" element={<Suspense fallback={null}><EmailCampaignsPage /></Suspense>} />
+                                    <Route path="email/campaigns/:id" element={<Suspense fallback={null}><EmailCampaignDetailPage /></Suspense>} />
+                                    <Route path="email/sender" element={<Suspense fallback={null}><EmailSenderSettingsPage /></Suspense>} />
+                                    <Route path="email/opt-outs" element={<Suspense fallback={null}><EmailOptOutsPage /></Suspense>} />
                                     <Route index element={<Navigate to="dashboard" replace />} />
                                   </Routes>
                                 </AdminProtectedRoute>
