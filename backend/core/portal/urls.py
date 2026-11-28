@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     PortalProjectListView,
     PortalProjectDetailView,
+    PortalCreatorProfileView,
     PortalMessageListView,
     PortalMessageCreateView,
     PortalMessageMarkReadView,
@@ -19,6 +20,7 @@ urlpatterns = [
     # Client project endpoints
     path("projects/", PortalProjectListView.as_view(), name="portal-project-list"),
     path("projects/<uuid:project_id>/", PortalProjectDetailView.as_view(), name="portal-project-detail"),
+    path("projects/<uuid:project_id>/creator-profile/", PortalCreatorProfileView.as_view(), name="portal-creator-profile"),
 
     # Portal messaging
     path("projects/<uuid:project_id>/messages/", PortalMessageListView.as_view(), name="portal-messages"),

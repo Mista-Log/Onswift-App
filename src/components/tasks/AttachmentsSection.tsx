@@ -21,6 +21,8 @@ interface AttachmentsSectionProps {
   canRemove?: (attachment: AttachmentItem) => boolean;
   title?: string;
   hint?: string;
+  /** View-only (e.g. a client looking at shared work): no adding or removing. */
+  readOnly?: boolean;
 }
 
 /**
@@ -35,6 +37,7 @@ export function AttachmentsSection({
   canRemove,
   title = "Attachments",
   hint,
+  readOnly = false,
 }: AttachmentsSectionProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [linkDraft, setLinkDraft] = useState("");
@@ -86,7 +89,7 @@ export function AttachmentsSection({
                 ) : (
                   <span className="truncate text-sm">{a.name}</span>
                 )}
-                {(canRemove ? canRemove(a) : true) && (
+                {!readOnly && (canRemove ? canRemove(a) : true) && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -107,6 +110,8 @@ export function AttachmentsSection({
         <p className="text-sm italic text-foreground">Nothing attached yet.</p>
       )}
 
+      {!readOnly && (
+      <>
       <div className="flex gap-2">
         <Input
           value={linkDraft}
@@ -154,6 +159,8 @@ export function AttachmentsSection({
         {busy === "file" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
         Upload a file
       </Button>
+      </>
+      )}
     </div>
   );
 }

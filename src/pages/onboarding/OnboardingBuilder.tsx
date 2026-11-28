@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FormBlockEditor } from "@/components/onboarding/FormBlockEditor";
 import { BlockRenderer } from "@/components/onboarding/BlockRenderer";
 import { OnboardingLinkTable } from "@/components/onboarding/OnboardingLinkTable";
+import { ProfileReadinessDialog, profilePromptPending } from "@/components/onboarding/ProfileReadinessDialog";
 import { ArrowLeft, Save, Eye, Link2, Loader2, History, FolderKanban, EllipsisVertical } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -64,6 +65,8 @@ export default function OnboardingBuilder() {
   const [expiresAt, setExpiresAt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [generatingMessage, setGeneratingMessage] = useState("");
+  // First link ever: ask whether the profile is ready for clients (once per account).
+  const [profilePromptOpen, setProfilePromptOpen] = useState(false);
 
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [draftBanner, setDraftBanner] = useState<FormDraft | null>(null);
@@ -269,6 +272,7 @@ export default function OnboardingBuilder() {
         setGenerateDialogOpen(false);
         setExpiresAt("");
         setLinkRefresh((prev) => prev + 1);
+        if (await profilePromptPending()) setProfilePromptOpen(true);
       } else {
         const error = await response.json();
         toast.error(error?.error || error?.detail || "Failed to generate link");
@@ -342,6 +346,7 @@ export default function OnboardingBuilder() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          <ProfileReadinessDialog open={profilePromptOpen} onOpenChange={setProfilePromptOpen} />
           {isEditing && (
             <Dialog open={generateDialogOpen} onOpenChange={setGenerateDialogOpen}>
               <DialogContent>

@@ -137,12 +137,12 @@ export default function Team() {
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="glass-card p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              {/* <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                 <Users className="h-5 w-5 text-primary" />
-              </div>
+              </div> */}
               <div>
-                <p className="text-2xl font-bold text-foreground">{teamMembers.length}</p>
                 <p className="text-sm text-muted-foreground">Team Members</p>
+                <p className="text-2xl font-bold text-foreground">{teamMembers.length}</p>
               </div>
             </div>
           </div>

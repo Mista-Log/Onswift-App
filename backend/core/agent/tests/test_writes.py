@@ -68,7 +68,7 @@ class WriteToolTests(TestCase):
     def test_every_write_tool_says_what_it_needs_from_the_user(self):
         specs = {s["function"]["name"]: s["function"] for s in tool_specs()}
         writes = {name for name, f in specs.items() if "PROPOSES" in f["description"]}
-        self.assertEqual(writes, {"create_project", "create_task", "update_task", "create_doc", "create_form", "update_form", "create_onboarding_form"})
+        self.assertEqual(writes, {"create_project", "create_task", "create_tasks", "update_task", "create_doc", "create_form", "update_form", "create_onboarding_form"})
         for name in writes:
             self.assertIn("Needs from the user:", specs[name]["description"], name)
             self.assertIn("never invent a value", specs[name]["description"], name)
@@ -292,3 +292,197 @@ class WriteToolTests(TestCase):
         for name in ("list_projects", "drop_database"):
             with self.assertRaises(ToolError):
                 execute_write(self.a, name, {})
+
+
+@FAST_HASH
+class BatchTaskTests(TestCase):
+    """create_tasks: many tasks for one project, confirmed on a single card, made all together or not at all."""
+
+    def setUp(self):
+        from agent.models import AgentConversation as Conversation
+
+        self.a = make_user("a@test.com")
+        self.b = make_user("b@test.com")
+        self.project = Project.objects.create(creator=self.a, name="Racy Agency")
+        self.other = Project.objects.create(creator=self.b, name="Bravo secret")
+        self.conversation = Conversation.objects.create(user=self.a)
+
+    def args(self, *tasks):
+        return {"project_id": str(self.project.id), "tasks": list(tasks) or [
+            {"name": "Brand audit", "deadline": "2026-12-05", "priority": "high"},
+            {"name": "Logo concepts"},
+            {"name": "Social kit", "description": "IG and LinkedIn templates"},
+        ]}
+
+    def test_one_proposal_makes_one_card_that_lists_every_task_and_creates_nothing(self):
+        from agent.actions import propose
+        from agent.models import AgentAction
+
+        action = propose(self.conversation, "create_tasks", self.args())
+        self.assertEqual(AgentAction.objects.filter(user=self.a).count(), 1)
+        self.assertEqual(Task.objects.count(), 0)
+        self.assertEqual(action.summary, 'Add 3 tasks to "Racy Agency"')
+        self.assertEqual([row["label"] for row in action.preview], ["Brand audit", "Logo concepts", "Social kit"])
+        self.assertIn("due 2026-12-05", action.preview[0]["detail"])
+        self.assertIn("high priority", action.preview[0]["detail"])
+
+    def test_confirming_the_card_creates_them_all_in_the_project(self):
+        from agent.actions import confirm, propose
+
+        action = propose(self.conversation, "create_tasks", self.args())
+        outcome = confirm(self.a, action.id)
+        self.assertEqual(outcome.http_status, 200)
+        names = set(Task.objects.filter(project=self.project).values_list("name", flat=True))
+        self.assertEqual(names, {"Brand audit", "Logo concepts", "Social kit"})
+        self.assertEqual(len(outcome.payload["result"]["tasks"]), 3)
+        self.assertEqual(outcome.payload["result"]["link"], f"/projects/{self.project.id}")
+
+    def test_the_agent_remembers_each_task_it_made(self):
+        from agent.actions import confirm, propose
+        from agent.memory import created_note
+
+        confirm(self.a, propose(self.conversation, "create_tasks", self.args()).id)
+        note = created_note(self.conversation)
+        for task in Task.objects.filter(project=self.project):
+            self.assertIn(f'task "{task.name}" (id {task.id})', note)
+
+    def test_one_bad_task_is_named_and_nothing_is_created(self):
+        bad = self.args({"name": "Fine"}, {"name": "Broken", "deadline": "not a date"})
+        with self.assertRaises(ToolError) as caught:
+            propose_tool(self.a, "create_tasks", bad)
+        self.assertIn('Task 2 ("Broken")', str(caught.exception))
+        self.assertEqual(Task.objects.count(), 0)
+
+    def test_a_failure_at_confirm_time_leaves_no_half_made_batch(self):
+        from agent.actions import confirm, propose
+
+        lero = make_user("lero@test.com", "talent")
+        from notification.models import HireRequest
+        hire = HireRequest.objects.create(creator=self.a, talent=lero, status="accepted")
+        action = propose(self.conversation, "create_tasks", self.args(
+            {"name": "First"}, {"name": "For Lero", "assignee_ids": [str(lero.id)]},
+        ))
+        hire.delete()  # Lero leaves the team before the user confirms
+        outcome = confirm(self.a, action.id)
+        self.assertEqual(outcome.http_status, 422)
+        self.assertIn("Task 2", outcome.payload["error"])
+        self.assertEqual(Task.objects.count(), 0)
+
+    def test_assignees_must_be_on_the_team_and_the_card_says_who(self):
+        lero = make_user("lero@test.com", "talent")
+        stranger = make_user("x@test.com", "talent")
+        from notification.models import HireRequest
+        HireRequest.objects.create(creator=self.a, talent=lero, status="accepted")
+        from agent.tools.base import preview_tool
+
+        args = self.args({"name": "Mine", "assignee_ids": [str(self.a.id)]}, {"name": "Lero's", "assignee_ids": [str(lero.id)]})
+        args, _ = propose_tool(self.a, "create_tasks", args)
+        rows = preview_tool(self.a, "create_tasks", args)
+        self.assertIn("assigned to you", rows[0]["detail"])
+        self.assertIn("assigned to lero@test.com", rows[1]["detail"])
+        with self.assertRaises(ToolError):
+            propose_tool(self.a, "create_tasks", self.args({"name": "Nope", "assignee_ids": [str(stranger.id)]}))
+
+    def test_another_creators_project_looks_missing(self):
+        args = {"project_id": str(self.other.id), "tasks": [{"name": "Sneaky"}]}
+        with self.assertRaises(ToolError) as caught:
+            propose_tool(self.a, "create_tasks", args)
+        self.assertEqual(str(caught.exception), "Project not found.")
+        self.assertEqual(Task.objects.count(), 0)
+
+    def test_the_batch_is_capped_and_the_model_cannot_run_it_directly(self):
+        too_many = self.args(*[{"name": f"T{i}"} for i in range(21)])
+        with self.assertRaises(ToolError):
+            propose_tool(self.a, "create_tasks", too_many)
+        with self.assertRaises(ToolError):
+            run_tool(self.a, "create_tasks", self.args())
+        self.assertEqual(Task.objects.count(), 0)
+
+    def test_the_model_is_told_to_batch_tasks_instead_of_one_card_each(self):
+        from agent.runner import system_prompt
+
+        self.assertIn("create_tasks (one card)", system_prompt(self.a))
+
+
+@FAST_HASH
+class AssignExistingTaskTests(TestCase):
+    """update_task can add and remove people on a task that already exists, e.g. 'assign Constructing
+    Design Language to Wallace'. Adding never drops anyone already on the task."""
+
+    def setUp(self):
+        from notification.models import HireRequest
+
+        self.a = make_user("a@test.com")
+        self.wallace = make_user("wallace@test.com", "talent")
+        self.lero = make_user("lero@test.com", "talent")
+        self.stranger = make_user("x@test.com", "talent")
+        for person in (self.wallace, self.lero):
+            HireRequest.objects.create(creator=self.a, talent=person, status="accepted")
+        project = Project.objects.create(creator=self.a, name="McTracy Agency")
+        self.task = Task.objects.create(project=project, name="Constructing Design Language")
+        self.task.assignees.set([self.lero])
+
+    def update(self, **extra):
+        return {"task_id": str(self.task.id), **extra}
+
+    def test_assigning_adds_the_person_keeps_the_others_and_notifies_only_them(self):
+        from notification.models import Notification
+
+        args = self.update(assignee_ids=[str(self.wallace.id)])
+        _, summary = propose_tool(self.a, "update_task", args)
+        self.assertEqual(summary, 'Update the task "Constructing Design Language": assign wallace@test.com')
+        self.assertEqual(Notification.objects.count(), 0)  # proposing notifies nobody
+
+        execute_write(self.a, "update_task", args)
+        self.assertEqual(set(self.task.assignees.all()), {self.lero, self.wallace})
+        self.assertEqual(Notification.objects.filter(user=self.wallace).count(), 1)
+        self.assertEqual(Notification.objects.filter(user=self.lero).count(), 0)
+
+    def test_reassigning_takes_one_person_off_and_puts_another_on(self):
+        args = self.update(assignee_ids=[str(self.wallace.id)], unassign_ids=[str(self.lero.id)])
+        _, summary = propose_tool(self.a, "update_task", args)
+        self.assertIn("assign wallace@test.com", summary)
+        self.assertIn("unassign lero@test.com", summary)
+        execute_write(self.a, "update_task", args)
+        self.assertEqual(list(self.task.assignees.all()), [self.wallace])
+
+    def test_fields_and_people_can_change_together(self):
+        args = self.update(priority="high", assignee_ids=[str(self.wallace.id)])
+        _, summary = propose_tool(self.a, "update_task", args)
+        self.assertEqual(summary, 'Update the task "Constructing Design Language": set priority to high, assign wallace@test.com')
+        execute_write(self.a, "update_task", args)
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.priority, "high")
+        self.assertIn(self.wallace, self.task.assignees.all())
+
+    def test_only_the_team_can_be_assigned(self):
+        with self.assertRaises(ToolError):
+            propose_tool(self.a, "update_task", self.update(assignee_ids=[str(self.stranger.id)]))
+        self.assertEqual(list(self.task.assignees.all()), [self.lero])
+
+    def test_assigning_someone_already_on_it_is_refused_as_nothing_to_change(self):
+        with self.assertRaises(ToolError) as caught:
+            propose_tool(self.a, "update_task", self.update(assignee_ids=[str(self.lero.id)]))
+        self.assertIn("already assigned", str(caught.exception))
+
+    def test_unassigning_someone_not_on_the_task_is_refused(self):
+        with self.assertRaises(ToolError):
+            propose_tool(self.a, "update_task", self.update(unassign_ids=[str(self.wallace.id)]))
+
+    def test_a_teammate_who_left_before_confirm_is_refused_and_nothing_changes(self):
+        from notification.models import HireRequest
+
+        args = self.update(assignee_ids=[str(self.wallace.id)])
+        propose_tool(self.a, "update_task", args)
+        HireRequest.objects.filter(talent=self.wallace).delete()
+        with self.assertRaises(ToolError):
+            execute_write(self.a, "update_task", args)
+        self.assertEqual(list(self.task.assignees.all()), [self.lero])
+
+    def test_the_model_is_told_it_can_assign_after_creating(self):
+        from agent.runner import system_prompt
+
+        spec = next(s["function"] for s in tool_specs() if s["function"]["name"] == "update_task")
+        self.assertIn("assignee_ids", spec["parameters"]["properties"])
+        self.assertIn("ADDED", spec["description"])
+        self.assertIn("later with update_task", system_prompt(self.a))

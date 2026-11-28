@@ -109,10 +109,11 @@ class PlainTextTests(SimpleTestCase):
         self.assertEqual(calls_of(events), [])
         self.assertIn("print", text_of(events))
 
-    def test_malformed_block_is_shown_as_text_not_run(self):
+    def test_malformed_block_is_not_run_and_not_shown_raw(self):
         _, events = run('```tool\n{"name": "list_deadlines", "arguments": {oops}\n```')
         self.assertEqual(calls_of(events), [])
-        self.assertIn("oops", text_of(events))
+        self.assertNotIn("oops", text_of(events))
+        self.assertIn("couldn't complete that action", text_of(events))
 
     def test_non_object_arguments_are_not_run(self):
         _, events = run('```tool\n{"name": "list_deadlines", "arguments": [1, 2]}\n```')
@@ -122,6 +123,44 @@ class PlainTextTests(SimpleTestCase):
         _, events = run("Just text.")
         self.assertEqual([type(e) for e in events[-2:]], [Usage, Done])
         self.assertEqual(len([e for e in events if isinstance(e, Done)]), 1)
+
+
+class LeadInTextTests(SimpleTestCase):
+    """The model now often says a sentence before its tool block (seen in production with avari-smart)."""
+
+    def test_a_sentence_before_the_block_still_runs_the_tool(self):
+        _, events = run(
+            "I'll get a summary of your workspace for you.\n"
+            '```tool\n{"name": "list_deadlines", "arguments": {"days": 30}}\n```'
+        )
+        self.assertEqual([(c.name, c.arguments) for c in calls_of(events)], [("list_deadlines", {"days": 30})])
+        # The sentence reaches the user; the raw block never does.
+        self.assertEqual(text_of(events).strip(), "I'll get a summary of your workspace for you.")
+        self.assertNotIn("```", text_of(events))
+
+    def test_a_one_backtick_closing_fence_still_runs(self):
+        _, events = run(
+            "Let me first check if this project already exists.\n"
+            '```tool\n{"name": "create_task", "arguments": {"project_id": "p1"}}\n`'
+        )
+        self.assertEqual([c.name for c in calls_of(events)], ["create_task"])
+
+    def test_lead_in_and_block_split_across_many_chunks(self):
+        text = 'Checking your team.\n```tool\n{"name": "create_task", "arguments": {"project_id": "p9"}}\n```'
+        _, events = run(*[text[i:i + 3] for i in range(0, len(text), 3)])
+        self.assertEqual([c.arguments for c in calls_of(events)], [{"project_id": "p9"}])
+        self.assertEqual(text_of(events).strip(), "Checking your team.")
+
+    def test_text_after_the_block_is_not_shown(self):
+        # Anything after the call is the model guessing at a result it hasn't seen yet.
+        _, events = run('Sure.\n```tool\n{"name": "list_deadlines", "arguments": {}}\n```\nYou have 3 deadlines.')
+        self.assertEqual(len(calls_of(events)), 1)
+        self.assertNotIn("3 deadlines", text_of(events))
+
+    def test_a_plain_answer_with_backticks_is_untouched(self):
+        _, events = run("Use `", "code` like this.")
+        self.assertEqual(calls_of(events), [])
+        self.assertEqual(text_of(events), "Use `code` like this.")
 
 
 class RequestShapeTests(SimpleTestCase):

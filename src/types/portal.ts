@@ -11,6 +11,8 @@ export interface PortalProject {
   progress: number;
   total_tasks: number;
   completed_tasks: number;
+  /** The creator switched on "Show my profile to clients": the Portfolio tab can load it. */
+  creator_profile_available?: boolean;
   created_at: string;
 }
 

@@ -27,6 +27,12 @@ def created_note(conversation):
         result = action.result if isinstance(action.result, dict) else {}
         if not result.get("id"):
             continue
+        if isinstance(result.get("tasks"), list):  # create_tasks: one line per task made
+            for task in result["tasks"]:
+                if isinstance(task, dict) and task.get("id"):
+                    task_name = " ".join(clip(str(task.get("name", ""))).split())
+                    lines.append(f'- task "{task_name}" (id {task["id"]})')
+            continue
         name = " ".join(clip(str(result.get("name", ""))).split())
         lines.append(f'- {_LABELS.get(action.tool, action.tool)} "{name}" (id {result["id"]})')
     if not lines:

@@ -182,7 +182,7 @@ class RegistryTests(SimpleTestCase):
             {
                 "list_projects", "get_project", "list_tasks", "list_deadlines", "list_team",
                 "list_notifications", "list_clients", "get_client",
-                "create_project", "create_task", "update_task",
+                "create_project", "create_task", "create_tasks", "update_task",
                 "get_analytics", "search_docs", "search_library", "create_doc", "create_form",
                 "list_forms", "get_form", "update_form", "create_onboarding_form",
             },

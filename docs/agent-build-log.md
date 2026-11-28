@@ -292,6 +292,7 @@ These came out of review before any endpoint existed, and each has a planned tes
 7. **Rules you set for yourself still need a test.** "Another user's id returns 404" was only a sentence until a test and a deliberate break showed it holds.
 8. **A test that breaks everything is not evidence.** Twelve errors from a renamed setting told us nothing; one targeted removal failed one targeted test.
 9. **Closing a generator that never started doesn't run its `finally`.** That would have leaked stream slots, so the stream body is a class with an idempotent `close()`.
+10. **Don't build on another system's habits.** Our tool parser assumed the model always starts a tool request with the tool block. That was a habit, not a promise. When the model started writing a sentence first, tools stopped running and nothing on our side had changed. Native tool calling is a promise from the provider; our text protocol depends on a habit, so the parser now has to tolerate whatever comes before the block.
 
 ## What's next
 
@@ -412,6 +413,20 @@ Drafts for LinkedIn, one per phase. Edit freely. Check any number against the lo
 >
 > Not yet run against the real model for forms, or in a browser. Next.
 
+### Draft 7: the day our Agent started speaking in code
+
+> Users told us the OnSwift Agent was replying in gibberish. Instead of answering "what's due this week?", it showed lines like ```tool {"name": "get_analytics" … }.
+>
+> The cause was an assumption in our own code. Our model has no built-in tool calling, so it asks for data by writing a small block of JSON, and our code runs it. That code decided from the first few characters of a reply: block first, run it; anything else, show it to the user. Then the model started opening with a sentence ("Let me check your projects.") before the block. Every tool request went straight to the screen as text. It also explained a second report: the Agent "couldn't find" teammates to assign tasks to, because the lookup never ran.
+>
+> The fix: replies still stream word by word, but the code now watches the whole reply for the block, not just the start. A block it can't read becomes a short apology, never raw JSON.
+>
+> While in there, we fixed the slowest part of setting up a project: a list of eight tasks meant eight separate approval cards. Now it is one card, one table, one Confirm. The tasks are created together or not at all.
+>
+> The lesson: our code relied on a habit of someone else's system, and habits change without notice.
+>
+> Building in public. Tests pass (442 backend, 230 frontend for the Agent); the next step is checking it against the live model.
+
 ## Editing what it made, instead of making it again (2026-11-06)
 
 **The problem:** asked to "add a pricing question to this form", the Agent created a whole new form. It could not read forms, had no tool to change one, and only remembered "awaiting confirmation" for its own proposals, never what was made.
@@ -457,3 +472,19 @@ Drafts for LinkedIn, one per phase. Edit freely. Check any number against the lo
 **Deliberately not done:** the Agent does not generate or send the client's link (the user does that on the form's page, one link per client), and it cannot list or edit onboarding forms yet (`update_form` only covers plain forms; the model is told so).
 
 **Checked:** 13 new backend tests; 431 Agent and onboarding tests and 148 Agent frontend tests pass. **Not run against the real model or in a browser yet**, so whether the model reliably picks the new tool is untested.
+
+## Tool requests shown as text, and many tasks on one card (2026-11-27)
+
+**The problem:** users reported "gibberish" replies: the Agent showed raw blocks like ```` ```tool {"name": "get_analytics", ...} ```` instead of answering. It also said it couldn't find teammates' ids to assign tasks. Separately, setting up a project from a task list meant one confirm card per task.
+
+**What was broken:** the model (`avari-smart` through an OpenAI-compatible endpoint) has no native tool calling, so it asks for a tool with a ```` ```tool ```` JSON block that `JsonToolProvider` turns into a real call. The provider decided *once*, from the first characters of the reply: a block at the start was run, anything else was streamed to the user unchecked. The model began putting a sentence before the block ("Let me first check if this project already exists."), so every tool request streamed as text and no tool ran. The id problem followed from that: `list_team` never ran, so the model never had the ids. We didn't change anything on our side; the model's output style changed. Some replies also closed the block with a single backtick, which a teammate had already handled by loosening the block pattern.
+
+**What changed**
+- `JsonToolProvider.stream` watches the whole reply for the fence. Text before it streams as usual; from the fence on, it is held back and parsed. Only a tail that could still become the fence is withheld, so plain answers still stream word by word.
+- A block that cannot be parsed is logged and replaced with "Sorry, I couldn't complete that action. Please try again.", never shown raw.
+- New write tool `create_tasks`: 1 to 20 tasks for one of the user's own projects, proposed on a **single card** with a Task / Details table (deadline, priority, assignees, description). Same rules as `create_task`: own project only, assignees only from `list_team`, everything re-checked at Confirm. All or nothing: if one task fails at Confirm (say, a teammate left the team), none are created and the card names the failing task.
+- The tool description and the system prompt tell the model to use `create_tasks` for more than one task in the same project. The conversation memory lists each task it made, with its id, so follow-ups can find them.
+
+**Checked:** 5 new parser tests (sentence before the block, one-backtick closing fence, block split across many chunks, text after the block hidden, plain answers with backticks untouched); 37 parser tests pass. 9 new `create_tasks` tests; all 442 Agent backend tests and 230 Agent frontend tests pass.
+
+**Not done yet:** not committed, deployed, or rerun against the live model. The model choosing `create_tasks` over repeated `create_task` is an instruction, not a guarantee. Switching to native tool calling (for example Gemini) would remove the dependence on how the model formats its replies.

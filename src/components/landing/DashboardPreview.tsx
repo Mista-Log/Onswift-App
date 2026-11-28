@@ -857,7 +857,7 @@ export function DashboardPreview({ userName = "Zeus" }: { userName?: string }) {
         className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold text-white"
         style={{ background: PRIMARY }}
       >
-        Get Started <ArrowRight className="h-3 w-3" />
+        Get Started
       </button>
     </div>
   );
@@ -886,7 +886,7 @@ export function DashboardPreview({ userName = "Zeus" }: { userName?: string }) {
           className="inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-[12px] font-semibold text-white transition-all hover:shadow-[0_0_24px_hsl(250_76%_63%/0.5)]"
           style={{ background: PRIMARY }}
         >
-          Get Started, It&apos;s Free! <ArrowRight className="h-3.5 w-3.5" />
+          Get Started
         </button>
       </Card>
     </div>

@@ -3,7 +3,7 @@
 A wrapper around any LLMProvider. It lists the tools in the system prompt, asks the model to request
 one by replying with ONLY a fenced block:
 
-    ```tool
+     
     {"name": "list_deadlines", "arguments": {"days": 7}}
     ```
 
@@ -14,12 +14,16 @@ held back only while it could still be the start of a tool block.
 import json
 import re
 import uuid
+import logging
 from typing import Iterator
 
 from .base import Done, LLMProvider, TextDelta, ToolCall, Usage
 
+log = logging.getLogger(__name__)
+
 FENCE = "```tool"
-_BLOCK = re.compile(r"```tool\s*(\{.*\})\s*```", re.S)
+# _BLOCK = re.compile(r"```tool\s*(\{.*\})\s*```", re.S)
+_BLOCK = re.compile(r"```tool\s*(\{.*)", re.S)
 
 
 def _shape(schema):
@@ -94,13 +98,16 @@ def _flatten(messages):
             out.append({k: v for k, v in message.items() if k != "extra_content"})
     return [{k: v for k, v in m.items() if k != "_tool_result"} for m in out]
 
+_DECODER = json.JSONDecoder()
+
 
 def _parse_call(text):
     match = _BLOCK.search(text)
     if not match:
         return None
+    raw_json = match.group(1).lstrip()
     try:
-        data = json.loads(match.group(1))
+        data, _ = _DECODER.raw_decode(raw_json)
     except ValueError:
         return None
     if not isinstance(data, dict) or not isinstance(data.get("name"), str) or not data["name"]:
@@ -109,10 +116,36 @@ def _parse_call(text):
     if not isinstance(arguments, dict):
         return None
     call_id = f"call_{uuid.uuid4().hex[:12]}"
-    raw = {"id": call_id, "type": "function", "function": {"name": data["name"], "arguments": json.dumps(arguments)}}
+    raw = {
+        "id": call_id,
+        "type": "function",
+        "function": {"name": data["name"], "arguments": json.dumps(arguments)},
+    }
     return ToolCall(id=call_id, name=data["name"], arguments=arguments, raw=raw)
 
+# def _parse_call(text):
+#     match = _BLOCK.search(text)
+#     if not match:
+#         return None
+#     try:
+#         data = json.loads(match.group(1))
+#     except ValueError:
+#         return None
+#     if not isinstance(data, dict) or not isinstance(data.get("name"), str) or not data["name"]:
+#         return None
+#     arguments = data.get("arguments", {})
+#     if not isinstance(arguments, dict):
+#         return None
+#     call_id = f"call_{uuid.uuid4().hex[:12]}"
+#     raw = {"id": call_id, "type": "function", "function": {"name": data["name"], "arguments": json.dumps(arguments)}}
+#     return ToolCall(id=call_id, name=data["name"], arguments=arguments, raw=raw)
 
+def _partial(text):
+    """Length of a tail of text that could still turn into FENCE."""
+    for k in range(min(len(FENCE) - 1, len(text)), 0, -1):
+        if FENCE.startswith(text[-k:]):
+            return k
+    return 0
 class JsonToolProvider(LLMProvider):
     def __init__(self, inner):
         self.inner = inner
@@ -128,32 +161,41 @@ class JsonToolProvider(LLMProvider):
             return
         system = (system + "\n\n" if system else "") + protocol_prompt(tools)
 
-        held = ""
-        mode = None  # None: undecided, "text": passing through, "call": holding a possible tool block
+        # The model may say a sentence first ("Let me check your projects.") and then give the block, so a
+        # block can start anywhere: text before it streams as usual, everything from the fence on is held
+        # back and run. Only a tail that could still grow into the fence is ever withheld from the user.
+        pending = ""  # text not yet sent, which might be the start of a fence
+        block = None  # once the fence is seen: the tool block so far
         usage = None
         for event in self.inner.stream(history, None, system):
             if isinstance(event, TextDelta):
-                if mode == "text":
-                    yield event
+                if block is not None:
+                    block += event.text
                     continue
-                held += event.text
-                if mode is None:
-                    probe = held.lstrip()
-                    if len(probe) < len(FENCE) and FENCE.startswith(probe):
-                        continue  # could still become a tool block
-                    mode = "call" if probe.startswith(FENCE) else "text"
-                    if mode == "text":
-                        yield TextDelta(held)
-                        held = ""
+                pending += event.text
+                at = pending.find(FENCE)
+                if at >= 0:
+                    if pending[:at].strip():
+                        yield TextDelta(pending[:at])
+                    block, pending = pending[at:], ""
+                    continue
+                keep = _partial(pending)
+                if len(pending) > keep:
+                    yield TextDelta(pending[: len(pending) - keep])
+                    pending = pending[len(pending) - keep:]
             elif isinstance(event, Usage):
                 usage = event
             elif isinstance(event, Done):
-                if held:
-                    call = _parse_call(held) if mode == "call" else None
-                    yield call if call else TextDelta(held)  # a malformed block is shown as text
+                if block is not None:
+                    call = _parse_call(block)
+                    if call:
+                        yield call
+                    else:
+                        log.warning("unparseable tool block: %r", block)
+                        yield TextDelta("Sorry, I couldn't complete that action. Please try again.")
+                elif pending:
+                    yield TextDelta(pending)
                 if usage:
                     yield usage
                 yield event
                 return
-            else:
-                yield event

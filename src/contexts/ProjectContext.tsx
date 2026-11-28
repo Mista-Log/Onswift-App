@@ -27,6 +27,8 @@ export interface Task {
   awaiting_approval?: boolean;
   /** The creator sent this task (or one of its deliverables) back for changes. */
   revision_requested?: boolean;
+  /** The creator approved this completed task for the project's clients. */
+  shared_with_client?: boolean;
   created_at: string;
 }
 

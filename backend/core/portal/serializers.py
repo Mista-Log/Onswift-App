@@ -2,7 +2,7 @@
 Portal serializers — Response schemas for portal views.
 """
 from rest_framework import serializers
-from project.models import Project, Task, Deliverable, DeliverableFile
+from project.models import Project, Task, Deliverable, DeliverableFile, client_visible_tasks
 from .models import PortalMessage, ClientInvite
 
 
@@ -40,38 +40,51 @@ class PortalTaskSerializer(serializers.ModelSerializer):
         ]
 
 
-class PortalProjectSerializer(serializers.ModelSerializer):
+class _ClientProgressMixin:
+    """Progress as clients see it: completed work the creator shared, out of all the project's tasks."""
+
+    def get_progress(self, obj):
+        total = obj.tasks.count()
+        if total == 0:
+            return 0
+        return int((self.get_completed_tasks(obj) / total) * 100)
+
+    def get_total_tasks(self, obj):
+        return obj.tasks.count()
+
+    def get_completed_tasks(self, obj):
+        return client_visible_tasks(obj.tasks.all()).count()
+
+
+class PortalProjectSerializer(_ClientProgressMixin, serializers.ModelSerializer):
     """Project dashboard view for clients."""
     creator_name = serializers.CharField(source="creator.full_name", read_only=True)
-    tasks = PortalTaskSerializer(many=True, read_only=True)
+    tasks = serializers.SerializerMethodField()
     progress = serializers.SerializerMethodField()
     total_tasks = serializers.SerializerMethodField()
     completed_tasks = serializers.SerializerMethodField()
+    creator_profile_available = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
         fields = [
             "id", "name", "description", "due_date", "status",
             "creator_name", "tasks", "progress",
-            "total_tasks", "completed_tasks",
+            "total_tasks", "completed_tasks", "creator_profile_available",
             "created_at",
         ]
 
-    def get_progress(self, obj):
-        total = obj.tasks.count()
-        if total == 0:
-            return 0
-        completed = obj.tasks.filter(status="completed").count()
-        return int((completed / total) * 100)
+    def get_tasks(self, obj):
+        # Only completed work the creator approved for clients.
+        tasks = client_visible_tasks(obj.tasks.all()).order_by("-shared_at", "-created_at")
+        return PortalTaskSerializer(tasks, many=True, context=self.context).data
 
-    def get_total_tasks(self, obj):
-        return obj.tasks.count()
-
-    def get_completed_tasks(self, obj):
-        return obj.tasks.filter(status="completed").count()
+    def get_creator_profile_available(self, obj):
+        from account.models import UserSettings
+        return UserSettings.objects.filter(user_id=obj.creator_id, show_profile_to_clients=True).exists()
 
 
-class PortalProjectListSerializer(serializers.ModelSerializer):
+class PortalProjectListSerializer(_ClientProgressMixin, serializers.ModelSerializer):
     """Lightweight project info for project selector."""
     creator_name = serializers.CharField(source="creator.full_name", read_only=True)
     progress = serializers.SerializerMethodField()
@@ -84,19 +97,6 @@ class PortalProjectListSerializer(serializers.ModelSerializer):
             "id", "name", "description", "status", "due_date", 
             "creator_name", "progress", "total_tasks", "completed_tasks"
         ]
-
-    def get_progress(self, obj):
-        total = obj.tasks.count()
-        if total == 0:
-            return 0
-        completed = obj.tasks.filter(status="completed").count()
-        return int((completed / total) * 100)
-
-    def get_total_tasks(self, obj):
-        return obj.tasks.count()
-
-    def get_completed_tasks(self, obj):
-        return obj.tasks.filter(status="completed").count()
 
 
 class PortalMessageSerializer(serializers.ModelSerializer):

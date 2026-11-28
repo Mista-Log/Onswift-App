@@ -1,4 +1,4 @@
-"""Write tools: create_project, create_task, update_task.
+"""Write tools: create_project, create_task, create_tasks, update_task.
 
 These never run on the model's say-so. The model can only PROPOSE them (see agent.actions); the
 user confirms; then `run` executes. `prepare` runs at both moments, against the user's current data.
@@ -6,7 +6,6 @@ user confirms; then `run` executes. `prepare` runs at both moments, against the 
 Each change goes through the same serializers the screens use, so the Agent cannot bypass a rule
 the normal UI enforces. Deliberately not here yet:
   - completing a task or project (it has approval flows and notifications; that stays a human act),
-  - assigning people (it notifies them),
   - deleting anything.
 """
 from docs.models import Doc
@@ -127,29 +126,135 @@ def run_create_task(user, args):
     return {"id": str(task.id), "name": task.name, "project_id": str(project.id), "link": f"/projects/{project.id}"}
 
 
+# --- create_tasks (several tasks, one card) ---------------------------------------------------
+
+MAX_BATCH = 20
+
+
+def _batch(user, args):
+    """The project and, per task, its serializer-ready fields and assignees. A bad task names its
+    position so the model can fix just that one."""
+    project = _own_project(user, args["project_id"])
+    checked = []
+    for position, item in enumerate(args["tasks"], start=1):
+        try:
+            assignees = _team_assignees(user, item.get("assignee_ids"))
+            fields = _task_fields(item, assignees)
+            _valid(TaskSerializer(data=fields))
+        except ToolError as error:
+            raise ToolError(f'Task {position} ("{clip(item.get("name", ""))}"): {error}') from None
+        checked.append((item, fields, assignees))
+    return project, checked
+
+
+def prepare_create_tasks(user, args):
+    project, checked = _batch(user, args)
+    count = len(checked)
+    return f'Add {count} task{"" if count == 1 else "s"} to "{clip(project.name)}"'
+
+
+def preview_create_tasks(user, args):
+    _project, checked = _batch(user, args)
+    rows = []
+    for item, _fields, assignees in checked:
+        details = []
+        if item.get("deadline"):
+            details.append(f"due {item['deadline']}")
+        if item.get("priority"):
+            details.append(f"{item['priority']} priority")
+        if assignees:
+            details.append("assigned to " + ", ".join(
+                "you" if a.id == user.id else clip(a.full_name or a.email) for a in assignees
+            ))
+        if item.get("description"):
+            details.append(clip(item["description"]))
+        rows.append({"change": "Add", "label": clip(item["name"]), "detail": " · ".join(details)})
+    return rows
+
+
+def run_create_tasks(user, args):
+    """All or nothing: confirm() runs this inside a savepoint, so one failure leaves no tasks behind."""
+    from types import SimpleNamespace
+
+    project, checked = _batch(user, args)
+    acting_as = {"request": SimpleNamespace(user=user)}
+    made = [
+        _valid(TaskSerializer(data=fields, context=acting_as)).save(project=project)
+        for _item, fields, _assignees in checked
+    ]
+    return {
+        "id": str(project.id),
+        "name": project.name,
+        "project_id": str(project.id),
+        "link": f"/projects/{project.id}",
+        "tasks": [{"id": str(t.id), "name": t.name} for t in made],
+    }
+
+
 # --- update_task ------------------------------------------------------------------------------
 
+_PEOPLE = ("assignee_ids", "unassign_ids")
+
+
 def _changes(args):
-    return {k: v for k, v in args.items() if k != "task_id"}
+    return {k: v for k, v in args.items() if k != "task_id" and k not in _PEOPLE}
+
+
+def _who(user, people):
+    return ", ".join("you" if p.id == user.id else clip(p.full_name or p.email) for p in people)
+
+
+def _people_changes(user, task, args):
+    """Who to add and who to take off. Adding keeps everyone already on the task; it never replaces
+    the list. Added people must be on the user's team (as for create_task); removed people only have
+    to be on the task now, so someone who has left the team can still be taken off."""
+    current = list(task.assignees.all())
+    current_ids = {p.id for p in current}
+    add = [p for p in _team_assignees(user, args.get("assignee_ids")) if p.id not in current_ids]
+    remove = []
+    for raw in args.get("unassign_ids") or []:
+        match = next((p for p in current if str(p.id) == str(raw)), None)
+        if match is None:
+            raise ToolError("That person is not assigned to this task. Use get_project or list_tasks to see who is.")
+        remove.append(match)
+    keep = [p for p in current if p not in remove]
+    return add, remove, keep + add
+
+
+def _update_data(user, task, args):
+    changes = _changes(args)
+    add, remove, after = _people_changes(user, task, args)
+    if add or remove:
+        changes["assignees"] = [str(p.id) for p in after]
+    return changes, add, remove
 
 
 def prepare_update_task(user, args):
-    changes = _changes(args)
-    if not changes:
+    if not _changes(args) and not any(args.get(k) for k in _PEOPLE):
         raise ToolError("Nothing to change: give at least one field to update.")
     task = _own_task(user, args["task_id"])
     if task.status == "completed":
         raise ToolError("That task is already completed, so the Agent will not change it.")
+    changes, add, remove = _update_data(user, task, args)
+    if not changes:
+        raise ToolError("Nothing to change: everyone named is already assigned to that task.")
     _valid(TaskSerializer(task, data=changes, partial=True))
-    parts = [f"{field} to {value}" for field, value in changes.items()]
-    return f'Update the task "{clip(task.name)}": set ' + ", ".join(parts)
+    parts = [f"set {field} to {value}" for field, value in changes.items() if field != "assignees"]
+    if add:
+        parts.append("assign " + _who(user, add))
+    if remove:
+        parts.append("unassign " + _who(user, remove))
+    return f'Update the task "{clip(task.name)}": ' + ", ".join(parts)
 
 
 def run_update_task(user, args):
     task = _own_task(user, args["task_id"])
     if task.status == "completed":
         raise ToolError("That task is already completed, so the Agent will not change it.")
-    task = _valid(TaskSerializer(task, data=_changes(args), partial=True)).save()
+    changes, _add, _remove = _update_data(user, task, args)
+    if not changes:
+        raise ToolError("Nothing to change: everyone named is already assigned to that task.")
+    task = _valid(TaskSerializer(task, data=changes, partial=True)).save()
     return {"id": str(task.id), "name": task.name, "project_id": str(task.project_id), "link": f"/projects/{task.project_id}"}
 
 
@@ -220,12 +325,59 @@ register(Tool(
     writes=True,
 ))
 
+_BATCH_TASK = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "maxLength": 255},
+        "description": {"type": "string", "maxLength": 2000},
+        "deadline": {"type": "string", "description": "YYYY-MM-DD"},
+        "priority": {"type": "string", "enum": PRIORITIES},
+        "assignee_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+            "maxItems": 10,
+            "description": "User ids from list_team (teammates or the user themself). Nobody else can be assigned.",
+        },
+    },
+    "required": ["name"],
+}
+
+register(Tool(
+    name="create_tasks",
+    description=(
+        f"Propose adding 2 to {MAX_BATCH} tasks to ONE of the user's projects on a single card, so the user "
+        "confirms them all at once. Use this instead of calling create_task repeatedly whenever the user gives "
+        "or asks for more than one task for the same project (for example a task list to set up). "
+        + needs(["the task names", "which project they belong to"], optional=["descriptions", "deadlines", "priorities", "who to assign each to"])
+        + " If the user gave deadlines, priorities or descriptions, include them; otherwise leave them out. "
+        "To assign tasks, call list_team first and pass ids from it as assignee_ids (the user is the row marked "
+        "is_you); never assign anyone who is not on that list. The tasks are created together or not at all. "
+        f"{_NEEDS_CONFIRMATION}"
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "project_id": {"type": "string"},
+            "tasks": {"type": "array", "items": _BATCH_TASK, "minItems": 1, "maxItems": MAX_BATCH},
+        },
+        "required": ["project_id", "tasks"],
+    },
+    run=run_create_tasks,
+    prepare=prepare_create_tasks,
+    preview=preview_create_tasks,
+    writes=True,
+))
+
 register(Tool(
     name="update_task",
     description=(
-        "Propose changing a task's name, deadline, priority, or moving it between planning and in-progress. "
+        "Propose changing an existing task: its name, deadline or priority, moving it between planning and "
+        "in-progress, or assigning and unassigning people. "
         + needs(["which task", "what to change about it"])
-        + f" It cannot complete a task. {_NEEDS_CONFIRMATION}"
+        + " To assign someone, call list_team and pass their id in assignee_ids: they are ADDED and everyone "
+        "already on the task stays. To take someone off, pass their id in unassign_ids. Only people on list_team "
+        "can be assigned; a newly assigned teammate is notified once the user confirms. "
+        f"It cannot complete a task. {_NEEDS_CONFIRMATION}"
     ),
     parameters={
         "type": "object",
@@ -235,6 +387,18 @@ register(Tool(
             "deadline": {"type": "string", "description": "YYYY-MM-DD"},
             "priority": {"type": "string", "enum": PRIORITIES},
             "status": {"type": "string", "enum": EDITABLE_STATUSES},
+            "assignee_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "maxItems": 10,
+                "description": "People to ADD, as ids from list_team. Existing assignees stay.",
+            },
+            "unassign_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "maxItems": 10,
+                "description": "People to take off the task, by id.",
+            },
         },
         "required": ["task_id"],
     },

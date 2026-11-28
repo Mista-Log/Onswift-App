@@ -6,7 +6,9 @@ from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from .models import Project, Task, ProjectSample, Deliverable, DeliverableLink, DeliverableFile, Message, Conversation, Group, GroupMembership, GroupMessage, GroupMessageReadStatus
-from .models import GoogleCalendarToken, CalendarSyncedTask, ProjectClientMembership
+from .models import GoogleCalendarToken, CalendarSyncedTask, ProjectClientMembership, client_visible_tasks
+from django.shortcuts import get_object_or_404
+from portal.permissions import get_client_project_ids
 from .models import TaskComment, TaskAttachment, TaskChecklist, TaskChecklistItem
 from .serializers import (
     ProjectSerializer, TaskSerializer, TaskDetailSerializer, ProjectSampleSerializer,
@@ -317,9 +319,10 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
                 visible |= Q(project__in=shared_with_creator(user).values("pk"))
             return Task.objects.filter(visible).select_related("project__creator").prefetch_related(*deliverable_prefetch)
         elif user.role == "client":
-            return Task.objects.filter(
-                project__client_memberships__client=user
-            ).select_related("project__creator").prefetch_related(*deliverable_prefetch)
+            # Only completed work the creator chose to show them.
+            return client_visible_tasks(Task.objects.filter(
+                project_id__in=get_client_project_ids(user)
+            )).select_related("project__creator").prefetch_related(*deliverable_prefetch)
         else:
             # Assigned to them, or in a project they made themselves
             return Task.objects.filter(Q(assignees=user) | Q(project__creator=user)).distinct().select_related("project__creator").prefetch_related(*deliverable_prefetch)
@@ -384,9 +387,42 @@ def _get_task_for_user(user, task_id):
     if user.role == "talent" and (task.assignees.filter(id=user.id).exists() or task.project.creator_id == user.id):
         return task
     if user.role == "client":
-        if ProjectClientMembership.objects.filter(project=task.project, client=user).exists():
+        # Same rule as the portal: completed and shared, in a project they belong to. Anything else
+        # looks like it doesn't exist.
+        if (
+            task.status == "completed"
+            and task.shared_with_client
+            and task.project_id in get_client_project_ids(user)
+        ):
             return task
     raise Http404
+
+
+def _deny_client(user, message="Clients can view this task but not change it."):
+    if user.role == "client":
+        from rest_framework.exceptions import PermissionDenied
+        raise PermissionDenied(message)
+
+
+class ProjectShareCompletedTasksView(APIView):
+    """
+    POST /api/v2/projects/<project_id>/share-completed/
+    The creator shares every completed task in the project that clients can't see yet
+    (e.g. work finished before task sharing existed). Returns how many were shared.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, project_id):
+        from django.utils import timezone
+        project = get_object_or_404(Project, id=project_id, creator=request.user)
+        tasks = list(project.tasks.filter(status="completed", shared_with_client=False))
+        if tasks:
+            Task.objects.filter(id__in=[t.id for t in tasks]).update(
+                shared_with_client=True, shared_at=timezone.now()
+            )
+            from .serializers import notify_clients_of_shared_tasks
+            notify_clients_of_shared_tasks(project, tasks)
+        return Response({"shared": len(tasks)})
 
 
 class TaskRequestCompletionView(APIView):
@@ -487,19 +523,72 @@ class TaskCommentListCreateView(generics.ListCreateAPIView):
     serializer_class = TaskCommentSerializer
     permission_classes = [IsAuthenticated]
 
+    # The internal thread (creator + assignees). Clients use TaskClientCommentListCreateView.
+    AUDIENCE = "team"
+
     def _task(self):
+        if self.AUDIENCE == "team":
+            _deny_client(self.request.user, "Use the client feedback thread.")
         return _get_task_for_user(self.request.user, self.kwargs["task_id"])
 
     def get_queryset(self):
-        return self._task().comments.select_related("author").prefetch_related("mentions")
+        return (
+            self._task().comments.filter(audience=self.AUDIENCE)
+            .select_related("author").prefetch_related("mentions")
+        )
 
     def perform_create(self, serializer):
         task = self._task()
         parent = serializer.validated_data.get("parent")
-        if parent is not None and parent.task_id != task.id:
+        if parent is not None and (parent.task_id != task.id or parent.audience != self.AUDIENCE):
             from rest_framework.exceptions import ValidationError
-            raise ValidationError({"parent": "Comment does not belong to this task."})
-        serializer.save(task=task, author=self.request.user)
+            raise ValidationError({"parent": "Comment does not belong to this thread."})
+        comment = serializer.save(task=task, author=self.request.user, audience=self.AUDIENCE)
+        if self.AUDIENCE == "client":
+            _notify_client_thread(task, comment)
+
+
+class TaskClientCommentListCreateView(TaskCommentListCreateView):
+    """
+    GET/POST /api/v2/tasks/<task_id>/client-comments/
+    The feedback thread on a shared task, between the creator and the project's clients.
+    Team members (talents) are not part of it.
+    """
+    AUDIENCE = "client"
+
+    def _task(self):
+        task = _get_task_for_user(self.request.user, self.kwargs["task_id"])
+        if self.request.user.role == "talent" or (
+            self.request.user.role == "creator" and task.project.creator_id != self.request.user.id
+        ):
+            from django.http import Http404
+            raise Http404
+        return task
+
+
+def _notify_client_thread(task, comment):
+    """Tell the other side of the client feedback thread that something new was posted."""
+    from notification.services import create_notification
+    author = comment.author
+    snippet = comment.content[:80]
+    if author.role == "client":
+        create_notification(
+            user=task.project.creator,
+            title="New client feedback",
+            message=f"{author.full_name} on '{task.name}': \"{snippet}\"",
+            notification_type="system",
+            link=f"/projects/{task.project.id}?task={task.id}",
+            priority=1,
+        )
+    else:
+        for m in ProjectClientMembership.objects.filter(project=task.project).select_related("client"):
+            create_notification(
+                user=m.client,
+                title="New reply on your feedback",
+                message=f"{author.full_name} on '{task.name}': \"{snippet}\"",
+                notification_type="system",
+                link=f"/projects/{task.project.id}?task={task.id}",
+            )
 
 
 class TaskCommentDeleteView(generics.DestroyAPIView):
@@ -512,6 +601,10 @@ class TaskCommentDeleteView(generics.DestroyAPIView):
         try:
             comment = TaskComment.objects.get(id=self.kwargs["comment_id"], task=task)
         except TaskComment.DoesNotExist:
+            raise Http404
+        # Clients never touch the team thread; talents never touch the client thread.
+        role = self.request.user.role
+        if (comment.audience == "team" and role == "client") or (comment.audience == "client" and role == "talent"):
             raise Http404
         if comment.author != self.request.user and task.project.creator != self.request.user:
             raise PermissionDenied("You cannot delete this comment.")
@@ -530,6 +623,7 @@ class TaskAttachmentListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         from rest_framework.exceptions import ValidationError
+        _deny_client(self.request.user)
         task = self._task()
         uploaded_file = self.request.FILES.get("file")
         url = self.request.data.get("url", "").strip()
@@ -551,6 +645,7 @@ class TaskAttachmentDeleteView(generics.DestroyAPIView):
     def get_object(self):
         from django.http import Http404
         from rest_framework.exceptions import PermissionDenied
+        _deny_client(self.request.user)
         task = _get_task_for_user(self.request.user, self.kwargs["task_id"])
         try:
             attachment = TaskAttachment.objects.get(id=self.kwargs["attachment_id"], task=task)
@@ -633,7 +728,8 @@ class TaskChecklistItemDetailView(generics.UpdateAPIView, generics.DestroyAPIVie
             item = TaskChecklistItem.objects.get(id=self.kwargs["item_id"], checklist=checklist)
         except (TaskChecklist.DoesNotExist, TaskChecklistItem.DoesNotExist):
             raise Http404
-        # Creator can do anything; talents/clients can only toggle is_checked
+        # Creator can do anything; talents can only toggle is_checked; clients only look.
+        _deny_client(self.request.user)
         is_patch = self.request.method == "PATCH"
         is_toggle_only = is_patch and set(self.request.data.keys()) <= {"is_checked"}
         if not is_toggle_only and task.project.creator != self.request.user:

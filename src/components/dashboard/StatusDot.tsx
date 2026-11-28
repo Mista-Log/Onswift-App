@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 // Fixed colours on purpose: a status keeps the same colour in light and dark mode, and the
 // purple is the brand purple itself rather than the theme token.
 const DOTS: Record<string, { label: string; color: string }> = {
-  planning: { label: "Planning", color: "bg-red-500" },
+  planning: { label: "Planning", color: "bg-yellow-500" },
   "in-progress": { label: "In Progress", color: "bg-[hsl(250_76%_63%)]" },
   completed: { label: "Completed", color: "bg-emerald-500" },
 };

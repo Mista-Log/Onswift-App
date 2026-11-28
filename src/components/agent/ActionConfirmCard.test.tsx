@@ -325,6 +325,28 @@ describe("ActionConfirmCard look", () => {
     expect(screen.getByRole("button", { name: /confirm/i })).toBeEnabled();
   });
 
+  it("shows a batch of tasks as one card with a Task table, without the raw list", () => {
+    const batch = action({
+      tool: "create_tasks",
+      summary: 'Add 2 tasks to "Racy Agency"',
+      arguments: {
+        project_id: "11111111-1111-4111-8111-111111111111",
+        tasks: [{ name: "Brand audit", deadline: "2026-12-05" }, { name: "Logo concepts" }],
+      },
+      preview: [
+        { change: "Add", label: "Brand audit", detail: "due 2026-12-05" },
+        { change: "Add", label: "Logo concepts", detail: "" },
+      ],
+    });
+    render(card(batch));
+    const table = screen.getByRole("table", { name: "Changes" });
+    expect(within(table).getByRole("columnheader", { name: "Task" })).toBeInTheDocument();
+    expect(within(table).getAllByRole("row")).toHaveLength(3); // header + 2 tasks
+    expect(within(table).getByText("due 2026-12-05")).toBeInTheDocument();
+    expect(screen.queryByText(/"name"/)).not.toBeInTheDocument(); // no JSON dump of the tasks
+    expect(screen.getAllByRole("button", { name: /confirm/i })).toHaveLength(1);
+  });
+
   it("shows no changes table when there is no preview", () => {
     render(card(action()));
     expect(screen.queryByRole("table", { name: "Changes" })).not.toBeInTheDocument();
@@ -345,7 +367,7 @@ describe("ActionConfirmCard look", () => {
 
 describe("toolLabel for changes", () => {
   it("says a write was prepared for approval, and words a failed one as a change not a read", () => {
-    for (const name of ["create_project", "create_task", "update_task"]) {
+    for (const name of ["create_project", "create_task", "create_tasks", "update_task"]) {
       expect(toolLabel(name, "done")).toMatch(/for your approval/);
       expect(toolLabel(name, "failed")).toBe("Couldn't prepare that change");
     }

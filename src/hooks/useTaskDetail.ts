@@ -91,11 +91,21 @@ export interface TaskDetail {
   project_creator_id: string;
   project_creator_name: string;
   project_creator_avatar: string | null;
+  /** The internal team thread. Always empty for clients. */
   comments: TaskComment[];
+  /** The feedback thread between the creator and the project's clients. Empty for talents. */
+  client_comments?: TaskComment[];
+  /** The creator approved this (completed) task for the project's clients. */
+  shared_with_client?: boolean;
+  shared_at?: string | null;
   attachments: TaskAttachment[];
   checklists: TaskChecklist[];
   deliverables: TaskDeliverable[];
 }
+
+export type CommentThreadKind = "team" | "client";
+const THREAD_PATH: Record<CommentThreadKind, string> = { team: "comments", client: "client-comments" };
+const THREAD_KEY = { team: "comments", client: "client_comments" } as const;
 
 export function useTaskDetail() {
   const [task, setTask] = useState<TaskDetail | null>(null);
@@ -113,7 +123,7 @@ export function useTaskDetail() {
 
   const updateTask = useCallback(async (
     taskId: string,
-    updates: Partial<Pick<TaskDetail, "name" | "description" | "status" | "priority" | "deadline" | "task_time" | "recurrence_type" | "recurrence_days" | "assignees">>,
+    updates: Partial<Pick<TaskDetail, "name" | "description" | "status" | "priority" | "deadline" | "task_time" | "recurrence_type" | "recurrence_days" | "assignees" | "shared_with_client">>,
   ) => {
     const res = await secureFetch(`/api/v2/tasks/${taskId}/`, {
       method: "PATCH",
@@ -158,25 +168,30 @@ export function useTaskDetail() {
 
   // ── Comments ──────────────────────────────────────────────────────────────
 
-  const addComment = useCallback(async (taskId: string, content: string, parentId?: string | null, mentionIds?: string[]) => {
-    const res = await secureFetch(`/api/v2/tasks/${taskId}/comments/`, {
+  // Two threads: "team" (internal) and "client" (feedback with the project's clients).
+  const addComment = useCallback(async (
+    taskId: string, content: string, parentId?: string | null, mentionIds?: string[], thread: CommentThreadKind = "team",
+  ) => {
+    const res = await secureFetch(`/api/v2/tasks/${taskId}/${THREAD_PATH[thread]}/`, {
       method: "POST",
       body: JSON.stringify({ content, parent: parentId ?? null, mention_ids: mentionIds ?? [] }),
     });
     if (!res.ok) throw new Error("Failed to add comment");
     const comment: TaskComment = await res.json();
-    setTask((prev) => prev ? { ...prev, comments: [...prev.comments, comment] } : prev);
+    const key = THREAD_KEY[thread];
+    setTask((prev) => prev ? { ...prev, [key]: [...(prev[key] ?? []), comment] } : prev);
     return comment;
   }, []);
 
-  const deleteComment = useCallback(async (taskId: string, commentId: string) => {
-    const res = await secureFetch(`/api/v2/tasks/${taskId}/comments/${commentId}/`, { method: "DELETE" });
+  const deleteComment = useCallback(async (taskId: string, commentId: string, thread: CommentThreadKind = "team") => {
+    const res = await secureFetch(`/api/v2/tasks/${taskId}/${THREAD_PATH[thread]}/${commentId}/`, { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete comment");
     // Backend FK is on_delete=SET_NULL — mirror that locally so replies to a deleted
     // comment become top-level instead of silently disappearing from the thread.
+    const key = THREAD_KEY[thread];
     setTask((prev) => prev ? {
       ...prev,
-      comments: prev.comments
+      [key]: (prev[key] ?? [])
         .filter((c) => c.id !== commentId)
         .map((c) => c.parent === commentId ? { ...c, parent: null } : c),
     } : prev);

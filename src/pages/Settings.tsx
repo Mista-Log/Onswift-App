@@ -38,6 +38,8 @@ interface NotificationSettings {
   push_notifications: boolean;
   message_alerts: boolean;
   allow_team_task_creation: boolean;
+  /** Clients see this creator's profile as a Portfolio tab in their project. */
+  show_profile_to_clients: boolean;
 }
 
 export default function Settings() {
@@ -57,6 +59,7 @@ export default function Settings() {
     push_notifications: true,
     message_alerts: true,
     allow_team_task_creation: true,
+    show_profile_to_clients: false,
   });
 
   // Account stats state
@@ -95,6 +98,7 @@ export default function Settings() {
             push_notifications: data.push_notifications,
             message_alerts: data.message_alerts,
             allow_team_task_creation: data.allow_team_task_creation ?? true,
+            show_profile_to_clients: data.show_profile_to_clients ?? false,
           });
         }
       } catch (error) {
@@ -333,6 +337,26 @@ export default function Settings() {
                       onCheckedChange={(checked) =>
                         setNotifications(prev => ({ ...prev, allow_team_task_creation: checked }))
                       }
+                    />
+                  </div>
+
+                  <Separator className="my-6 bg-border/50" />
+
+                  {/* Clients */}
+                  <h3 className="mb-4 font-semibold text-foreground">Clients</h3>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-foreground">Show my profile to clients</p>
+                      <p className="text-sm text-muted-foreground">
+                        Adds a Portfolio tab to your clients' project page with your profile and featured work.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={notifications.show_profile_to_clients}
+                      onCheckedChange={(checked) =>
+                        setNotifications(prev => ({ ...prev, show_profile_to_clients: checked }))
+                      }
+                      aria-label="Show my profile to clients"
                     />
                   </div>
                 </>

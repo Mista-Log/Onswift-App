@@ -159,6 +159,12 @@ class UserSettings(models.Model):
 
     # Deadlines page: whether the countdown timer is shown. Kept here so the choice follows the account.
     show_deadline_timer = models.BooleanField(default=True)
+    # Client portal: creators choose whether clients see their profile as a portfolio. Off until they
+    # say so. The prompt is asked once, the first time they generate an onboarding link.
+    show_profile_to_clients = models.BooleanField(default=False)
+    profile_prompt_seen_at = models.DateTimeField(null=True, blank=True)
+    # Clients: when they finished (or skipped) the portal tour, so it only runs once per account.
+    client_tour_done_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
