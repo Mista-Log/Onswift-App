@@ -172,7 +172,7 @@ export default function ClientHistoryPage() {
                 <>
                   {/* <span>{clients.length} client{clients.length !== 1 ? "s" : ""}</span> (should stay hidden, cards above already count clients)*/}
                   <span className="block mt-1 text-sm font-medium text-primary">
-                    Tap a client to view their onboarding responses
+                    Tap a client to learn more
                   </span>
                 </>
               )}

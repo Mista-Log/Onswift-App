@@ -130,10 +130,19 @@ class Task(models.Model):
     # Set when the creator sends the task (or one of its deliverables) back for changes. Cleared when
     # the assignee hands it in again (marks it ready or submits a deliverable) or the task is completed.
     revision_requested = models.BooleanField(default=False)
+    # The creator approved this task for the project's clients. Clients only ever see a task that
+    # is both completed and shared (see client_visible_tasks), so reopening a task hides it again.
+    shared_with_client = models.BooleanField(default=False)
+    shared_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.name
+
+
+def client_visible_tasks(queryset):
+    """Narrow a Task queryset to what a client may see: completed work the creator shared."""
+    return queryset.filter(status="completed", shared_with_client=True)
 
 
 class PersonalTask(models.Model):
@@ -450,9 +459,14 @@ class GoogleCalendarToken(models.Model):
 
 
 class TaskComment(models.Model):
+    # "team": the internal thread (creator + assignees). "client": the feedback thread between the
+    # creator and the project's clients. The two never mix.
+    AUDIENCE_CHOICES = [("team", "Team"), ("client", "Client")]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="comments")
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="task_comments")
+    audience = models.CharField(max_length=10, choices=AUDIENCE_CHOICES, default="team")
     content = models.TextField()
     parent = models.ForeignKey(
         "self",

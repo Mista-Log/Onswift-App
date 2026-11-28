@@ -21,6 +21,12 @@ import {
 import type { PortalProject } from "@/types/portal";
 import { format } from "date-fns";
 
+// Overview stats: a compact tile on phones and tablets, a label-and-number row in the desktop side column.
+const STAT_ROW =
+  "flex flex-col items-center gap-1 rounded-lg bg-muted/40 p-2 text-center lg:flex-row lg:justify-between lg:bg-transparent lg:p-0 lg:text-left";
+const STAT_LABEL = "flex flex-col items-center gap-1 lg:flex-row lg:gap-3";
+const STAT_VALUE = "order-first text-xl font-bold text-foreground lg:order-none lg:text-2xl";
+
 export default function ClientProjects() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -82,18 +88,18 @@ export default function ClientProjects() {
 
   return (
     <MainLayout>
-      <div className="animate-fade-in space-y-8">
+      <div className="animate-fade-in space-y-5 sm:space-y-8">
         {/* Welcome Header */}
         <div>
-          <h1 className="text-3xl font-bold text-foreground">
+          <h1 className="break-words text-2xl font-bold text-foreground sm:text-3xl">
             {greeting(user?.full_name)}
           </h1>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
           {/* Left Column — Projects */}
-          <div className="space-y-6 lg:col-span-2">
-            <section className="glass-card p-6">
+          <div className="min-w-0 space-y-6 lg:col-span-2">
+            <section className="glass-card p-4 sm:p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Your Projects</h2>
                 <Button
@@ -124,19 +130,22 @@ export default function ClientProjects() {
                     <div
                       key={project.id}
                       onClick={() => navigate(`/projects/${project.id}`)}
-                      className="glass-card-hover flex cursor-pointer items-center justify-between p-4 group"
+                      className="glass-card-hover flex cursor-pointer items-center justify-between p-3 sm:p-4 group"
                     >
-                      <div className="flex-1 min-w-0 mr-4">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <h3 className="font-semibold text-foreground truncate">{project.name}</h3>
+                      <div className="flex-1 min-w-0 mr-3 sm:mr-4">
+                        {/* The name gets its own line (up to two), so the badge never squeezes it. */}
+                        <h3 className="mb-1 line-clamp-2 break-words font-semibold leading-snug text-foreground">
+                          {project.name}
+                        </h3>
+                        <div className="mb-2 flex min-w-0 items-center gap-2">
                           <Badge
                             variant="outline"
                             className={`shrink-0 text-xs capitalize ${getStatusColor(project.status)}`}
                           >
                             {project.status.replace("_", " ")}
                           </Badge>
+                          <p className="min-w-0 truncate text-xs text-muted-foreground">by {project.creator_name}</p>
                         </div>
-                        <p className="text-xs text-muted-foreground mb-2">by {project.creator_name}</p>
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
                             <div
@@ -151,7 +160,7 @@ export default function ClientProjects() {
                       </div>
 
                       <div className="flex items-center gap-3 shrink-0">
-                        <div className="text-right hidden sm:block">
+                        {/* <div className="text-right hidden sm:block">
                           <p className="text-xs text-muted-foreground">
                             {project.completed_tasks}/{project.total_tasks} tasks
                           </p>
@@ -160,7 +169,7 @@ export default function ClientProjects() {
                               Due {format(new Date(project.due_date), "MMM d")}
                             </p>
                           )}
-                        </div>
+                        </div> */}
                         <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                       </div>
                     </div>
@@ -172,48 +181,48 @@ export default function ClientProjects() {
 
           {/* Right Column — Overview + Quick Access */}
           <div className="space-y-4">
-            <section className="glass-card p-6">
+            <section className="glass-card p-4 sm:p-6">
               <h2 className="text-lg font-semibold text-foreground mb-4">Overview</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+              <div className="grid grid-cols-3 gap-2 lg:block lg:space-y-4">
+                <div className={STAT_ROW}>
+                  <div className={STAT_LABEL}>
                     <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
                       <FolderKanban className="h-4 w-4 text-primary" />
                     </div>
-                    <span className="text-sm text-muted-foreground">Active Projects</span>
+                    <span className="text-xs text-muted-foreground lg:text-sm">Active Projects</span>
                   </div>
-                  <span className="text-2xl font-bold text-foreground">{activeCount}</span>
+                  <span className={STAT_VALUE}>{activeCount}</span>
                 </div>
 
-                <div className="h-px bg-border" />
+                <div className="hidden h-px bg-border lg:block" />
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className={STAT_ROW}>
+                  <div className={STAT_LABEL}>
                     <div className="h-9 w-9 rounded-lg bg-green-500/10 flex items-center justify-center">
                       <CheckCircle2 className="h-4 w-4 text-green-600" />
                     </div>
-                    <span className="text-sm text-muted-foreground">Completed</span>
+                    <span className="text-xs text-muted-foreground lg:text-sm">Completed</span>
                   </div>
-                  <span className="text-2xl font-bold text-foreground">{completedCount}</span>
+                  <span className={STAT_VALUE}>{completedCount}</span>
                 </div>
 
-                <div className="h-px bg-border" />
+                <div className="hidden h-px bg-border lg:block" />
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className={STAT_ROW}>
+                  <div className={STAT_LABEL}>
                     <div className="h-9 w-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
                       <Clock className="h-4 w-4 text-blue-600" />
                     </div>
-                    <span className="text-sm text-muted-foreground">Tasks Done</span>
+                    <span className="text-xs text-muted-foreground lg:text-sm">Tasks Done</span>
                   </div>
-                  <span className="text-2xl font-bold text-foreground">
+                  <span className={STAT_VALUE}>
                     {totalTasks > 0 ? `${completedTasks}/${totalTasks}` : "—"}
                   </span>
                 </div>
               </div>
             </section>
 
-            <section className="glass-card p-6">
+            <section className="glass-card p-4 sm:p-6">
               <h2 className="text-lg font-semibold text-foreground mb-4">Quick Access</h2>
               <div className="space-y-1">
                 <button

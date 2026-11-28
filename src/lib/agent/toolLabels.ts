@@ -9,6 +9,7 @@ const RUNNING: Record<string, string> = {
   get_client: "Opening a client",
   create_project: "Preparing a new project",
   create_task: "Preparing a new task",
+  create_tasks: "Preparing your tasks",
   update_task: "Preparing a task change",
   get_analytics: "Checking your workspace numbers",
   search_docs: "Searching your docs",
@@ -31,6 +32,7 @@ const DONE: Record<string, string> = {
   get_client: "Opened a client",
   create_project: "Prepared a new project for your approval",
   create_task: "Prepared a new task for your approval",
+  create_tasks: "Prepared your tasks for your approval",
   update_task: "Prepared a task change for your approval",
   get_analytics: "Checked your workspace numbers",
   search_docs: "Searched your docs",
@@ -45,7 +47,7 @@ const DONE: Record<string, string> = {
 
 const FAILED = "Couldn't read that";
 const FAILED_WRITE = "Couldn't prepare that change";
-const WRITE_TOOLS = new Set(["create_project", "create_task", "update_task", "create_doc", "create_form", "update_form", "create_onboarding_form"]);
+const WRITE_TOOLS = new Set(["create_project", "create_task", "create_tasks", "update_task", "create_doc", "create_form", "update_form", "create_onboarding_form"]);
 
 /** Tool names we haven't labelled still read sensibly: "list_widgets" becomes "list widgets". */
 const fallback = (name: string) => name.replace(/_/g, " ");

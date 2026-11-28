@@ -43,7 +43,7 @@ export default function ForgotPassword() {
           <div className="text-center mb-8">
             <Link to="/" className="inline-block mb-6">
               <h1 className="text-2xl font-bold text-foreground">
-                On<span className="text-primary">Swift</span>
+                 <span className="text-primary">OnSwift</span>
               </h1>
             </Link>
             

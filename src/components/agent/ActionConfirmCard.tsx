@@ -63,7 +63,7 @@ function detailRows(args: Record<string, unknown>): Array<[string, string]> {
   return Object.entries(args)
     .filter(([key, value]) => !key.endsWith("_id") && !key.endsWith("_ids") && value !== null && value !== undefined && value !== "")
     .filter(([key, value]) => !(key === "questions" && asQuestions(value)))
-    .filter(([key]) => key !== "operations" && key !== "allow_duplicate") // plumbing: the preview says it in words
+    .filter(([key]) => key !== "operations" && key !== "tasks" && key !== "allow_duplicate") // the preview says it in words
     .map(([key, value]) => [FIELD_LABELS[key] ?? key.replace(/_/g, " "), formatValue(value)]);
 }
 
@@ -121,8 +121,8 @@ const CHANGE_TINTS: Record<string, string> = {
   Move: "bg-violet-500/20",
 };
 
-/** What an edit will do, one row per change: the kind of change, which question, and the details. */
-function ChangeTable({ items }: { items: PreviewItem[] }) {
+/** What an edit will do, one row per change: the kind of change, which item, and the details. */
+function ChangeTable({ items, itemHeading = "Question" }: { items: PreviewItem[]; itemHeading?: string }) {
   return (
     <div className="mt-3 max-h-64 overflow-auto rounded-lg border border-border/60">
       <table className="w-full min-w-[22rem] border-collapse text-left text-xs">
@@ -130,7 +130,7 @@ function ChangeTable({ items }: { items: PreviewItem[] }) {
         <thead className="sticky top-0 bg-background/80 text-muted-foreground backdrop-blur">
           <tr>
             <th scope="col" className="px-2 py-1.5 font-medium">Change</th>
-            <th scope="col" className="px-2 py-1.5 font-medium">Question</th>
+            <th scope="col" className="px-2 py-1.5 font-medium">{itemHeading}</th>
             <th scope="col" className="px-2 py-1.5 font-medium">Details</th>
           </tr>
         </thead>
@@ -187,7 +187,9 @@ export function ActionConfirmCard({ action, onResolve, locked = false }: ActionC
       )}
 
       {questions && <QuestionTable questions={questions} />}
-      {action.preview && action.preview.length > 0 && <ChangeTable items={action.preview} />}
+      {action.preview && action.preview.length > 0 && (
+        <ChangeTable items={action.preview} itemHeading={action.tool === "create_tasks" ? "Task" : "Question"} />
+      )}
 
       {action.status === "pending" && (
         <div className="mt-3 flex items-center gap-2">

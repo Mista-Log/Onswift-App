@@ -155,7 +155,7 @@ class LoginSerializer(serializers.Serializer):
         )
 
         if not user:
-            raise serializers.ValidationError("Invalid email or password")
+            raise serializers.ValidationError("Invalid email or password. Please try again.")
 
         if not user.is_active:
             raise serializers.ValidationError("User account is disabled")
@@ -335,6 +335,7 @@ class UserSettingsSerializer(serializers.ModelSerializer):
             'reminder_enabled', 'reminder_frequency', 'reminder_weekday',
             'reminder_time', 'reminder_timezone', 'reminder_email',
             'last_reminder_sent_on', 'show_deadline_timer',
+            'show_profile_to_clients', 'profile_prompt_seen_at', 'client_tour_done_at',
         ]
         read_only_fields = ['last_reminder_sent_on']
 

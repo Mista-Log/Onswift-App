@@ -155,6 +155,25 @@ class PortalProjectDetailView(APIView):
         })
 
 
+class PortalCreatorProfileView(APIView):
+    """
+    GET /api/v5/projects/<project_id>/creator-profile/
+    The creator's profile, shown to their clients as a portfolio — only while the creator has
+    "Show my profile to clients" switched on. Otherwise it looks like it doesn't exist.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsClientRole, IsProjectClient]
+
+    def get(self, request, project_id):
+        from account.models import UserSettings
+        from account.profiles import shared_profile
+        project = Project.objects.select_related("creator").filter(id=project_id).first()
+        if not project or not UserSettings.objects.filter(
+            user_id=project.creator_id, show_profile_to_clients=True
+        ).exists():
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(shared_profile(project.creator))
+
+
 # ── Messaging Endpoints ──────────────────────────────────────────────
 class PortalMessageListView(APIView):
     """

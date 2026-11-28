@@ -20,7 +20,7 @@ import {
 import {
   Plus, Send, Trash2, Link as LinkIcon,
   FileText, X, Loader2, CheckSquare, Tag, Repeat, Clock, RotateCcw,
-  MoreVertical, Check, ExternalLink, Reply, Paperclip, MessageSquare, ChevronLeft, Pencil,
+  MoreVertical, Check, Eye, ExternalLink, Reply, Paperclip, MessageSquare, ChevronLeft, Pencil,
   Circle, Flag, Calendar, User,
 } from "lucide-react";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
@@ -31,8 +31,11 @@ import { cn } from "@/lib/utils";
 import { uploadErrorMessage } from "@/lib/uploadError";
 import { AttachmentsSection } from "@/components/tasks/AttachmentsSection";
 import { secureFetch } from "@/api/apiClient";
+import { Switch } from "@/components/ui/switch";
+import { ShareWithClientDialog } from "@/components/project/ShareWithClientDialog";
 import {
   useTaskDetail,
+  type CommentThreadKind,
   type TaskDetail, type TaskChecklist, type TaskPriority, type RecurrenceType, type TaskDeliverable, type TaskComment,
 } from "@/hooks/useTaskDetail";
 import { MentionDropdown, type MentionMember } from "@/components/messaging/MentionDropdown";
@@ -48,6 +51,11 @@ interface TaskDetailModalProps {
   availableAssignees: Assignee[];
   currentUserId: string;
   isCreator: boolean;
+  /** The project has clients: completing asks whether to show the task to them, and the creator
+   *  gets a "Visible to client" switch and a Client feedback thread. */
+  hasClients?: boolean;
+  /** A client looking at shared work: everything is read-only except the feedback thread. */
+  isClient?: boolean;
 }
 
 // ── Config ─────────────────────────────────────────────────────────────────
@@ -88,12 +96,13 @@ function formatRelative(iso: string) {
 // ── Checklist sub-component ────────────────────────────────────────────────
 
 function ChecklistBlock({
-  checklist, taskId, isCreator, currentUserId,
+  checklist, taskId, isCreator, currentUserId, readOnly = false,
   onToggle, onAddItem, onDeleteItem, onDelete,
 }: {
   checklist: TaskChecklist;
   taskId: string;
   isCreator: boolean;
+  readOnly?: boolean;
   currentUserId: string;
   onToggle: (checklistId: string, itemId: string, val: boolean) => void;
   onAddItem: (checklistId: string, content: string) => void;
@@ -145,6 +154,7 @@ function ChecklistBlock({
             <Checkbox
               id={item.id}
               checked={item.is_checked}
+              disabled={readOnly}
               onCheckedChange={(v) => onToggle(checklist.id, item.id, Boolean(v))}
             />
             <label
@@ -284,7 +294,7 @@ function CommentThread({
 
 export function TaskDetailModal({
   taskId, open, onOpenChange, onTaskUpdated, onTaskDeleted,
-  availableAssignees, currentUserId, isCreator,
+  availableAssignees, currentUserId, isCreator, hasClients = false, isClient = false,
 }: TaskDetailModalProps) {
   const {
     task, isLoading, fetchTask, updateTask, requestTaskRevision, refreshTask, deleteTask,
@@ -353,6 +363,11 @@ export function TaskDetailModal({
   // ── Mobile split-view (details <-> comments) ──
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
 
+  // ── Comment threads: "team" (internal) or "client" (feedback). Clients only have the latter. ──
+  const [thread, setThread] = useState<CommentThreadKind>(isClient ? "client" : "team");
+  // A creator completing the task here, in a project with clients, is asked whether to share it.
+  const [askShare, setAskShare] = useState(false);
+
   const commentsEndRef = useRef<HTMLDivElement>(null);
   const deliverableFileInputRef = useRef<HTMLInputElement>(null);
   const attachmentModalFileInputRef = useRef<HTMLInputElement>(null);
@@ -385,6 +400,8 @@ export function TaskDetailModal({
       setEditingDeliverableId(null);
       setNewAttachmentLinkDraft("");
       setRemovingAttachmentId(null);
+      setThread(isClient ? "client" : "team");
+      setAskShare(false);
     }
   }, [open, taskId]);
 
@@ -406,28 +423,31 @@ export function TaskDetailModal({
     setRemovingAttachmentId(null);
   }, [task?.id]);
 
+  const activeComments: TaskComment[] =
+    (thread === "client" ? task?.client_comments : task?.comments) ?? [];
+
   useEffect(() => {
-    if (task?.comments?.length) commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [task?.comments?.length]);
+    if (activeComments.length) commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activeComments.length]);
 
   const selectedDeliverable = selectedDeliverableId
     ? ((task?.deliverables ?? []).find((d) => d.id === selectedDeliverableId) ?? null)
     : null;
 
   const replyingToComment = replyingToCommentId
-    ? ((task?.comments ?? []).find((c) => c.id === replyingToCommentId) ?? null)
+    ? (activeComments.find((c) => c.id === replyingToCommentId) ?? null)
     : null;
 
   // Group comments into top-level threads + their direct replies (one level of nesting).
-  const topLevelComments = (task?.comments ?? []).filter((c) => !c.parent);
+  const topLevelComments = activeComments.filter((c) => !c.parent);
   const repliesByParent = new Map<string, TaskComment[]>();
-  (task?.comments ?? []).forEach((c) => {
+  activeComments.forEach((c) => {
     if (c.parent) repliesByParent.set(c.parent, [...(repliesByParent.get(c.parent) ?? []), c]);
   });
 
   // Who can be @mentioned in this task's comments: the project creator + this
   // task's current assignees — exactly who already has access to this thread.
-  const mentionMembers: MentionMember[] = task ? (() => {
+  const mentionMembers: MentionMember[] = task && thread === "team" ? (() => {
     const candidates: MentionMember[] = [
       { id: task.project_creator_id, name: task.project_creator_name ?? "", avatar: task.project_creator_avatar, role: "creator" },
       // assignee_names/assignee_avatars are only sent on some responses (e.g. a PATCH
@@ -459,15 +479,30 @@ export function TaskDetailModal({
     catch { toast.error("Failed to update description"); }
   };
 
-  const handleField = async (updates: Partial<Pick<TaskDetail, "status" | "priority" | "deadline" | "task_time" | "recurrence_type" | "recurrence_days" | "assignees">>) => {
+  const handleField = async (updates: Partial<Pick<TaskDetail, "status" | "priority" | "deadline" | "task_time" | "recurrence_type" | "recurrence_days" | "assignees" | "shared_with_client">>) => {
     if (!task) return;
+    if (updates.status === "completed" && hasClients && task.status !== "completed" && updates.shared_with_client === undefined) {
+      setAskShare(true);
+      return;
+    }
     try { const u = await updateTask(task.id, updates); onTaskUpdated?.(u); }
     catch { toast.error("Failed to update task"); }
+  };
+
+  // "Visible to client" switch on a completed task (also covers tasks completed elsewhere).
+  const setClientVisibility = async (visible: boolean) => {
+    if (!task) return;
+    try {
+      const u = await updateTask(task.id, { shared_with_client: visible });
+      onTaskUpdated?.(u);
+      toast.success(visible ? "Now visible to your client" : "Hidden from your client");
+    } catch { toast.error("Couldn't change client visibility"); }
   };
 
   // Creator approves a task an assignee flagged: completing it clears awaiting_approval server-side.
   const handleApprove = async () => {
     if (!task) return;
+    if (hasClients) { setAskShare(true); return; }
     setIsApproving(true);
     try {
       const u = await updateTask(task.id, { status: "completed" });
@@ -497,7 +532,7 @@ export function TaskDetailModal({
     try {
       const raw = commentDraft.trim();
       const content = selectedDeliverable ? `Re: ${selectedDeliverable.title} : ${raw}` : raw;
-      await addComment(task.id, content, replyingToCommentId, commentMentions.map((m) => m.id));
+      await addComment(task.id, content, replyingToCommentId, commentMentions.map((m) => m.id), thread);
       setCommentDraft("");
       setReplyingToCommentId(null);
       setCommentMentions([]);
@@ -1086,12 +1121,13 @@ export function TaskDetailModal({
                       aria-label="Open comments"
                     >
                       <MessageSquare className="h-5 w-5" />
-                      {(task.comments ?? []).length > 0 && (
+                      {activeComments.length > 0 && (
                         <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center">
-                          {task.comments.length}
+                          {activeComments.length}
                         </span>
                       )}
                     </button>
+                    {!isClient && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground">
@@ -1116,6 +1152,7 @@ export function TaskDetailModal({
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    )}
                   </div>
                 </div>
 
@@ -1219,6 +1256,7 @@ export function TaskDetailModal({
                   </div>
 
                   <div className="flex-1" />
+                  {!isClient && (
                   <Popover open={addMenuOpen} onOpenChange={setAddMenuOpen}>
                     <PopoverTrigger asChild>
                       <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs rounded-lg px-3 font-medium hover:bg-purple-50 hover:border-purple-400 hover:text-purple-700 transition-colors">
@@ -1246,6 +1284,7 @@ export function TaskDetailModal({
                       ))}
                     </PopoverContent>
                   </Popover>
+                  )}
 
                   {/* Delete task — creator only */}
                   {isCreator && (
@@ -1277,6 +1316,23 @@ export function TaskDetailModal({
                   />
                   <span className="text-sm text-muted-foreground">days</span>
                 </div>
+              )}
+
+              {isCreator && hasClients && task.status === "completed" && (
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-secondary/30 px-4 py-3 cursor-pointer">
+                  <span className="flex items-center gap-2 text-sm">
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                    <span>
+                      <span className="font-medium">Visible to client</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {task.shared_with_client
+                          ? "Your client can see this task and leave feedback."
+                          : "Hidden. Clients only see tasks you approve."}
+                      </span>
+                    </span>
+                  </span>
+                  <Switch checked={!!task.shared_with_client} onCheckedChange={setClientVisibility} aria-label="Visible to client" />
+                </label>
               )}
 
               {/* Pending-approval banner — shown to both roles; creator gets Approve / Request revision. */}
@@ -1428,6 +1484,7 @@ export function TaskDetailModal({
                       taskId={task.id}
                       isCreator={isCreator}
                       currentUserId={currentUserId}
+                      readOnly={isClient}
                       onToggle={(clId, itemId, val) => toggleChecklistItem(task.id, clId, itemId, val).catch(() => toast.error("Failed to update"))}
                       onAddItem={(clId, content) => addChecklistItem(task.id, clId, content).catch(() => toast.error("Failed to add item"))}
                       onDeleteItem={(clId, itemId) => deleteChecklistItem(task.id, clId, itemId).catch(() => toast.error("Failed to delete item"))}
@@ -1464,6 +1521,7 @@ export function TaskDetailModal({
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-1xl text-foreground font-bold uppercase tracking-wide">Attachments</p>
                   
+                  {!isClient && (
                   <Button
                     size="sm"
                     variant="ghost"
@@ -1473,6 +1531,7 @@ export function TaskDetailModal({
                     <Paperclip className="h-3.5 w-3.5" />
                     Add
                   </Button>
+                  )}
                 </div>
                 {(task.deliverables ?? []).length > 0 ? (
                   <div className="space-y-2">
@@ -1782,6 +1841,7 @@ export function TaskDetailModal({
                 canRemove={(a) =>
                   isCreator || (task.attachments ?? []).find((x) => x.id === a.id)?.uploaded_by === currentUserId
                 }
+                readOnly={isClient}
               />
             </div>
           );
@@ -1796,15 +1856,47 @@ export function TaskDetailModal({
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
-                <div>
-                  <h3 className="font-semibold text-sm text-foreground">Comments</h3>
-                  <p className="text-xs text-muted-foreground mt-1">{(task.comments ?? []).length} comment{(task.comments ?? []).length !== 1 ? "s" : ""}</p>
+                <div className="flex-1 min-w-0">
+                  {isCreator && hasClients ? (
+                    <div className="inline-flex rounded-lg bg-secondary/60 p-0.5" role="tablist" aria-label="Comment threads">
+                      {(["team", "client"] as const).map((t) => (
+                        <button
+                          key={t}
+                          role="tab"
+                          aria-selected={thread === t}
+                          onClick={() => { setThread(t); setReplyingToCommentId(null); setCommentMentions([]); }}
+                          className={cn(
+                            "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                            thread === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {t === "team" ? "Team" : "Client feedback"}
+                          {t === "client" && (task.client_comments ?? []).length > 0 && (
+                            <span className="ml-1.5 text-[10px] text-primary">{(task.client_comments ?? []).length}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <h3 className="font-semibold text-sm text-foreground">{isClient ? "Feedback" : "Comments"}</h3>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {thread === "client" && !isClient
+                      ? task.shared_with_client
+                        ? "Only you and your client see this thread."
+                        : "Your client can't see this task yet, so they can't reply here."
+                      : `${activeComments.length} comment${activeComments.length !== 1 ? "s" : ""}`}
+                  </p>
                 </div>
               </div>
 
               <div className="flex-1 overflow-y-auto scrollbar-thin-purple px-6 py-5 space-y-5">
-                {(task.comments ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-6">No comments yet. Start the conversation!</p>
+                {activeComments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    {isClient
+                      ? "Have thoughts on this work? Leave your feedback here."
+                      : "No comments yet. Start the conversation!"}
+                  </p>
                 ) : (
                   topLevelComments.map((c) => (
                     <CommentThread
@@ -1816,7 +1908,7 @@ export function TaskDetailModal({
                       isCreator={isCreator}
                       replyingToCommentId={replyingToCommentId}
                       onToggleReply={(id) => setReplyingToCommentId((prev) => (prev === id ? null : id))}
-                      onDelete={(id) => deleteComment(task.id, id).catch(() => toast.error("Failed to delete"))}
+                      onDelete={(id) => deleteComment(task.id, id, thread).catch(() => toast.error("Failed to delete"))}
                     />
                   ))
                 )}
@@ -1859,7 +1951,9 @@ export function TaskDetailModal({
                     placeholder={
                       replyingToComment
                         ? `Reply to ${replyingToComment.author === currentUserId ? "yourself" : replyingToComment.author_name}…`
-                        : selectedDeliverable ? `Reply about "${selectedDeliverable.title}"…` : "Write a comment... (Enter to send)"
+                        : selectedDeliverable ? `Reply about "${selectedDeliverable.title}"…`
+                        : thread === "client" ? (isClient ? "Write your feedback... (Enter to send)" : "Reply to your client... (Enter to send)")
+                        : "Write a comment... (Enter to send)"
                     }
                     value={commentDraft}
                     onChange={handleCommentChange}
@@ -1898,6 +1992,28 @@ export function TaskDetailModal({
           );
         })()}
       </DialogContent>
+
+      <ShareWithClientDialog
+        taskName={askShare && task ? task.name : null}
+        onCompleteAndShare={async () => {
+          setAskShare(false);
+          if (!task) return;
+          try {
+            const u = await updateTask(task.id, { status: "completed", shared_with_client: true });
+            onTaskUpdated?.(u);
+            toast.success("Completed and shown to your client");
+          } catch { toast.error("Failed to update task"); }
+        }}
+        onCompleteOnly={async () => {
+          setAskShare(false);
+          if (!task) return;
+          try {
+            const u = await updateTask(task.id, { status: "completed" });
+            onTaskUpdated?.(u);
+          } catch { toast.error("Failed to update task"); }
+        }}
+        onCancel={() => setAskShare(false)}
+      />
 
       {/* Delete task confirmation */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>

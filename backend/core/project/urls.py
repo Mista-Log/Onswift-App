@@ -11,6 +11,8 @@ from .views import (
     TaskRequestCompletionView,
     TaskRequestRevisionView,
     TaskCommentListCreateView,
+    TaskClientCommentListCreateView,
+    ProjectShareCompletedTasksView,
     TaskCommentDeleteView,
     TaskAttachmentListCreateView,
     TaskAttachmentDeleteView,
@@ -97,6 +99,9 @@ urlpatterns = [
     # Task Comments
     path("tasks/<uuid:task_id>/comments/", TaskCommentListCreateView.as_view(), name="task-comment-list"),
     path("tasks/<uuid:task_id>/comments/<uuid:comment_id>/", TaskCommentDeleteView.as_view(), name="task-comment-delete"),
+    path("tasks/<uuid:task_id>/client-comments/", TaskClientCommentListCreateView.as_view(), name="task-client-comment-list"),
+    path("tasks/<uuid:task_id>/client-comments/<uuid:comment_id>/", TaskCommentDeleteView.as_view(), name="task-client-comment-delete"),
+    path("projects/<uuid:project_id>/share-completed/", ProjectShareCompletedTasksView.as_view(), name="project-share-completed"),
 
     # Task Attachments
     path("tasks/<uuid:task_id>/attachments/", TaskAttachmentListCreateView.as_view(), name="task-attachment-list"),

@@ -4,7 +4,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatusDot } from "@/components/dashboard/StatusDot";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Calendar as CalendarIcon, Users, FolderKanban, MoreVertical, Trash2, ExternalLink, ArrowRight, Pencil, Copy, Search, ListFilter, X } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Users, FolderKanban, MoreVertical, Trash2, ExternalLink, ArrowRight, Pencil, Copy, Search, ListFilter, X, Star } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CelebrationModal } from "@/components/CelebrationModal";
 import { Calendar } from "@/components/ui/calendar";
@@ -61,13 +61,14 @@ export default function Projects() {
   const [projectToRename, setProjectToRename] = useState<{ id: string; name: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "planning" | "in-progress" | "completed">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "planning" | "in-progress" | "completed" | "clients">("all");
 
-  // Search matches the name or description; the filter narrows by status. Both apply together.
+  // Search matches the name or description; the filter narrows by status, or to projects with clients.
+  // Both apply together.
   const needle = query.trim().toLowerCase();
   const visibleProjects = projects.filter(
     (p) =>
-      (statusFilter === "all" || p.status === statusFilter) &&
+      (statusFilter === "all" || (statusFilter === "clients" ? !!p.has_clients : p.status === statusFilter)) &&
       (!needle || p.name.toLowerCase().includes(needle) || (p.description ?? "").toLowerCase().includes(needle)),
   );
   const filtering = needle !== "" || statusFilter !== "all";
@@ -84,7 +85,7 @@ export default function Projects() {
           setSharedWithMe(rows.map((p) => ({ ...p, status: deriveStatus(p) })));
         }
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       cancelled = true;
     };
@@ -261,65 +262,65 @@ export default function Projects() {
               </Button>
 
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogContent className="glass-card border-border/50 sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Create New Project</DialogTitle>
-                  <DialogDescription>
-                    Add a new project to organize your tasks and team.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Project Name</Label>
-                    <Input
-                      id="name"
-                      placeholder="Enter project name"
-                      value={formData.name}
-                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    />
+                <DialogContent className="glass-card border-border/50 sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Create New Project</DialogTitle>
+                    <DialogDescription>
+                      Add a new project to organize your tasks and team.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Project Name</Label>
+                      <Input
+                        id="name"
+                        placeholder="Enter project name"
+                        value={formData.name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(Optional)</span></Label>
+                      <Textarea
+                        id="description"
+                        placeholder="Describe your project"
+                        value={formData.description}
+                        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Due Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !formData.due_date && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {formData.due_date ? format(new Date(formData.due_date), "PPP") : "Pick a date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 z-50" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={formData.due_date ? new Date(formData.due_date) : undefined}
+                            onSelect={(date) => setFormData(prev => ({ ...prev, due_date: date ? format(date, "yyyy-MM-dd") : "" }))}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(Optional)</span></Label>
-                    <Textarea
-                      id="description"
-                      placeholder="Describe your project"
-                      value={formData.description}
-                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    />
+                  <div className="flex justify-end gap-3">
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleCreateProject}>Create Project</Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Due Date</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !formData.due_date && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {formData.due_date ? format(new Date(formData.due_date), "PPP") : "Pick a date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-50" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={formData.due_date ? new Date(formData.due_date) : undefined}
-                          onSelect={(date) => setFormData(prev => ({ ...prev, due_date: date ? format(date, "yyyy-MM-dd") : "" }))}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCreateProject}>Create Project</Button>
-                </div>
-              </DialogContent>
+                </DialogContent>
               </Dialog>
             </>
           )}
@@ -359,7 +360,7 @@ export default function Projects() {
                 className="gap-2 text-base px-8"
                 onClick={() => setIsDialogOpen(true)}
               >
-                
+
                 Create My First Project
               </Button>
               <p className="mt-3 text-xs text-muted-foreground">Takes less than a minute</p>
@@ -367,131 +368,143 @@ export default function Projects() {
           )
         ) : (
           <>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-              <Input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search projects"
-                aria-label="Search projects"
-                className="pl-9 pr-9"
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  aria-label="Clear search"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                <Input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search projects"
+                  aria-label="Search projects"
+                  className="pl-9 pr-9"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="Clear search"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+                <SelectTrigger className="sm:w-48" aria-label="Filter by status">
+                  <ListFilter className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All projects</SelectItem>
+                  <SelectItem value="planning">Planning</SelectItem>
+                  <SelectItem value="in-progress">In progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="clients">With clients</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-              <SelectTrigger className="sm:w-48" aria-label="Filter by status">
-                <ListFilter className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All projects</SelectItem>
-                <SelectItem value="planning">Planning</SelectItem>
-                <SelectItem value="in-progress">In progress</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
-          {visibleProjects.length === 0 && filtering && (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 p-10 text-center">
-              <p className="font-semibold text-foreground">No projects match</p>
-              <p className="mt-1 text-sm text-muted-foreground">Try a different search or filter.</p>
-              <Button variant="outline" className="mt-4" onClick={() => { setQuery(""); setStatusFilter("all"); }}>
-                Clear search and filter
-              </Button>
-            </div>
-          )}
+            {visibleProjects.length === 0 && filtering && (
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 p-10 text-center">
+                <p className="font-semibold text-foreground">No projects match</p>
+                <p className="mt-1 text-sm text-muted-foreground">Try a different search or filter.</p>
+                <Button variant="outline" className="mt-4" onClick={() => { setQuery(""); setStatusFilter("all"); }}>
+                  Clear search and filter
+                </Button>
+              </div>
+            )}
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {visibleProjects.map((project) => {
-              const progress =
-                project.task_count === 0
-                  ? 0
-                  : (project.completed_tasks / project.task_count) * 100;
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {visibleProjects.map((project) => {
+                const progress =
+                  project.task_count === 0
+                    ? 0
+                    : (project.completed_tasks / project.task_count) * 100;
 
-              return (
-                <div
-                  key={project.id}
-                  onClick={() => navigate(`/projects/${project.id}`)}
-                  className="glass-card-hover cursor-pointer p-6 group hover:-translate-y-1"
-                >
-                  <div className="flex justify-between mb-3">
-                    <h3 className="font-semibold">{project.name}</h3>
-                    <div className="flex items-center gap-2">
-                      <StatusDot status={project.status} />
-                      {(!isTalent || project.creator === user?.id) && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 opacity-0:opacity-100 transition-opacity"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/projects/${project.id}`); }}>
-                              <ExternalLink className="h-4 w-4 mr-2" />
-                              Open Project
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => openRenameDialog(e, { id: project.id, name: project.name })}>
-                              <Pencil className="h-4 w-4 mr-2" />
-                              Rename Project
-                            </DropdownMenuItem>
-                            {!isTalent && (
-                              <DropdownMenuItem onClick={(e) => handleDuplicateProject(e, { id: project.id, name: project.name })}>
-                                <Copy className="h-4 w-4 mr-2" />
-                                Duplicate Project
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem
-                              onClick={(e) => openDeleteDialog(e, { id: project.id, name: project.name })}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete Project
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
-                  </div>
-
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {project.description}
-                  </p>
-
-                  {/* Progress */}
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>Progress</span>
-                      <span>
-                        {project.completed_tasks}/{project.task_count}
-                      </span>
-                    </div>
-
-                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                return (
+                  <div
+                    key={project.id}
+                    onClick={() => navigate(`/projects/${project.id}`)}
+                    className="glass-card-hover relative overflow-hidden cursor-pointer p-6 group hover:-translate-y-1"
+                  >
+                    {project.has_clients && (
+                      // A folded purple corner marks projects shared with a client.
                       <div
-                        className="h-full bg-primary"
-                        style={{ width: `${progress}%` }}
-                      />
+                        role="img"
+                        aria-label="Shared with a client"
+                        title="Shared with a client"
+                        className="pointer-events-auto absolute right-0 top-0 h-11 w-11 bg-gradient-to-bl from-primary to-[hsl(250_76%_50%)] shadow-md [clip-path:polygon(0_0,100%_0,100%_100%)]"
+                      >
+                        <Star className="absolute right-1.5 top-1.5 h-3.5 w-3.5 fill-white text-white" aria-hidden />
+                      </div>
+                    )}
+                    <div className={`flex justify-between mb-3 ${project.has_clients ? "pr-6" : ""}`}>
+                      <h3 className="font-semibold">{project.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <StatusDot status={project.status} />
+                        {(!isTalent || project.creator === user?.id) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 opacity-0:opacity-100 transition-opacity"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/projects/${project.id}`); }}>
+                                <ExternalLink className="h-4 w-4 mr-2" />
+                                Open Project
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => openRenameDialog(e, { id: project.id, name: project.name })}>
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Rename Project
+                              </DropdownMenuItem>
+                              {!isTalent && (
+                                <DropdownMenuItem onClick={(e) => handleDuplicateProject(e, { id: project.id, name: project.name })}>
+                                  <Copy className="h-4 w-4 mr-2" />
+                                  Duplicate Project
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem
+                                onClick={(e) => openDeleteDialog(e, { id: project.id, name: project.name })}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Project
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Meta */}
-                  {/* <div className="flex justify-between items-center text-sm">
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {project.description}
+                    </p>
+
+                    {/* Progress */}
+                    <div className="mb-4">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Progress</span>
+                        <span>
+                          {project.completed_tasks}/{project.task_count}
+                        </span>
+                      </div>
+
+                      <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Meta */}
+                    {/* <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
                       {project.due_date}
@@ -509,16 +522,16 @@ export default function Projects() {
                     </div>
                   </div> */}
 
-                  <div className="flex items-center justify-end pt-2 mt-1 border-t border-border/40">
-                    <button className="flex items-center gap-1 text-xs text-primary-foreground bg-primary hover:bg-primary/90 rounded-full px-3 py-1.5 transition-colors">
-                      Open project
-                      <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
-                    </button>
+                    <div className="flex items-center justify-end pt-2 mt-1 border-t border-border/40">
+                      <button className="flex items-center gap-1 text-xs text-primary-foreground bg-primary hover:bg-primary/90 rounded-full px-3 py-1.5 transition-colors">
+                        Open project
+                        <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
           </>
         )}
 

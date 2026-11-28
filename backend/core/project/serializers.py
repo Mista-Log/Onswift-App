@@ -150,6 +150,26 @@ def record_revision_request(task, creator, feedback, deliverable=None):
     return TaskComment.objects.create(task=task, author=creator, content=content)
 
 
+def notify_clients_of_shared_tasks(project, tasks):
+    """Tell a project's clients that completed work was shared with them (one notice per client)."""
+    from notification.services import create_notification
+    from .models import ProjectClientMembership
+    if not tasks:
+        return
+    if len(tasks) == 1:
+        message = f"{project.creator.full_name} shared completed work: '{tasks[0].name}'."
+    else:
+        message = f"{project.creator.full_name} shared {len(tasks)} completed tasks in '{project.name}'."
+    for m in ProjectClientMembership.objects.filter(project=project).select_related("client"):
+        create_notification(
+            user=m.client,
+            title="New completed work",
+            message=message,
+            notification_type="system",
+            link=f"/projects/{project.id}",
+        )
+
+
 class TaskSerializer(serializers.ModelSerializer):
     assignees = serializers.PrimaryKeyRelatedField(
         many=True,
@@ -165,9 +185,10 @@ class TaskSerializer(serializers.ModelSerializer):
             "status", "priority", "deadline", "task_time",
             "recurrence_type", "recurrence_days",
             "awaiting_approval", "revision_requested",
+            "shared_with_client", "shared_at",
             "created_at",
         ]
-        read_only_fields = ["project", "awaiting_approval", "revision_requested", "created_at"]
+        read_only_fields = ["project", "awaiting_approval", "revision_requested", "shared_at", "created_at"]
 
     def get_assignee_names(self, obj):
         return [u.full_name for u in obj.assignees.all()]
@@ -184,9 +205,20 @@ class TaskSerializer(serializers.ModelSerializer):
             self._notify_assignees(task, notify_targets, is_new=True)
         return task
 
+    def validate_shared_with_client(self, value):
+        # Only the project's creator decides what clients see.
+        request = self.context.get("request")
+        if request and self.instance is not None and self.instance.project.creator_id != request.user.id:
+            raise serializers.ValidationError("Only the project creator can share tasks with clients.")
+        return value
+
     def update(self, instance, validated_data):
         old_assignee_ids = set(instance.assignees.values_list("id", flat=True))
         old_status = instance.status
+        was_shared = instance.shared_with_client
+        if "shared_with_client" in validated_data:
+            from django.utils import timezone
+            validated_data["shared_at"] = timezone.now() if validated_data["shared_with_client"] else None
         new_assignees = validated_data.pop("assignees", None)
 
         task = super().update(instance, validated_data)
@@ -200,6 +232,9 @@ class TaskSerializer(serializers.ModelSerializer):
 
         if old_status != "completed" and task.status == "completed" and task.recurrence_type:
             spawn_recurring_task(task)
+
+        if task.shared_with_client and task.status == "completed" and not (was_shared and old_status == "completed"):
+            notify_clients_of_shared_tasks(task.project, [task])
 
         # A creator completing the task resolves any pending "awaiting approval" or revision request.
         if task.status == "completed" and (task.awaiting_approval or task.revision_requested):
@@ -233,9 +268,9 @@ class TaskCommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskComment
         fields = ["id", "author", "author_name", "author_role", "author_avatar",
-                  "content", "parent", "mentioned_users", "mention_ids", "created_at"]
+                  "content", "parent", "audience", "mentioned_users", "mention_ids", "created_at"]
         read_only_fields = ["id", "author", "author_name", "author_role", "author_avatar",
-                             "mentioned_users", "created_at"]
+                             "audience", "mentioned_users", "created_at"]
 
     def get_author_avatar(self, obj):
         if obj.author.profile_picture:
@@ -329,7 +364,10 @@ class TaskChecklistSerializer(serializers.ModelSerializer):
 
 
 class TaskDetailSerializer(TaskSerializer):
-    comments = TaskCommentSerializer(many=True, read_only=True)
+    # Two separate threads: "comments" is the internal team thread (never sent to clients);
+    # "client_comments" is the feedback thread (sent to the creator and clients, never to talents).
+    comments = serializers.SerializerMethodField()
+    client_comments = serializers.SerializerMethodField()
     attachments = TaskAttachmentSerializer(many=True, read_only=True)
     checklists = TaskChecklistSerializer(many=True, read_only=True)
     assignee_avatars = serializers.SerializerMethodField()
@@ -340,9 +378,31 @@ class TaskDetailSerializer(TaskSerializer):
 
     class Meta(TaskSerializer.Meta):
         fields = list(TaskSerializer.Meta.fields) + [
-            "comments", "attachments", "checklists", "assignee_avatars", "deliverables",
+            "comments", "client_comments", "attachments", "checklists", "assignee_avatars", "deliverables",
             "project_creator_id", "project_creator_name", "project_creator_avatar",
         ]
+
+    def _viewer(self):
+        request = self.context.get("request")
+        return getattr(request, "user", None)
+
+    def _thread(self, obj, audience):
+        comments = [c for c in obj.comments.all() if c.audience == audience]
+        return TaskCommentSerializer(comments, many=True, context=self.context).data
+
+    def get_comments(self, obj):
+        viewer = self._viewer()
+        if viewer is not None and viewer.role == "client":
+            return []
+        return self._thread(obj, "team")
+
+    def get_client_comments(self, obj):
+        viewer = self._viewer()
+        if viewer is None or viewer.role == "talent" or (
+            viewer.role == "creator" and obj.project.creator_id != viewer.id
+        ):
+            return []
+        return self._thread(obj, "client")
 
     def get_assignee_avatars(self, obj):
         avatars = []

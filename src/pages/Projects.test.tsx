@@ -104,3 +104,32 @@ describe("a creator", () => {
     expect(screen.queryByText("Shared by your team")).toBeNull();
   });
 });
+
+describe("projects with clients", () => {
+  beforeEach(() => {
+    auth.user = { id: "creator-1", role: "creator", full_name: "Cre Ator" };
+    ctx.projects = [
+      project({ id: "p1", name: "McTracy Agency", creator: "creator-1", has_clients: true }),
+      project({ id: "p2", name: "Internal rebrand", creator: "creator-1", has_clients: false }),
+    ];
+    // Radix Select needs these, which jsdom does not provide.
+    Element.prototype.hasPointerCapture ??= () => false;
+    Element.prototype.releasePointerCapture ??= () => {};
+    Element.prototype.scrollIntoView ??= () => {};
+  });
+
+  it("marks only the cards that have clients with the folded star corner", () => {
+    page();
+    const markers = screen.getAllByRole("img", { name: "Shared with a client" });
+    expect(markers).toHaveLength(1);
+    expect(markers[0].closest(".glass-card-hover")).toHaveTextContent("McTracy Agency");
+  });
+
+  it("can filter the board to projects with clients", async () => {
+    page();
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await userEvent.click(await screen.findByRole("option", { name: "With clients" }));
+    expect(screen.getByText("McTracy Agency")).toBeInTheDocument();
+    expect(screen.queryByText("Internal rebrand")).toBeNull();
+  });
+});

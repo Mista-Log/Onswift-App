@@ -77,6 +77,17 @@ import { PersonalTaskDialog, type PersonalTask } from "@/components/tasks/Person
 import { readCache } from "@/lib/cache";
 import { stageAction, type StageAction } from "@/lib/taskStages";
 import { CompletionGate } from "@/components/tasks/CompletionGate";
+import { ShareWithClientDialog } from "@/components/project/ShareWithClientDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -128,6 +139,9 @@ export default function ProjectDetail() {
   const [deliverablePrefill, setDeliverablePrefill] = useState<string | undefined>(undefined);
   // Task a talent is trying to complete: asks "do you have an attachment?" before anything is sent.
   const [gateTaskId, setGateTaskId] = useState<string | null>(null);
+  // A creator completing a task in a project with clients is asked whether to show it to them.
+  const [shareAskTaskId, setShareAskTaskId] = useState<string | null>(null);
+  const [isBulkShareOpen, setIsBulkShareOpen] = useState(false);
   const [uploadAttachmentSignal, setUploadAttachmentSignal] = useState(0);
 
   // Client chat now lives in a modal (ClientChatModal) instead of an inline card.
@@ -383,6 +397,11 @@ export default function ProjectDetail() {
     }
     // A plain stage change (button, drag, swipe) is applied instantly and synced in the background.
     if (Object.keys(updates).length === 1 && updates.status !== undefined) {
+      const current = tasks.find((t) => t.id === taskId);
+      if (updates.status === "completed" && project?.has_clients && current && current.status !== "completed") {
+        setShareAskTaskId(taskId);
+        return;
+      }
       changeTaskStatus(taskId, updates.status);
       return;
     }
@@ -397,6 +416,42 @@ export default function ProjectDetail() {
       } else {
         toast.error("Failed to update task");
       }
+    }
+  };
+
+  // Answers to "Is this task complete? Show it to your clients?"
+  const completeAndShare = async (taskId: string) => {
+    setShareAskTaskId(null);
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: "completed", shared_with_client: true } : t)));
+    feedbackSuccess();
+    try {
+      await updateTask(taskId, { status: "completed", shared_with_client: true });
+      toast.success("Completed and shown to your client");
+    } catch {
+      toast.error("Couldn't complete the task. Please try again.");
+    }
+    loadTasks();
+  };
+
+  const completeOnly = (taskId: string) => {
+    setShareAskTaskId(null);
+    changeTaskStatus(taskId, "completed");
+  };
+
+  // Completed tasks clients can't see yet (e.g. finished before sharing existed).
+  const unsharedCompletedCount = tasks.filter((t) => t.status === "completed" && !t.shared_with_client).length;
+
+  const shareAllCompleted = async () => {
+    if (!id) return;
+    setIsBulkShareOpen(false);
+    try {
+      const res = await secureFetch(`/api/v2/projects/${id}/share-completed/`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      const { shared } = await res.json();
+      toast.success(shared === 1 ? "1 task is now visible to your client" : `${shared} tasks are now visible to your client`);
+      loadTasks();
+    } catch {
+      toast.error("Couldn't share the tasks. Please try again.");
     }
   };
 
@@ -660,6 +715,12 @@ export default function ProjectDetail() {
                   <Edit className="mr-2 h-4 w-4" />
                   Rename Project
                 </DropdownMenuItem>
+                {project?.has_clients && unsharedCompletedCount > 0 && (
+                  <DropdownMenuItem onClick={() => setIsBulkShareOpen(true)}>
+                    <Eye className="mr-2 h-4 w-4" />
+                    Show completed tasks to client ({unsharedCompletedCount})
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleDeleteProject}
@@ -888,16 +949,16 @@ export default function ProjectDetail() {
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold">Tasks</h2>
             <Select value={sortMethod} onValueChange={(value: any) => setSortMethod(value)}>
-              <SelectTrigger className="w-48">
-                <ArrowUpDown className="h-4 w-4 mr-2" />
+              <SelectTrigger className="w-35">
+                {/* <ArrowUpDown className="h-4 w-4 mr-2" /> */}
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="deadline-asc">Soonest deadline</SelectItem>
-                <SelectItem value="deadline-desc">Latest deadline</SelectItem>
-                <SelectItem value="alphabetical-asc">Name (A-Z)</SelectItem>
-                <SelectItem value="alphabetical-desc">Name (Z-A)</SelectItem>
-              </SelectContent>
+                  <SelectContent>
+                    <SelectItem value="deadline-asc">Due soon</SelectItem>
+                    <SelectItem value="deadline-desc">Due last</SelectItem>
+                    <SelectItem value="alphabetical-asc">A-Z</SelectItem>
+                    <SelectItem value="alphabetical-desc">Z-A</SelectItem>
+                  </SelectContent>
             </Select>
           </div>
           {(isCreator || canTalentCreateTasks) && (
@@ -1265,6 +1326,29 @@ export default function ProjectDetail() {
           />
         )}
 
+        <ShareWithClientDialog
+          taskName={shareAskTaskId ? (tasks.find((t) => t.id === shareAskTaskId)?.name ?? "This task") : null}
+          onCompleteAndShare={() => shareAskTaskId && completeAndShare(shareAskTaskId)}
+          onCompleteOnly={() => shareAskTaskId && completeOnly(shareAskTaskId)}
+          onCancel={() => setShareAskTaskId(null)}
+        />
+
+        <AlertDialog open={isBulkShareOpen} onOpenChange={setIsBulkShareOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Show completed tasks to your client?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {unsharedCompletedCount === 1 ? "1 completed task" : `${unsharedCompletedCount} completed tasks`} in this
+                project will become visible in your client's portal. You can hide any of them again from the task.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={shareAllCompleted}>Show them</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <CompletionGate
           open={!!gateTaskId}
           onClose={() => setGateTaskId(null)}
@@ -1285,6 +1369,7 @@ export default function ProjectDetail() {
           availableAssignees={availableAssignees}
           currentUserId={user?.id ?? ""}
           isCreator={isCreator}
+          hasClients={!!project?.has_clients}
         />
 
         <PersonalTaskDialog

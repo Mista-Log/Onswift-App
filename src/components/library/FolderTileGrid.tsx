@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Folder as FolderIcon, FolderPlus, Loader2, MoreVertical, Pencil, Trash2, Users } from "lucide-react";
+import { Folder as  FolderIcon, FolderPlus, Loader2, MoreVertical, Pencil, Trash2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LibraryFolder } from "@/types/library";
 
@@ -80,16 +80,16 @@ export function FolderTileGrid({
             }
           }}
         >
-          <div className="flex items-center justify-center rounded-xl bg-amber-500/10 flex-shrink-0 h-10 w-10">
-            <FolderIcon size={20} className="text-amber-500" />
+          <div className="flex items-center justify-center rounded-xl bg-500/10 flex-shrink-0 h-10 w-10">
+            <FolderIcon size={20} className="text-500" />
           </div>
 
           <div className="w-full min-w-0">
             <p className="text-sm font-medium text-foreground truncate">{folder.name}</p>
-            <p className="text-[11px] text-muted-foreground">
+            {/* <p className="text-[11px] text-muted-foreground">
               {folder.subfolder_count > 0 ? `${folder.subfolder_count} folder${folder.subfolder_count === 1 ? "" : "s"}, ` : ""}
               {itemCount(folder)} {itemCount(folder) === 1 ? "item" : "items"}
-            </p>
+            </p> */}
           </div>
 
           <div className="absolute top-2 right-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
