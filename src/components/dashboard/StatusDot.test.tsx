@@ -6,7 +6,7 @@ describe("StatusDot", () => {
   afterEach(() => document.documentElement.classList.remove("dark"));
 
   it.each([
-    ["planning", "Planning", "bg-red-500"],
+    ["planning", "Planning", "bg-yellow-500"],
     ["in-progress", "In Progress", "bg-[hsl(250_76%_63%)]"],
     ["completed", "Completed", "bg-emerald-500"],
   ])("shows %s as a coloured circle with its name for assistive tech and the tooltip", (status, label, color) => {
